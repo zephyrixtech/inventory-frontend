@@ -49,7 +49,7 @@ import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 import QualityControlPage from '@/pages/purchaser/QC';
 import {PackingListsPage} from '@/pages/purchaser/PackingLists'
-import { DailyExpensesPage } from "@/pages/purchaser/dailyExpenses";
+import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { StoreStockPage } from "@/pages/store/StoreStock";
 
 
