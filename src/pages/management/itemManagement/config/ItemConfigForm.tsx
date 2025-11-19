@@ -443,7 +443,7 @@ const ItemConfigForm = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Textbox">Textbox</SelectItem>
-                        <SelectItem value="Dropdown">Dropdown</SelectItem>
+                        {/* <SelectItem value="Dropdown">Dropdown</SelectItem> */}
                         <SelectItem value="Textarea">Textarea</SelectItem>
                       </SelectContent>
                     </Select>
