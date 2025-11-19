@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  getItemConfigurationById, 
-  updateItemConfiguration, 
+import {
+  getItemConfigurationById,
+  updateItemConfiguration,
   createMultipleItemConfigurations
 } from '@/services/itemService';
+import type { ItemConfigData } from '@/services/itemService';
 
 // Zod schema for individual field
 const fieldSchema = z.object({
@@ -24,11 +25,11 @@ const fieldSchema = z.object({
   controlType: z.enum(['Textbox', 'Dropdown', 'Textarea'], {
     required_error: 'Control type is required',
   }),
-  collectionName: z.string().optional(),
+  collectionName: z.string().nullable().optional(),
   dataType: z.enum(['text', 'number', 'unit']).nullable().optional(),
   order: z.number().min(1),
   maxLength: z.number().min(0),
-  measurementType: z.string().optional(),
+  measurementType: z.string().nullable().optional(),
   isMandatory: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   if (data.controlType === 'Dropdown' && !data.collectionName) {
@@ -49,14 +50,38 @@ const fieldSchema = z.object({
 
 type FieldFormValues = z.infer<typeof fieldSchema>;
 
+interface UnitOption {
+  id: string;
+  name: string;
+}
+
+interface CollectionOption {
+  id: string;
+  display_name: string;
+}
+
+// Define the type for the item configuration data
+interface ItemConfigDataType {
+  id?: string;
+  name: string;
+  description?: string;
+  control_type: 'Textbox' | 'Dropdown' | 'Textarea';
+  collection_id?: string | null | { toString: () => string };
+  data_type?: 'text' | 'number' | 'unit';
+  sequence: number;
+  max_length?: number;
+  item_unit_id?: string | null | { toString: () => string };
+  is_mandatory: boolean;
+}
+
 const ItemConfigForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
   const user = localStorage.getItem('userData');
   const userData = user ? JSON.parse(user) : null;
-  const [units, setUnits] = useState<any[]>([]);
-  const [collections, setCollections] = useState<any[]>([]);
+  const [units, setUnits] = useState<UnitOption[]>([]);
+  const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [addedFields, setAddedFields] = useState<FieldFormValues[]>([]);
   const [showForm, setShowForm] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -110,9 +135,10 @@ const ItemConfigForm = () => {
           { id: '2', display_name: 'Sizes' },
           { id: '3', display_name: 'Brands' }
         ]);
-      } catch (error: any) {
-        console.error("Fetch Units/Collections Error =>", error.message || error);
-        toast.error("Failed to fetch units/collections: " + (error.message || "Unknown error"));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Fetch Units/Collections Error =>', message);
+        toast.error('Failed to fetch units/collections: ' + message);
       }
     };
 
@@ -126,23 +152,41 @@ const ItemConfigForm = () => {
       setLoading(true);
       const response = await getItemConfigurationById(id);
       
-      const data = response;
+      const data = response as ItemConfigDataType;
       if (data) {
+        // Handle collection_id - it might be an ObjectId or string
+        const collectionId = data.collection_id 
+          ? (typeof data.collection_id === 'object' && data.collection_id !== null && 'toString' in data.collection_id
+              ? data.collection_id.toString() 
+              : String(data.collection_id))
+          : undefined;
+        
+        // Handle item_unit_id - it might be an ObjectId or string
+        const itemUnitId = data.item_unit_id
+          ? (typeof data.item_unit_id === 'object' && data.item_unit_id !== null && 'toString' in data.item_unit_id
+              ? data.item_unit_id.toString()
+              : String(data.item_unit_id))
+          : undefined;
+        
         reset({
-          label: data.name,
+          label: data.name || '',
           description: data.description || '',
           controlType: data.control_type as 'Textbox' | 'Dropdown' | 'Textarea',
-          collectionName: data.collection_id ?? undefined,
+          collectionName: collectionId,
           dataType: data.data_type as 'text' | 'number' | 'unit' | undefined,
-          order: data.sequence,
+          order: data.sequence || 0,
           maxLength: data.max_length || 0,
-          measurementType: data.item_unit_id || undefined,
+          measurementType: itemUnitId,
           isMandatory: data.is_mandatory || false,
         });
       }
-    } catch (error: any) {
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (error instanceof Error ? error.message : 'Unknown error');
       console.error('Fetch error =>', error);
-      toast.error('Failed to fetch field data: ' + (error.message || 'Unknown error'));
+      const errorMessage = message || 'Unknown error';
+      toast.error('Failed to fetch field data: ' + errorMessage);
     } finally {
       setLoading(false);
     }
@@ -208,9 +252,10 @@ const ItemConfigForm = () => {
         handleResetForm();
         navigate('/dashboard/itemConfigurator');
       }
-    } catch (error: any) {
-      console.error('Error submitting form:', error);
-      toast.error('Failed to create item fields: ' + (error.message || 'Unknown error'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error submitting form:', message);
+      toast.error('Failed to create item fields: ' + message);
     } finally {
       setLoading(false);
     }
@@ -224,17 +269,24 @@ const ItemConfigForm = () => {
       }
 
       // Convert frontend data to backend format
-      const payload: any = {
+      const payload: Partial<ItemConfigData> = {
         name: data.label,
         description: data.description || '',
         control_type: data.controlType,
-        collection_id: data.controlType === 'Dropdown' ? data.collectionName : undefined,
+        collection_id: data.controlType === 'Dropdown' && data.collectionName ? data.collectionName : undefined,
         data_type: data.controlType === 'Textbox' && data.dataType !== null ? data.dataType : undefined,
         sequence: data.order,
-        max_length: data.controlType === 'Textbox' && data.dataType === 'text' ? data.maxLength : 0,
-        item_unit_id: data.dataType === 'unit' ? data.measurementType : undefined,
+        max_length: data.controlType === 'Textbox' && data.dataType === 'text' ? (data.maxLength || 0) : 0,
+        item_unit_id: data.dataType === 'unit' && data.measurementType ? data.measurementType : undefined,
         is_mandatory: data.isMandatory || false,
       };
+      
+      // Remove undefined values to avoid validation issues
+      Object.keys(payload).forEach((key) => {
+        if (payload[key as keyof ItemConfigData] === undefined) {
+          delete payload[key as keyof ItemConfigData];
+        }
+      });
 
       setLoading(true);
       const response = await updateItemConfiguration(id, payload);
@@ -244,9 +296,10 @@ const ItemConfigForm = () => {
         handleResetForm();
         navigate('/dashboard/itemConfigurator');
       }
-    } catch (error: any) {
-      console.error('Error updating field:', error);
-      toast.error('Failed to update item field: ' + (error.message || 'Unknown error'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error updating field:', message);
+      toast.error('Failed to update item field: ' + message);
     } finally {
       setLoading(false);
     }

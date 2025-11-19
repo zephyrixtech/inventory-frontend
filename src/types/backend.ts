@@ -61,6 +61,10 @@ export interface Item {
   status: string;
   qcStatus?: 'pending' | 'approved' | 'rejected';
   availableStock?: number;
+  additionalAttributes?: Record<string, unknown>;
+  videoType?: 'upload' | 'youtube';
+  youtubeLink?: string | null;
+  videoUrl?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

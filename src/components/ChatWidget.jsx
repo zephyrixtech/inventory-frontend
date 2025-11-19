@@ -24,7 +24,7 @@ export function ChatWidget() {
   useEffect(() => {
     const uuid = uuidv4();
     setSessionUuid(uuid);
-    console.log("Generated UUID:", uuid);
+    // console.log("Generated UUID:", uuid);
     
     // Static response - simulate bot introduction
     setTimeout(() => {

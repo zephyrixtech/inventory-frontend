@@ -18,6 +18,10 @@ export interface ItemData {
   purchaseDate?: string;
   status?: string;
   isActive?: boolean;
+  additionalAttributes?: Record<string, unknown>;
+  videoType?: 'upload' | 'youtube';
+  youtubeLink?: string | null;
+  videoUrl?: string | null;
 }
 
 // Define the item configuration data structure
@@ -189,10 +193,13 @@ export const getItemConfigurations = async (
 export const getItemConfigurationById = async (id: string): Promise<ItemConfigData> => {
   try {
     const response = await apiClient.get<ItemConfigResponse>(`/item-configurations/${id}`);
-    return response.data as ItemConfigData;
-  } catch (error) {
+    // Handle both response.data and direct response
+    const data = (response as any).data?.data || (response as any).data || response;
+    return data as ItemConfigData;
+  } catch (error: any) {
     console.error(`Error fetching item configuration with id ${id}:`, error);
-    throw error;
+    const errorMessage = error?.response?.data?.message || error?.message || 'Failed to fetch item configuration';
+    throw new Error(errorMessage);
   }
 };
 

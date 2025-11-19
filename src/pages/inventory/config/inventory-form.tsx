@@ -280,6 +280,7 @@ const InventoryForm = () => {
   const [units, setUnits] = useState<IUnit[]>([]);
   const [categories, setCategories] = useState<ICategoryMaster[]>([]);
   const [formSchema, setFormSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
+  const [configuratorsLoaded, setConfiguratorsLoaded] = useState(false);
   const [image1Preview, setImage1Preview] = useState<string | null>(null);
   const [image2Preview, setImage2Preview] = useState<string | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
@@ -298,7 +299,7 @@ const InventoryForm = () => {
   const companyId = userData?.company_id || null;
   const [videoType, setVideoType] = useState('upload'); // 'upload' or 'youtube'
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>('');
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [showZoom, setShowZoom] = useState(false);
   const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null);
   // Initialize form
@@ -330,6 +331,40 @@ const InventoryForm = () => {
 
   const watchedFields = watch();
 
+  // Extract video ID from YouTube URL
+  const extractVideoId = (url: string) => {
+    try {
+      const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
+      const parsedUrl = new URL(normalizedUrl);
+      const hostname = parsedUrl.hostname.toLowerCase();
+      const pathname = parsedUrl.pathname;
+
+      if (hostname.endsWith('youtu.be')) {
+        return pathname.slice(1);
+      }
+
+      if (hostname.endsWith('youtube.com')) {
+        const v = parsedUrl.searchParams.get('v');
+        if (v) return v;
+
+        const shortsMatch = pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
+        if (shortsMatch) return shortsMatch[1];
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleYoutubeChange = (e: string | React.ChangeEvent<HTMLInputElement>) => {
+    const url = typeof e === 'string' ? e : e.target.value;
+    setYoutubeUrl(url);
+    const id = url ? extractVideoId(url) : null;
+    setYoutubeVideoId(id);
+    setValue('youtube_link', url, { shouldValidate: true });
+  };
+
   const handleMouseEnter = (imageSrc: string) => {
     setActiveZoomImage(imageSrc);
     setShowZoom(true);
@@ -344,7 +379,7 @@ const InventoryForm = () => {
   // Update default values when configurators change
   useEffect(() => {
     // Do not reset defaults while editing or viewing an existing item
-    if (isEditing || isViewing) return;
+    if (isEditing || isViewing || configurators.length === 0) return;
 
     const defaultValues: InventoryFormValues = {
       item_id: '',
@@ -370,7 +405,7 @@ const InventoryForm = () => {
     });
 
     reset(defaultValues);
-  }, [configurators, reset, isEditing, isViewing]);
+  }, [configurators.length, isEditing, isViewing]);
 
   // Handle media change (images and video)
   const handleMediaChange = (
@@ -410,6 +445,8 @@ const InventoryForm = () => {
         console.error('Error fetching configurators:', err);
         toast.error('Failed to load additional attributes.');
         return [];
+      } finally {
+        setConfiguratorsLoaded(true);
       }
     };
 
@@ -442,6 +479,7 @@ const InventoryForm = () => {
     };
 
     const initFetch = async () => {
+      setConfiguratorsLoaded(false);
       await fetchConfigurators();
       await Promise.all([fetchCollections(), fetchUnits()]);
     };
@@ -450,15 +488,25 @@ const InventoryForm = () => {
 
   // Fetch item details for editing or viewing
   useEffect(() => {
-    if ((isEditing || isViewing) && id) {
-      setIsLoading(true);
-      const fetchItem = async () => {
+    if (!((isEditing || isViewing) && id)) {
+      return;
+    }
+
+    if (!configuratorsLoaded) {
+      return;
+    }
+
+    setIsLoading(true);
+    const fetchItem = async () => {
         try {
           // Use our new backend API service instead of Supabase
           const response = await inventoryService.getItem(id);
-          const itemData = response.data;
+          const itemData = response.data || response;
 
-          const itemCategoryId = itemData.category?.id;
+          // Handle category ID - could be id or _id
+          const rawCategory = itemData.category as { id?: string; _id?: string } | string | undefined;
+          const itemCategoryId =
+            (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
           setValue('category_id', itemCategoryId || '');
 
           // Sequentially fetch categories to ensure they are loaded before the form is reset.
@@ -474,10 +522,14 @@ const InventoryForm = () => {
             }
           }
 
+          // Handle category ID - could be id or _id
+          const categoryId =
+            (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
+          
           const formValues: InventoryFormValues = {
             item_id: itemData.code || '',
             item_name: itemData.name || '',
-            category_id: itemData.category?.id || '',
+            category_id: categoryId,
             description: itemData.description || '',
             reorder_level: itemData.reorderLevel ?? null,
             max_level: itemData.maxLevel ?? null,
@@ -495,20 +547,39 @@ const InventoryForm = () => {
             console.log('Setting currentCategoryId:', String(formValues.category_id));
           }
 
-          // Process configurators
+          const additionalAttrs = (itemData as any).additionalAttributes || {};
+          
           configurators.forEach((config) => {
             const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-            if ((config.data_type === 'number' || config.data_type === 'unit') && formValues[fieldName] != null) {
-              formValues[fieldName] = String(formValues[fieldName]);
+            
+            // Try to get the field value from additionalAttributes first, then direct fields
+            const fieldValue = additionalAttrs[fieldName] || additionalAttrs[config.name] || 
+                              (itemData as any)[fieldName] || (itemData as any)[config.name];
+            
+            if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
+              if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
+                formValues[fieldName] = String(fieldValue);
+              } else {
+                formValues[fieldName] = String(fieldValue);
+              }
+            } else if (config.is_mandatory) {
+              // Set default for mandatory fields
+              if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
+                formValues[fieldName] = '0';
+              } else {
+                formValues[fieldName] = '';
+              }
             }
+            
+            // Validate dropdown values
             if (config.control_type === 'Dropdown' && config.collection_id && formValues[fieldName]) {
               const collectionItems = collections[config.collection_id] || [];
               const isValidOption = collectionItems.some((item) => item.id === formValues[fieldName]);
-              if (!isValidOption) {
+              if (!isValidOption && collectionItems.length > 0) {
                 console.warn(
                   `Invalid value for ${fieldName}: ${formValues[fieldName]}. Not found in collection ${config.collection_id}`
                 );
-                formValues[fieldName] = '';
+                // Don't clear if collection is empty (might not be loaded yet)
               }
             }
           });
@@ -518,9 +589,13 @@ const InventoryForm = () => {
           console.log('Skipping image/video handling - needs backend implementation');
 
           // Set video or YouTube link - for now we'll skip this as it requires file handling
-          formValues.youtube_link = null;
+          const youtubeLinkFromApi = (itemData as any).youtubeLink ?? null;
+          const inferredVideoType = (itemData as any).videoType === 'youtube' || youtubeLinkFromApi ? 'youtube' : 'upload';
+          formValues.youtube_link = youtubeLinkFromApi;
           formValues.video = null;
-          setVideoType('upload');
+          setVideoType(inferredVideoType);
+          setYoutubeUrl(youtubeLinkFromApi || '');
+          setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
 
           // Alternative items - for now we'll skip this as it requires additional endpoints
           setSelectedAlternativesWithNames([]);
@@ -536,8 +611,8 @@ const InventoryForm = () => {
         }
       };
       fetchItem();
-    }
-  }, [id, isEditing, isViewing, reset, configurators, collections, companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isEditing, isViewing, companyId, configuratorsLoaded]);
 
   // Fetch categories
   useEffect(() => {
@@ -727,9 +802,44 @@ const InventoryForm = () => {
         reorderLevel: data.reorder_level ?? null,
         maxLevel: data.max_level ?? null,
         unitPrice: data.selling_price ?? null,
-        // Note: Additional attributes, images, and videos would need to be handled
-        // based on the backend API requirements
       };
+
+      // Collect all dynamic fields from configurators into additionalAttributes
+      const additionalAttributes: Record<string, any> = {};
+      
+      configurators.forEach((config) => {
+        const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
+        const fieldValue = data[fieldName];
+        
+        if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
+          // For number/unit fields, ensure they're numbers
+          if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
+            additionalAttributes[fieldName] = typeof fieldValue === 'string' ? parseFloat(fieldValue) || 0 : fieldValue;
+          } else {
+            additionalAttributes[fieldName] = fieldValue;
+          }
+        }
+      });
+      
+      // Add additionalAttributes to payload if there are any
+      if (Object.keys(additionalAttributes).length > 0) {
+        payload.additionalAttributes = additionalAttributes;
+      }
+
+      payload.videoType = videoType;
+      const normalizedYoutubeLink =
+        typeof data.youtube_link === 'string' ? data.youtube_link.trim() : '';
+      payload.youtubeLink = videoType === 'youtube' ? (normalizedYoutubeLink || null) : null;
+      
+      // Remove null/undefined values to avoid validation issues
+      const nullableFields = new Set(['youtubeLink', 'videoUrl']);
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined || payload[key] === '') {
+          delete payload[key];
+        } else if (payload[key] === null && !nullableFields.has(key)) {
+          delete payload[key];
+        }
+      });
 
       // Use our new backend API service instead of Supabase
       if (isEditing && id) {
@@ -799,6 +909,7 @@ const InventoryForm = () => {
       image_1: null,
       image_2: null,
       video: null,
+      youtube_link: null,
     });
     setInitialFormValues(null);
     setSelectedAlternativesWithNames([]);
@@ -810,6 +921,9 @@ const InventoryForm = () => {
     setInitialImage1Preview(null);
     setInitialImage2Preview(null);
     setInitialVideoPreview(null);
+    setYoutubeUrl('');
+    setYoutubeVideoId(null);
+    setVideoType('upload');
     setFormStatus('idle');
     setExistingAdditionalAttributes({});
     navigate('/dashboard/item-master');
@@ -949,43 +1063,6 @@ const InventoryForm = () => {
   const filteredAlternatives = alternativeItems.filter(
     (alt) => !selectedAlternativesWithNames.some((selected) => selected.id === alt.value)
   );
-
-  // Extract video ID from YouTube URL
-  const extractVideoId = (url: string) => {
-    try {
-      const parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
-      const hostname = parsedUrl.hostname.toLowerCase();
-      const pathname = parsedUrl.pathname;
-
-      // youtu.be/VIDEO_ID
-      if (hostname.endsWith('youtu.be')) {
-        return pathname.slice(1);
-      }
-
-      // youtube.com/watch?v=VIDEO_ID
-      if (hostname.endsWith('youtube.com')) {
-        // watch?v=VIDEO_ID
-        const v = parsedUrl.searchParams.get('v');
-        if (v) return v;
-
-        // shorts/VIDEO_ID
-        const shortsMatch = pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
-        if (shortsMatch) return shortsMatch[1];
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  const handleYoutubeChange = (e: string | React.ChangeEvent<HTMLInputElement>) => {
-    const url = typeof e === 'string' ? e : e.target.value;
-    setYoutubeUrl(url);
-    const id = extractVideoId(url);
-    setYoutubeVideoId(id);
-    setValue('youtube_link', url, { shouldValidate: true });
-  };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">

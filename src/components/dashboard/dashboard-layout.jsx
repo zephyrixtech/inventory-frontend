@@ -266,8 +266,8 @@ export const DashboardLayout = () => {
     // Normalize role names to lowercase
     const normalizedRole = userRoleRaw.toLowerCase();
     
-    console.log('User role raw:899999999999', userData);
-    console.log('Normalized role:', normalizedRole);
+    // console.log('User role raw:899999999999', userData);
+    // console.log('Normalized role:', normalizedRole);
 
     // Superadmin sees everything
     if (normalizedRole === 'superadmin') {

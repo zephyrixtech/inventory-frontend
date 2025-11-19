@@ -93,8 +93,20 @@ export const ItemConfigurator = () => {
     const prevFilterControlType = useRef(filterControlType);
     const prevSortConfig = useRef(sortConfig);
     const isInitialLoad = useRef(true);
+    
+    // Refs to store current values for stable function reference
+    const searchTermRef = useRef(searchTerm);
+    const filterControlTypeRef = useRef(filterControlType);
+    const itemsPerPageRef = useRef(itemsPerPage);
+    
+    // Update refs when values change
+    useEffect(() => {
+        searchTermRef.current = searchTerm;
+        filterControlTypeRef.current = filterControlType;
+        itemsPerPageRef.current = itemsPerPage;
+    }, [searchTerm, filterControlType, itemsPerPage]);
 
-    const fetchItemConfigs = useCallback(async (page: number = currentPage) => {
+    const fetchItemConfigs = useCallback(async (page: number = currentPage, search?: string, filter?: string | null) => {
         if (!userData) return;
 
         setLoading(true);
@@ -102,21 +114,24 @@ export const ItemConfigurator = () => {
 
         try {
             const filters: any = {};
-            if (searchTerm.trim()) {
-                filters.search = searchTerm.trim();
+            const searchValue = search !== undefined ? search : searchTermRef.current.trim();
+            const filterValue = filter !== undefined ? filter : filterControlTypeRef.current;
+            
+            if (searchValue) {
+                filters.search = searchValue;
             }
-            if (filterControlType) {
-                filters.controlType = filterControlType;
+            if (filterValue) {
+                filters.controlType = filterValue;
             }
 
-            const response = await getItemConfigurations(page, itemsPerPage, filters);
+            const response = await getItemConfigurations(page, itemsPerPageRef.current, filters);
             
             const data = response.data || [];
             const meta = response.meta || {
                 currentPage: page,
                 totalPages: 1,
                 totalItems: data.length,
-                itemsPerPage: itemsPerPage
+                itemsPerPage: itemsPerPageRef.current
             };
 
             setFields(data);
@@ -136,7 +151,7 @@ export const ItemConfigurator = () => {
         } finally {
             setLoading(false);
         }
-    }, [userData, itemsPerPage, searchTerm, filterControlType, sortConfig]);
+    }, [userData]);
 
     // Handle search and filter changes with debouncing
     useEffect(() => {
@@ -159,43 +174,55 @@ export const ItemConfigurator = () => {
         if (searchChanged || filterChanged) {
             setCurrentPage(1);
             const handler = setTimeout(() => {
-                fetchItemConfigs(1);
+                fetchItemConfigs(1, searchTerm, filterControlType);
             }, 300); // Debounce search
             return () => clearTimeout(handler);
         }
 
         // For sort changes, use current page and fetch immediately
         if (sortChanged) {
-            fetchItemConfigs(currentPage);
+            fetchItemConfigs(currentPage, searchTerm, filterControlType);
         }
-    }, [searchTerm, filterControlType, sortConfig, fetchItemConfigs]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, filterControlType, sortConfig]);
 
     // Handle pagination changes
     useEffect(() => {
-        if (!isInitialLoad.current) {
-            fetchItemConfigs(currentPage);
+        if (!isInitialLoad.current && currentPage) {
+            fetchItemConfigs(currentPage, searchTerm, filterControlType);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage]);
 
     // Handle items per page changes
     useEffect(() => {
-        if (!isInitialLoad.current) {
+        if (!isInitialLoad.current && itemsPerPage) {
             setCurrentPage(1);
-            fetchItemConfigs(1);
+            // Use setTimeout to avoid state update during render
+            setTimeout(() => {
+                fetchItemConfigs(1, searchTerm, filterControlType);
+            }, 0);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [itemsPerPage]);
 
     // Initial load
     useEffect(() => {
         if (isInitialLoad.current) {
-            fetchItemConfigs(1);
+            fetchItemConfigs(1, searchTerm, filterControlType);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const deleteFieldConfig = async () => {
         if (!fieldToDelete) return;
         try {
-            await deleteItemConfiguration(fieldToDelete.id);
+            const fieldId = fieldToDelete.id || fieldToDelete._id;
+            if (!fieldId) {
+                toast.error('Invalid field ID');
+                return;
+            }
+            await deleteItemConfiguration(fieldId);
             
             toast.success("Item field deleted successfully!");
             fetchItemConfigs(currentPage); // Refetch data for current page
@@ -246,7 +273,12 @@ export const ItemConfigurator = () => {
 
     // Handle edit click - populate form with selected field data
     const handleEditClick = (field: any) => {
-        navigate(`/dashboard/itemConfig/edit/${field.id}`);
+        const fieldId = field.id || field._id;
+        if (!fieldId) {
+            toast.error('Invalid field ID');
+            return;
+        }
+        navigate(`/dashboard/itemConfig/edit/${fieldId}`);
     };
 
     // Get control type display name
@@ -423,9 +455,11 @@ export const ItemConfigurator = () => {
                                             </TableRow>
                                         ))
                                     ) : fields.length > 0 ? (
-                                        fields.map((field) => (
+                                        fields.map((field) => {
+                                            const fieldId = field.id || field._id;
+                                            return (
                                             <TableRow
-                                                key={field.id}
+                                                key={fieldId}
                                                 className="hover:bg-gray-50"
                                             >
                                                 <TableCell className="font-medium py-3">
@@ -487,7 +521,8 @@ export const ItemConfigurator = () => {
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        ))
+                                            );
+                                        })
                                     ) : (
                                         <TableRow className="hover:bg-gray-50">
                                             <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">

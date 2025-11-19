@@ -155,7 +155,12 @@ export const Inventory = () => {
   const handleDelete = async () => {
     if (!selectedItem) return;
     try {
-      await inventoryService.deactivateItem(selectedItem.id);
+      const itemId = selectedItem.id || selectedItem._id;
+      if (!itemId) {
+        toast.error('Invalid item ID');
+        return;
+      }
+      await inventoryService.deactivateItem(itemId);
       toast.success('Item deactivated successfully');
       setIsDialogOpen(false);
       fetchInventory(pagination.page);
@@ -171,29 +176,48 @@ export const Inventory = () => {
       return;
     }
 
-    const headers = ['Item Code', 'Item Name', 'Category', 'Unit Price', 'Quantity', 'Available Stock', 'Currency', 'Status'];
-    const rows = inventory.map((item) => [
-      item.code,
-      item.name,
-      item.category?.name ?? 'Uncategorized',
-      item.unitPrice ?? 0,
-      item.quantity ?? 0,
-      item.availableStock ?? 0,
-      item.currency ?? 'INR',
-      item.status,
-    ]);
+    try {
+      const headers = ['Item Code', 'Item Name', 'Category', 'Unit Price', 'Quantity', 'Available Stock', 'Currency', 'Status'];
+      const rows = inventory.map((item) => [
+        item.code || '',
+        item.name || '',
+        item.category?.name ?? 'Uncategorized',
+        item.unitPrice ?? 0,
+        item.quantity ?? 0,
+        item.availableStock ?? 0,
+        item.currency ?? 'INR',
+        item.status?.replace(/_/g, ' ') ?? 'Unknown',
+      ]);
 
-    const csvContent = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell ?? '')}"`).join(','))
-      .join('\n');
+      // Escape CSV values properly
+      const escapeCsvValue = (value: unknown): string => {
+        const stringValue = String(value ?? '');
+        // If value contains comma, newline, or quote, wrap in quotes and escape quotes
+        if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+      };
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `inventory-${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map(escapeCsvValue).join(','))
+        .join('\n');
+
+      // Add BOM for Excel compatibility
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', `inventory-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast.success('CSV exported successfully');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast.error('Failed to export CSV');
+    }
   }, [inventory]);
 
   const sortedInventory = useMemo(() => {
@@ -303,19 +327,28 @@ export const Inventory = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedInventory.map((item) => (
-                    <TableRow key={item.id}>
+                  sortedInventory.map((item) => {
+                    const itemId = item.id || item._id;
+                    return (
+                    <TableRow key={itemId}>
                       <TableCell>{item.code}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.category?.name ?? 'Uncategorized'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
                       <TableCell>{item.availableStock ?? 0}</TableCell>
-                      <TableCell>{item.status.replace('_', ' ')}</TableCell>
+                      <TableCell>{item.status?.replace(/_/g, ' ') ?? 'Unknown'}</TableCell>
                       <TableCell className="text-right">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => navigate(`/inventory/${item.id}`)}>
+                              <Button variant="ghost" size="icon" onClick={() => {
+                                const itemId = item.id || item._id;
+                                if (itemId) {
+                                  navigate(`/dashboard/item-master/view/${itemId}`);
+                                } else {
+                                  toast.error('Invalid item ID');
+                                }
+                              }}>
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -325,7 +358,14 @@ export const Inventory = () => {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => navigate(`/inventory/${item.id}/edit`)}>
+                              <Button variant="ghost" size="icon" onClick={() => {
+                                const itemId = item.id || item._id;
+                                if (itemId) {
+                                  navigate(`/dashboard/item-master/edit/${itemId}`);
+                                } else {
+                                  toast.error('Invalid item ID');
+                                }
+                              }}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -351,7 +391,8 @@ export const Inventory = () => {
                         </TooltipProvider>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
