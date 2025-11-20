@@ -1,4 +1,4 @@
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, CheckCircle, Loader2, Tag, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2, Tag, AlertCircle, Plus, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -31,11 +31,14 @@ const createCategorySchema = z.object({
     .max(500, "Description cannot exceed 500 characters")
     .optional()
     .or(z.literal("")),
-  subCategory: z
-    .string()
-    .max(100, "Sub-category cannot exceed 100 characters")
-    .optional()
-    .or(z.literal("")),
+  subCategories: z.array(
+    z.object({
+      value: z
+        .string()
+        .max(100, "Sub-category cannot exceed 100 characters")
+        .trim()
+    })
+  ).optional(),
   status: z.boolean(),
 });
 
@@ -53,7 +56,7 @@ const CategoryForm = () => {
   const getDefaultValues = useCallback((): CategoryFormData => ({
     name: "",
     description: "",
-    subCategory: "",
+    subCategories: [{ value: "" }],
     status: true,
   }), []);
 
@@ -68,6 +71,11 @@ const CategoryForm = () => {
     defaultValues: getDefaultValues(),
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "subCategories"
+  });
+
   const loadCategory = useCallback(async () => {
     if (!id) return;
 
@@ -75,10 +83,20 @@ const CategoryForm = () => {
     try {
       const response = await categoryService.getCategory(id);
       const data = response.data;
+      
+      // Parse subCategory string into array
+      let subCategoriesArray = [{ value: "" }];
+      if (data.subCategory) {
+        const subCats = data.subCategory.split(',').map((s: string) => s.trim()).filter(Boolean);
+        subCategoriesArray = subCats.length > 0 
+          ? subCats.map((s: string) => ({ value: s }))
+          : [{ value: "" }];
+      }
+      
       reset({
         name: data.name || "",
         description: data.description || "",
-        subCategory: data.subCategory || "",
+        subCategories: subCategoriesArray,
         status: data.isActive ?? true,
       });
     } catch (error) {
@@ -96,11 +114,18 @@ const CategoryForm = () => {
       loadCategory();
     }
   }, [isEditing, loadCategory]);
+
   const onSubmit = async (data: CategoryFormData) => {
+    // Convert array of subcategories to comma-separated string
+    const subCategoryString = data.subCategories
+      ?.map(sc => sc.value.trim())
+      .filter(Boolean)
+      .join(', ') || undefined;
+
     const payload = {
       name: data.name.trim(),
       description: data.description?.trim() || undefined,
-      subCategory: data.subCategory?.trim() || undefined,
+      subCategory: subCategoryString,
       isActive: data.status,
     };
 
@@ -137,6 +162,7 @@ const CategoryForm = () => {
       }
     }
   };
+
   const handleCancel = () => {
     reset(getDefaultValues());
     navigate("/dashboard/category-master");
@@ -190,7 +216,6 @@ const CategoryForm = () => {
                 </div>
               </div>
             </div>
-
 
             {/* Form Card */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
@@ -247,32 +272,63 @@ const CategoryForm = () => {
                         <ErrorMessage message={errors.name?.message} />
                       </div>
 
-                      <div className="space-y-2 group">
-                        <Label
-                          htmlFor="subCategory"
-                          className={`${errors.subCategory ? "text-red-500" : "text-gray-700"
-                            } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-                        >
-                          <Tag className="h-4 w-4" /> Sub Category
-                        </Label>
-                        <Controller
-                          name="subCategory"
-                          control={control}
-                          render={({ field }) => (
-                            <Input
-                              {...field}
-                              id="subCategory"
-                              placeholder="Enter sub-category (optional)"
-                              maxLength={100}
-                              className={`${errors.subCategory
-                                ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                                : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
-                                } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${field.value ? "border-blue-300" : ""
-                                }`}
-                            />
-                          )}
-                        />
-                        <ErrorMessage message={errors.subCategory?.message} />
+                      {/* Multiple Sub Categories Section */}
+                      <div className="space-y-4 group">
+                        <div className="flex items-center justify-between">
+                          <Label
+                            className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                          >
+                            <Tag className="h-4 w-4" /> Sub Categories
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => append({ value: "" })}
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Sub Category
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {fields.map((field, index) => (
+                            <div key={field.id} className="flex items-start gap-2">
+                              <div className="flex-1">
+                                <Controller
+                                  name={`subCategories.${index}.value`}
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Input
+                                      {...field}
+                                      placeholder={`Enter sub-category ${index + 1}`}
+                                      maxLength={100}
+                                      className="border-gray-200 focus:border-blue-500 focus:ring-blue-200 pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full"
+                                    />
+                                  )}
+                                />
+                                {errors.subCategories?.[index]?.value && (
+                                  <ErrorMessage message={errors.subCategories[index]?.value?.message} />
+                                )}
+                              </div>
+                              {fields.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => remove(index)}
+                                  className="hover:bg-red-50 hover:text-red-600 transition-colors duration-200 mt-0.5"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          Add multiple sub-categories to organize items within this category
+                        </p>
                       </div>
 
                       <div className="space-y-2 group">

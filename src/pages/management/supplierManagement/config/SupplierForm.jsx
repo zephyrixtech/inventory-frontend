@@ -45,23 +45,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import toast from "react-hot-toast";
 import { supplierService } from "@/services/supplierService";
-
-// Mock Data for brands and supplies (in a real app, these would come from APIs)
-const mockBrands = [
-  { id: "1", name: "Apple" },
-  { id: "2", name: "Samsung" },
-  { id: "3", name: "Sony" },
-  { id: "4", name: "Dell" },
-  { id: "5", name: "HP" },
-];
-
-const mockSupplies = [
-  { id: "1", name: "iPhone 15", description: "Latest smartphone", price: 999, category_id: "1" },
-  { id: "2", name: "Galaxy S24", description: "Flagship Android", price: 899, category_id: "2" },
-  { id: "3", name: "WH-1000XM5", description: "Noise-cancelling headphones", price: 399, category_id: "3" },
-  { id: "4", name: "XPS 13", description: "Premium ultrabook", price: 1299, category_id: "4" },
-  { id: "5", name: "Pavilion 15", description: "Everyday laptop", price: 699, category_id: "5" },
-];
+import { categoryService } from "@/services/categoryService";
+import { getItems } from "@/services/itemService";
 
 const formatCurrency = (value) => `$${value.toLocaleString()}`;
 
@@ -76,6 +61,7 @@ const StarRating = ({ rating, onRatingChange, readonly = false }) => {
     if (r > 0) return "Very Poor";
     return "";
   };
+  
 
   return (
     <div className="flex items-center gap-1">
@@ -123,18 +109,19 @@ const SupplierForm = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [brandSearchTerm, setBrandSearchTerm] = useState("");
-  const [selectedBrands, setSelectedBrands] = useState([]);
+  const [categorySearchTerm, setCategorySearchTerm] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedSupplies, setSelectedSupplies] = useState([]);
-  const [filteredBrands, setFilteredBrands] = useState([]);
+  const [filteredCategories, setFilteredCategories] = useState([]);
   const [filteredSupplies, setFilteredSupplies] = useState([]);
-  const [showBrandsDropdown, setShowBrandsDropdown] = useState(false);
-  const [showSuppliesDropdown, setShowSuppliesDropdown] = useState(false);
-  const [tempSelectedBrands, setTempSelectedBrands] = useState([]);
+  const [tempSelectedCategories, setTempSelectedCategories] = useState([]);
   const [tempSelectedSupplies, setTempSelectedSupplies] = useState([]);
-  const [isBrandsExpanded, setIsBrandsExpanded] = useState(false);
   const [isSuppliesExpanded, setIsSuppliesExpanded] = useState(false);
   const [supplierData, setSupplierData] = useState(null);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingSupplies, setIsLoadingSupplies] = useState(false);
+  const [categorySubcategories, setCategorySubcategories] = useState({}); // { categoryId: [subcategories] }
+  const [selectedSubcategories, setSelectedSubcategories] = useState({}); // { categoryId: subcategoryId }
 
   const {
     register,
@@ -168,6 +155,8 @@ const SupplierForm = () => {
       status: "approved",
       rating: 0,
       notes: "",
+      selectedBrands: [],
+      selectedSupplies: [],
     },
   });
 
@@ -214,17 +203,61 @@ const SupplierForm = () => {
         status: supplier.status || "approved",
         rating: supplier.rating || 0,
         notes: supplier.notes || "",
+        selectedBrands: supplier.selectedBrands || [],
+        selectedSupplies: supplier.selectedSupplies || [],
       });
 
-      // Set selected brands and supplies if they exist
-      if (supplier.selectedBrands) {
-        const brands = mockBrands.filter(b => supplier.selectedBrands.includes(b.id));
-        setSelectedBrands(brands);
+      // Set selected categories and supplies if they exist
+      if (supplier.selectedBrands && supplier.selectedBrands.length > 0) {
+        try {
+          // Fetch category details for selected category IDs
+          const categoryPromises = supplier.selectedBrands.map(catId => 
+            categoryService.getCategory(catId).catch(() => null)
+          );
+          const categoryResults = await Promise.all(categoryPromises);
+          const categories = categoryResults
+            .filter(result => result && result.data)
+            .map(result => ({ id: result.data.id || result.data._id, name: result.data.name }));
+          setSelectedCategories(categories);
+          
+          // Load selected subcategories if they exist
+          if (supplier.selectedSubcategories && Array.isArray(supplier.selectedSubcategories)) {
+            const subcategoryMap = {};
+            supplier.selectedSubcategories.forEach(sub => {
+              if (sub.categoryId && sub.subcategoryId) {
+                subcategoryMap[String(sub.categoryId)] = String(sub.subcategoryId);
+              }
+            });
+            setSelectedSubcategories(subcategoryMap);
+          }
+        } catch (error) {
+          console.error("Error fetching categories:", error);
+        }
       }
       
-      if (supplier.selectedSupplies) {
-        const supplies = mockSupplies.filter(s => supplier.selectedSupplies.includes(s.id));
-        setSelectedSupplies(supplies);
+      if (supplier.selectedSupplies && supplier.selectedSupplies.length > 0) {
+        try {
+          // Fetch all items and filter by selected IDs
+          const response = await getItems(1, 1000, {});
+          const allItems = response.data || [];
+          const selectedItemIds = supplier.selectedSupplies;
+          const supplies = allItems
+            .filter(item => {
+              const itemId = item.id || item._id;
+              return itemId && (selectedItemIds.includes(itemId) || selectedItemIds.includes(itemId.toString()));
+            })
+            .map(item => ({
+              id: String(item.id || item._id),
+              name: item.name,
+              description: item.description || "",
+              price: item.unitPrice || 0,
+              category_id: item.categoryId
+            }))
+            .filter(item => item.id); // Filter out items without valid IDs
+          setSelectedSupplies(supplies);
+        } catch (error) {
+          console.error("Error fetching supplies:", error);
+        }
       }
     } catch (error) {
       console.error("Error fetching supplier:", error);
@@ -232,50 +265,97 @@ const SupplierForm = () => {
     }
   };
 
-  // Filter brands
+  // Fetch categories dynamically when typing
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (brandSearchTerm.length < 2) {
-        setFilteredBrands([]);
-        setShowBrandsDropdown(false);
+    const fetchCategories = async () => {
+      if (categorySearchTerm.length < 1) {
+        setFilteredCategories([]);
         return;
       }
-      const filtered = mockBrands.filter(b =>
-        b.name.toLowerCase().includes(brandSearchTerm.toLowerCase())
-      );
-      setFilteredBrands(filtered);
-      setShowBrandsDropdown(true);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [brandSearchTerm]);
 
-  // Filter supplies
+      setIsLoadingCategories(true);
+      try {
+        const response = await categoryService.listCategories({
+          search: categorySearchTerm,
+          status: 'active',
+          limit: 50
+        });
+        
+        const categories = Array.isArray(response.data) 
+          ? response.data.map(cat => ({ id: cat.id || cat._id, name: cat.name }))
+          : [];
+        setFilteredCategories(categories);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        toast.error("Failed to fetch categories");
+        setFilteredCategories([]);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    const timeout = setTimeout(fetchCategories, 300);
+    return () => clearTimeout(timeout);
+  }, [categorySearchTerm]);
+
+  // Fetch supplies dynamically - only show items for selected categories
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (searchTerm.length < 2 || selectedBrands.length === 0) {
+    const fetchSupplies = async () => {
+      if (searchTerm.length < 1 || selectedCategories.length === 0) {
         setFilteredSupplies([]);
-        setShowSuppliesDropdown(false);
         return;
       }
-      const brandIds = selectedBrands.map(b => b.id);
-      const filtered = mockSupplies.filter(
-        s =>
-          brandIds.includes(s.category_id) &&
-          (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           s.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-      setFilteredSupplies(filtered);
-      setShowSuppliesDropdown(true);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchTerm, selectedBrands]);
 
-  const handleBrandToggle = (brand) => {
-    const isSelected = tempSelectedBrands.includes(brand.id);
+      setIsLoadingSupplies(true);
+      try {
+        const categoryIds = selectedCategories.map(c => c.id);
+        
+        // Fetch items for each selected category
+        const itemPromises = categoryIds.map(categoryId =>
+          getItems(1, 100, {
+            categoryId: categoryId,
+            search: searchTerm
+          }).catch(() => ({ data: [], meta: null }))
+        );
+        
+        const results = await Promise.all(itemPromises);
+        const allItems = results.flatMap(result => result.data || []);
+        
+        // Filter by search term and map to supply format
+        const filtered = allItems
+          .filter(item => 
+            item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+          .map(item => ({
+            id: item.id || item._id,
+            name: item.name,
+            description: item.description || "",
+            price: item.unitPrice || 0,
+            category_id: item.categoryId
+          }))
+          .filter(item => item.id); // Filter out items without valid IDs
+        
+        setFilteredSupplies(filtered);
+      } catch (error) {
+        console.error("Error fetching supplies:", error);
+        toast.error("Failed to fetch supplies");
+        setFilteredSupplies([]);
+      } finally {
+        setIsLoadingSupplies(false);
+      }
+    };
+
+    const timeout = setTimeout(fetchSupplies, 300);
+    return () => clearTimeout(timeout);
+  }, [searchTerm, selectedCategories]);
+
+  const handleCategoryToggle = (category) => {
+    const isSelected = tempSelectedCategories.includes(category.id);
     if (isSelected) {
-      setTempSelectedBrands(tempSelectedBrands.filter(id => id !== brand.id));
+      setTempSelectedCategories(tempSelectedCategories.filter(id => id !== category.id));
     } else {
-      setTempSelectedBrands([...tempSelectedBrands, brand.id]);
+      setTempSelectedCategories([...tempSelectedCategories, category.id]);
     }
   };
 
@@ -288,48 +368,148 @@ const SupplierForm = () => {
     }
   };
 
-  const confirmBrands = () => {
-    const newBrands = mockBrands.filter(
-      b => tempSelectedBrands.includes(b.id) || selectedBrands.some(sb => sb.id === b.id)
-    );
-    setSelectedBrands(newBrands);
-    setValue("selectedBrands", newBrands.map(b => b.id));
-    setTempSelectedBrands([]);
-    setBrandSearchTerm("");
-    setShowBrandsDropdown(false);
+  // Fetch subcategories for selected categories
+  // Logic: for each selected category, read its own `subCategory` field
+  // and treat it as a comma-separated list of subcategory names.
+  useEffect(() => {
+    const fetchSubcategories = async () => {
+      if (selectedCategories.length === 0) {
+        setCategorySubcategories({});
+        return;
+      }
 
-    // Filter supplies to match selected brands
-    const brandIds = newBrands.map(b => b.id);
-    const filtered = selectedSupplies.filter(s => brandIds.includes(s.category_id));
+      const subcategoryMap = {};
+      try {
+        // Fetch all active categories once so we can look up full records
+        const response = await categoryService.listCategories({
+          status: "active",
+          limit: 1000,
+        });
+
+        const allCategories = Array.isArray(response.data) ? response.data : [];
+
+        for (const category of selectedCategories) {
+          const categoryIdStr = String(category.id);
+
+          // Find the full category record that matches this selected category
+          const fullCategory = allCategories.find((cat) => {
+            const catId = String(cat.id || cat._id);
+            return catId === categoryIdStr;
+          });
+
+          if (!fullCategory || !fullCategory.subCategory) {
+            continue;
+          }
+
+          // Example: "sub-cat" OR "sub -cate 2, new one"
+          // Split by comma into individual subcategory names
+          const parts = fullCategory.subCategory
+            .split(",")
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+          if (parts.length === 0) continue;
+
+          const subcategories = parts.map((name, index) => ({
+            id: `${categoryIdStr}-${index}`, // local ID for React key
+            name,
+            categoryId: categoryIdStr,
+          }));
+
+          subcategoryMap[categoryIdStr] = subcategories;
+        }
+      } catch (error) {
+        console.error("Error fetching subcategories:", error);
+      }
+
+      setCategorySubcategories(subcategoryMap);
+    };
+
+    fetchSubcategories();
+  }, [selectedCategories]);
+
+  const confirmCategories = () => {
+    // Combine temp selected with already selected categories
+    const newCategoryIds = [...new Set([
+      ...tempSelectedCategories,
+      ...selectedCategories.map(c => c.id)
+    ])];
+    
+    // Get category objects from filtered categories
+    const newCategories = filteredCategories.filter(c => 
+      newCategoryIds.includes(c.id)
+    );
+    
+    // Also keep already selected categories that might not be in filtered list
+    const existingCategories = selectedCategories.filter(c => 
+      newCategoryIds.includes(c.id) && !newCategories.some(nc => nc.id === c.id)
+    );
+    
+    const allCategories = [...newCategories, ...existingCategories];
+    setSelectedCategories(allCategories);
+    setValue("selectedBrands", allCategories.map(c => c.id).filter(Boolean), { shouldValidate: true });
+    setTempSelectedCategories([]);
+    setCategorySearchTerm("");
+
+    // Filter supplies to match selected categories
+    const categoryIds = allCategories.map(c => c.id).filter(Boolean);
+    const filtered = selectedSupplies.filter(s => s.id && categoryIds.includes(s.category_id));
     setSelectedSupplies(filtered);
-    setValue("selectedSupplies", filtered.map(s => s.id));
+    setValue("selectedSupplies", filtered.map(s => s.id).filter(Boolean), { shouldValidate: true });
   };
 
   const confirmSupplies = () => {
-    const newIds = [...new Set([...tempSelectedSupplies, ...selectedSupplies.map(s => s.id)])];
-    const newSupplies = mockSupplies.filter(s => newIds.includes(s.id));
-    setSelectedSupplies(newSupplies);
-    setValue("selectedSupplies", newSupplies.map(s => s.id));
+    // Combine temp selected with already selected supplies
+    const newIds = [...new Set([...tempSelectedSupplies, ...selectedSupplies.map(s => s.id).filter(Boolean)])].filter(Boolean);
+    
+    // Get supply objects from filtered supplies
+    const newSupplies = filteredSupplies.filter(s => s.id && newIds.includes(s.id));
+    
+    // Also keep already selected supplies that might not be in filtered list
+    const existingSupplies = selectedSupplies.filter(s => 
+      s.id && newIds.includes(s.id) && !newSupplies.some(ns => ns.id === s.id)
+    );
+    
+    const allSupplies = [...newSupplies, ...existingSupplies].filter(s => s.id);
+    setSelectedSupplies(allSupplies);
+    setValue("selectedSupplies", allSupplies.map(s => s.id).filter(Boolean), { shouldValidate: true });
     setTempSelectedSupplies([]);
     setSearchTerm("");
-    setShowSuppliesDropdown(false);
   };
 
-  const removeBrand = (id) => {
-    const updated = selectedBrands.filter(b => b.id !== id);
-    setSelectedBrands(updated);
-    setValue("selectedBrands", updated.map(b => b.id));
+  const removeCategory = (id) => {
+    const categoryIdStr = String(id);
+    const updated = selectedCategories.filter(c => String(c.id) !== categoryIdStr);
+    setSelectedCategories(updated);
+    setValue("selectedBrands", updated.map(c => String(c.id)).filter(Boolean), { shouldValidate: true });
 
-    const brandIds = updated.map(b => b.id);
-    const filtered = selectedSupplies.filter(s => brandIds.includes(s.category_id));
+    // Remove subcategory selection for this category
+    const newSubcategories = { ...selectedSubcategories };
+    delete newSubcategories[categoryIdStr];
+    setSelectedSubcategories(newSubcategories);
+
+    const categoryIds = updated.map(c => String(c.id)).filter(Boolean);
+    const filtered = selectedSupplies.filter(s => s.id && categoryIds.includes(String(s.category_id)));
     setSelectedSupplies(filtered);
-    setValue("selectedSupplies", filtered.map(s => s.id));
+    setValue("selectedSupplies", filtered.map(s => String(s.id)).filter(Boolean), { shouldValidate: true });
   };
 
   const removeSupply = (id) => {
-    const updated = selectedSupplies.filter(s => s.id !== id);
+    const updated = selectedSupplies.filter(s => s.id && s.id !== id);
     setSelectedSupplies(updated);
-    setValue("selectedSupplies", updated.map(s => s.id));
+    setValue("selectedSupplies", updated.map(s => s.id).filter(Boolean), { shouldValidate: true });
+  };
+
+  const handleSubcategoryChange = (categoryId, subcategoryValue) => {
+    const catIdStr = String(categoryId);
+    // "__none" means clear the selection
+    const subcatValue =
+      !subcategoryValue || subcategoryValue === "__none" ? null : String(subcategoryValue);
+
+    setSelectedSubcategories((prev) => ({
+      ...prev,
+      [catIdStr]: subcatValue,
+    }));
   };
 
   const onSubmit = async (data) => {
@@ -359,9 +539,23 @@ const SupplierForm = () => {
         status: data.status,
         rating: data.rating,
         notes: data.notes,
-        selectedBrands: selectedBrands.map(b => b.id),
-        selectedSupplies: selectedSupplies.map(s => s.id),
+        selectedBrands: selectedCategories.map(c => String(c.id)).filter(Boolean),
+        selectedSupplies: selectedSupplies
+          .map(s => s.id ? String(s.id) : null)
+          .filter(Boolean),
+        selectedSubcategories: Object.entries(selectedSubcategories)
+          .filter(([_, subcatId]) => subcatId)
+          .map(([categoryId, subcategoryId]) => ({
+            categoryId: String(categoryId),
+            subcategoryId: String(subcategoryId)
+          })),
       };
+      
+      console.log("Submitting supplier data:", {
+        ...supplierData,
+        selectedSupplies: supplierData.selectedSupplies,
+        selectedSuppliesCount: supplierData.selectedSupplies.length
+      });
 
       if (isEditing) {
         await supplierService.updateSupplier(id, supplierData);
@@ -491,100 +685,180 @@ const SupplierForm = () => {
                   <h3 className="text-lg font-semibold">Supplies</h3>
                 </div>
 
-                {/* Brand Search */}
+                {/* Category Search */}
                 <div className="space-y-3">
-                  <Label>Search Brands</Label>
+                  <Label>Search Category</Label>
                   <div className="relative">
                     <Input
-                      placeholder="Type to search brands..."
-                      value={brandSearchTerm}
-                      onChange={(e) => setBrandSearchTerm(e.target.value)}
-                      onFocus={() => setShowBrandsDropdown(true)}
+                      placeholder="Type to search categories..."
+                      value={categorySearchTerm}
+                      onChange={(e) => setCategorySearchTerm(e.target.value)}
                       disabled={isViewMode}
+                      className="pl-10"
                     />
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  </div>
-
-                  {showBrandsDropdown && filteredBrands.length > 0 && (
-                    <div className="border rounded-lg shadow-lg bg-white max-h-64 overflow-y-auto">
-                      {filteredBrands.map(brand => (
-                        <div key={brand.id} className="p-3 hover:bg-gray-50 flex items-center gap-3">
-                          <Checkbox
-                            checked={tempSelectedBrands.includes(brand.id) || selectedBrands.some(b => b.id === brand.id)}
-                            onCheckedChange={() => handleBrandToggle(brand)}
-                            disabled={isViewMode}
-                          />
-                          <span>{brand.name}</span>
-                        </div>
-                      ))}
-                      <div className="p-2 border-t flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => { setTempSelectedBrands([]); setShowBrandsDropdown(false); }}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={confirmBrands}>Confirm</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Selected Brands */}
-                {selectedBrands.length > 0 && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Selected Brands ({selectedBrands.length})</Label>
-                      <Button variant="ghost" size="sm" onClick={() => setIsBrandsExpanded(!isBrandsExpanded)}>
-                        {isBrandsExpanded ? <ChevronUp /> : <ChevronDown />} {isBrandsExpanded ? "Collapse" : "Expand"}
-                      </Button>
-                    </div>
-                    {isBrandsExpanded && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {selectedBrands.map(b => (
-                          <div key={b.id} className="p-3 border rounded-lg bg-blue-50 flex justify-between items-center">
-                            <span>{b.name}</span>
-                            {!isViewMode && <Button size="sm" variant="ghost" onClick={() => removeBrand(b.id)}><X className="h-4 w-4" /></Button>}
+                    {isLoadingCategories && (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 text-gray-400 animate-spin" />
+                    )}
+                    
+                    {categorySearchTerm.length >= 1 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-10">
+                        {isLoadingCategories ? (
+                          <div className="border rounded-lg shadow-lg bg-white p-4 text-center text-gray-500">
+                            Loading categories...
                           </div>
-                        ))}
+                        ) : filteredCategories.length > 0 ? (
+                          <div className="border rounded-lg shadow-lg bg-white max-h-64 overflow-y-auto">
+                            {filteredCategories.map(category => (
+                              <div key={category.id} className="p-3 hover:bg-gray-50 flex items-center gap-3">
+                                <Checkbox
+                                  checked={tempSelectedCategories.includes(category.id) || selectedCategories.some(c => c.id === category.id)}
+                                  onCheckedChange={() => handleCategoryToggle(category)}
+                                  disabled={isViewMode}
+                                />
+                                <span>{category.name}</span>
+                              </div>
+                            ))}
+                            <div className="p-2 border-t flex justify-end gap-2">
+                              <Button type="button" size="sm" variant="outline" onClick={() => { setTempSelectedCategories([]); setCategorySearchTerm(""); }}>
+                                Cancel
+                              </Button>
+                              <Button type="button" size="sm" onClick={confirmCategories}>Confirm</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg shadow-lg bg-white p-4 text-center text-gray-500">
+                            No categories found
+                          </div>
+                        )}
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* Selected Categories */}
+                {selectedCategories.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Selected Categories ({selectedCategories.length})</Label>
+                    </div>
+                    <div className="space-y-4">
+                      {selectedCategories.map((c) => {
+                        const categoryId = String(c.id);
+                        const subcategories = categorySubcategories[categoryId];
+                        const hasSubcategories =
+                          subcategories &&
+                          Array.isArray(subcategories) &&
+                          subcategories.length > 0;
+
+                        return (
+                          <div
+                            key={c.id}
+                            className="p-3 border rounded-lg bg-blue-50 space-y-2"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">{c.name}</span>
+                              {!isViewMode && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeCategory(c.id)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                            {/* Subcategory Dropdown */}
+                            {hasSubcategories && (
+                              <div>
+                                <Label className="text-sm">
+                                  Subcategory (Optional)
+                                </Label>
+                                <Select
+                                  value={selectedSubcategories[categoryId] || "__none"}
+                                  onValueChange={(value) =>
+                                    handleSubcategoryChange(categoryId, value)
+                                  }
+                                  disabled={isViewMode}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select subcategory" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">None</SelectItem>
+                                    {subcategories.map((subcat) => (
+                                      <SelectItem
+                                        key={subcat.id}
+                                        value={subcat.name}
+                                      >
+                                        {subcat.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
                 {/* Supply Search */}
                 <div className="space-y-3">
                   <Label>Search Supplies</Label>
-                  <Input
-                    placeholder={selectedBrands.length === 0 ? "Select brand first" : "Search items..."}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onFocus={() => setShowSuppliesDropdown(true)}
-                    disabled={selectedBrands.length === 0 || isViewMode}
-                  />
-                  {showSuppliesDropdown && filteredSupplies.length > 0 && (
-                    <div className="border rounded-lg shadow-lg bg-white max-h-64 overflow-y-auto">
-                      {filteredSupplies.map(supply => (
-                        <div key={supply.id} className="p-3 hover:bg-gray-50 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={tempSelectedSupplies.includes(supply.id) || selectedSupplies.some(s => s.id === supply.id)}
-                              onCheckedChange={() => handleSupplyToggle(supply)}
-                              disabled={isViewMode}
-                            />
-                            <div>
-                              <p className="font-medium">{supply.name}</p>
-                              <p className="text-xs text-gray-500">{supply.description}</p>
+                  <div className="relative">
+                    <Input
+                      placeholder={selectedCategories.length === 0 ? "Select category first" : "Search items..."}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      disabled={selectedCategories.length === 0 || isViewMode}
+                    />
+                    {isLoadingSupplies && (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 text-gray-400 animate-spin" />
+                    )}
+                    
+                    {searchTerm.length >= 1 && selectedCategories.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-10">
+                        {isLoadingSupplies ? (
+                          <div className="border rounded-lg shadow-lg bg-white p-4 text-center text-gray-500">
+                            Loading supplies...
+                          </div>
+                        ) : filteredSupplies.length > 0 ? (
+                          <div className="border rounded-lg shadow-lg bg-white max-h-64 overflow-y-auto">
+                            {filteredSupplies.map(supply => (
+                              <div key={supply.id} className="p-3 hover:bg-gray-50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Checkbox
+                                    checked={tempSelectedSupplies.includes(supply.id) || selectedSupplies.some(s => s.id === supply.id)}
+                                    onCheckedChange={() => handleSupplyToggle(supply)}
+                                    disabled={isViewMode}
+                                  />
+                                  <div>
+                                    <p className="font-medium">{supply.name}</p>
+                                    <p className="text-xs text-gray-500">{supply.description}</p>
+                                  </div>
+                                </div>
+                                <p className="font-semibold text-blue-600">{formatCurrency(supply.price)}</p>
+                              </div>
+                            ))}
+                            <div className="p-2 border-t flex justify-end gap-2">
+                              <Button type="button" size="sm" variant="outline" onClick={() => { setTempSelectedSupplies([]); setSearchTerm(""); }}>
+                                Cancel
+                              </Button>
+                              <Button type="button" size="sm" onClick={confirmSupplies}>Confirm</Button>
                             </div>
                           </div>
-                          <p className="font-semibold text-blue-600">{formatCurrency(supply.price)}</p>
-                        </div>
-                      ))}
-                      <div className="p-2 border-t flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => { setTempSelectedSupplies([]); setShowSuppliesDropdown(false); }}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={confirmSupplies}>Confirm</Button>
+                        ) : (
+                          <div className="border rounded-lg shadow-lg bg-white p-4 text-center text-gray-500">
+                            No supplies found
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Selected Supplies */}
@@ -592,7 +866,7 @@ const SupplierForm = () => {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <Label>Selected Supplies ({selectedSupplies.length})</Label>
-                      <Button variant="ghost" size="sm" onClick={() => setIsSuppliesExpanded(!isSuppliesExpanded)}>
+                      <Button variant="ghost" size="sm" type="button" onClick={() => setIsSuppliesExpanded(!isSuppliesExpanded)}>
                         {isSuppliesExpanded ? <ChevronUp /> : <ChevronDown />} {isSuppliesExpanded ? "Collapse" : "Expand"}
                       </Button>
                     </div>
@@ -605,7 +879,7 @@ const SupplierForm = () => {
                               <p className="text-sm text-gray-600">{s.description}</p>
                               <p className="font-semibold text-blue-600">{formatCurrency(s.price)}</p>
                             </div>
-                            {!isViewMode && <Button size="sm" variant="ghost" onClick={() => removeSupply(s.id)}><X className="h-4 w-4" /></Button>}
+                            {!isViewMode && <Button type="button" size="sm" variant="ghost" onClick={() => removeSupply(s.id)}><X className="h-4 w-4" /></Button>}
                           </div>
                         ))}
                       </div>
