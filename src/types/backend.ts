@@ -44,6 +44,7 @@ export interface Category {
 }
 
 export interface Item {
+  _id: string;
   id: string;
   name: string;
   code: string;
@@ -60,6 +61,10 @@ export interface Item {
   purchaseDate?: string;
   status: string;
   qcStatus?: 'pending' | 'approved' | 'rejected';
+  damagedQuantity?: number;
+  qcRemarks?: string;
+  qcCheckedByName?: string | null;
+  qcSubmittedByName?: string | null;
   availableStock?: number;
   additionalAttributes?: Record<string, unknown>;
   videoType?: 'upload' | 'youtube';

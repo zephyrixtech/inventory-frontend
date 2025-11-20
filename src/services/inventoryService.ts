@@ -7,6 +7,8 @@ export interface ItemListParams {
   search?: string;
   categoryId?: string;
   status?: string;
+  qcStatus?: 'pending' | 'approved' | 'rejected';
+  isActive?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -19,6 +21,8 @@ export const inventoryService = {
     if (params.search) query.append('search', params.search);
     if (params.categoryId && params.categoryId !== 'all') query.append('categoryId', params.categoryId);
     if (params.status && params.status !== 'all') query.append('status', params.status);
+    if (params.qcStatus && params.qcStatus !== 'all') query.append('qcStatus', params.qcStatus);
+    if (typeof params.isActive === 'boolean') query.append('isActive', String(params.isActive));
     if (params.sortBy) query.append('sortBy', params.sortBy);
     if (params.sortOrder) query.append('sortOrder', params.sortOrder);
 

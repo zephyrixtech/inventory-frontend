@@ -186,7 +186,7 @@ export const Inventory = () => {
         item.quantity ?? 0,
         item.availableStock ?? 0,
         item.currency ?? 'INR',
-        item.status?.replace(/_/g, ' ') ?? 'Unknown',
+        item.qcStatus?.replace(/_/g, ' ') ?? 'Unknown',
       ]);
 
       // Escape CSV values properly
@@ -309,7 +309,7 @@ export const Inventory = () => {
                   <TableHead>Category</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Available Stock</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>QC Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -336,7 +336,7 @@ export const Inventory = () => {
                       <TableCell>{item.category?.name ?? 'Uncategorized'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
                       <TableCell>{item.availableStock ?? 0}</TableCell>
-                      <TableCell>{item.status?.replace(/_/g, ' ') ?? 'Unknown'}</TableCell>
+                      <TableCell>{item.qcStatus?.replace(/_/g, ' ') ?? 'Unknown'}</TableCell>
                       <TableCell className="text-right">
                         <TooltipProvider>
                           <Tooltip>

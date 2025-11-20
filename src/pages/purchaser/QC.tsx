@@ -1,28 +1,73 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, XCircle, ShieldAlert, Loader2 } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import toast from 'react-hot-toast';
 import { inventoryService } from '@/services/inventoryService';
 import { qualityCheckService } from '@/services/qualityCheckService';
+import { supplierService } from '@/services/supplierService';
 import type { Item } from '@/types/backend';
 
 const QualityControlPage = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogItem, setDialogItem] = useState<Item | null>(null);
+  const [dialogStatus, setDialogStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [dialogRemarks, setDialogRemarks] = useState('');
+  const [dialogDamagedQuantity, setDialogDamagedQuantity] = useState('0');
+  const [submitting, setSubmitting] = useState(false);
+  const [supplierMap, setSupplierMap] = useState<Record<string, { name: string; contactPerson?: string }>>({});
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  const getItemId = (item: Item) => item.id ?? (item as { _id?: string })._id ?? '';
+
+  const hydrateSupplierNames = async (fetchedItems: Item[]) => {
+    const missingItems = fetchedItems.filter((item) => !item.vendor?.name);
+    if (missingItems.length === 0) {
+      setSupplierMap({});
+      return;
+    }
+
+    try {
+      const missingIds = new Set(
+        missingItems
+          .map((item) => getItemId(item))
+          .filter((id): id is string => Boolean(id))
+      );
+      const response = await supplierService.listSuppliers({ limit: 200, status: 'approved' });
+      const lookup: Record<string, { name: string; contactPerson?: string }> = {};
+      response.data.forEach((supplier) => {
+        supplier.selectedSupplies?.forEach((supplyId) => {
+          if (missingIds.has(supplyId)) {
+            lookup[supplyId] = { name: supplier.name, contactPerson: supplier.contactPerson };
+          }
+        });
+      });
+      setSupplierMap(lookup);
+    } catch (error) {
+      console.error('Failed to load supplier data', error);
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = await inventoryService.getItems({ status: 'pending_qc', limit: 50 });
+      const response = await inventoryService.getItems({ qcStatus: 'pending', isActive: true, limit: 50 });
       setItems(response.data);
+      await hydrateSupplierNames(response.data);
     } catch (error) {
       console.error('Failed to load QC items', error);
       toast.error('Unable to load quality check queue');
       setItems([]);
+      setSupplierMap({});
     } finally {
       setLoading(false);
     }
@@ -32,23 +77,64 @@ const QualityControlPage = () => {
     fetchItems();
   }, []);
 
-  const handleSubmit = async (productId: string, status: 'approved' | 'rejected') => {
+  useEffect(() => {
+    const storedUser = localStorage.getItem('userData');
+    if (!storedUser) return;
+    try {
+      const parsed = JSON.parse(storedUser);
+      const firstName = parsed?.first_name ?? parsed?.firstName ?? '';
+      const lastName = parsed?.last_name ?? parsed?.lastName ?? '';
+      const fullName = `${firstName} ${lastName}`.trim();
+      setCurrentUserName(fullName || parsed?.email || '');
+    } catch (error) {
+      console.error('Failed to parse userData', error);
+    }
+  }, []);
+
+  const openDialog = (item: Item) => {
+    setDialogItem(item);
+    setDialogStatus(item.qcStatus ?? 'pending');
+    setDialogRemarks(item.qcRemarks ?? '');
+    setDialogDamagedQuantity(String(item.damagedQuantity ?? 0));
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    if (submitting) return;
+    setDialogOpen(false);
+    setDialogItem(null);
+    setDialogRemarks('');
+  };
+
+  const handleDialogSubmit = async () => {
+    if (!dialogItem) return;
+    const productId = getItemId(dialogItem);
+    if (!productId) {
+      toast.error('Item identifier missing');
+      return;
+    }
+    setSubmitting(true);
+    const parsedDamage =
+      dialogDamagedQuantity.trim() === '' ? 0 : Number(dialogDamagedQuantity);
+    if (Number.isNaN(parsedDamage) || parsedDamage < 0) {
+      toast.error('Damaged quantity must be zero or greater');
+      return;
+    }
     try {
       await qualityCheckService.submit({
         productId,
-        status,
-        remarks: remarks[productId]
+        status: dialogStatus,
+        remarks: dialogRemarks,
+        damagedQuantity: parsedDamage
       });
-      toast.success(`Item ${status === 'approved' ? 'approved' : 'rejected'} successfully`);
-      setRemarks((prev) => {
-        const next = { ...prev };
-        delete next[productId];
-        return next;
-      });
+      toast.success('Quality check updated successfully');
+      closeDialog();
       fetchItems();
     } catch (error) {
       console.error('Failed to submit QC result', error);
       toast.error('Unable to submit quality check');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -91,7 +177,8 @@ const QualityControlPage = () => {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead>Vendor</TableHead>
-                  <TableHead>Quantity</TableHead>
+                  <TableHead>Damaged Qty</TableHead>
+                  <TableHead>QC Status</TableHead>
                   <TableHead>Remarks</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -110,39 +197,105 @@ const QualityControlPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">Code: {item.code}</div>
-                      </TableCell>
-                      <TableCell>{item.vendor?.name ?? 'Unassigned'}</TableCell>
-                      <TableCell>{item.quantity ?? 0}</TableCell>
-                      <TableCell className="max-w-sm">
-                        <Textarea
-                          rows={2}
-                          placeholder="QC remarks..."
-                          value={remarks[item.id] ?? ''}
-                          onChange={(event) => setRemarks((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="outline" onClick={() => handleSubmit(item.id, 'rejected')}>
-                          <XCircle className="mr-2 h-4 w-4 text-destructive" /> Reject
-                        </Button>
-                        <Button onClick={() => handleSubmit(item.id, 'approved')}>
-                          <Check className="mr-2 h-4 w-4" /> Approve
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  items.map((item) => {
+                    const itemId = getItemId(item);
+                    const supplierFallback = itemId ? supplierMap[itemId] : undefined;
+                    const vendorName = item.vendor?.name ?? supplierFallback?.name ?? 'Unassigned';
+                    const statusColor =
+                      item.qcStatus === 'approved'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : item.qcStatus === 'rejected'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-900';
+                    return (
+                      <TableRow key={itemId || item.code}>
+                        <TableCell>
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-muted-foreground">Code: {item.code}</div>
+                        </TableCell>
+                        <TableCell>{vendorName}</TableCell>
+                        <TableCell>{typeof item.damagedQuantity === 'number' ? item.damagedQuantity : '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={statusColor}>
+                            {item.qcStatus ?? 'pending'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-sm text-sm text-muted-foreground">
+                          {item.qcRemarks?.length ? item.qcRemarks : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => openDialog(item)}>
+                            <Loader2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={(next) => (next ? setDialogOpen(true) : closeDialog())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Quality Check</DialogTitle>
+            <DialogDescription>
+              {dialogItem ? `${dialogItem.name} • ${dialogItem.code}` : 'Select an item to continue.'}
+            </DialogDescription>
+            {currentUserName && (
+              <p className="text-xs text-muted-foreground">Logged in as {currentUserName}</p>
+            )}
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="qc-status">QC Status</Label>
+              <Select value={dialogStatus} onValueChange={(value) => setDialogStatus(value as 'pending' | 'approved' | 'rejected')}>
+                <SelectTrigger id="qc-status">
+                  <SelectValue placeholder="Select QC status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="damaged-qty">Damaged Quantity</Label>
+              <Input
+                id="damaged-qty"
+                type="number"
+                min={0}
+                value={dialogDamagedQuantity}
+                onChange={(event) => setDialogDamagedQuantity(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="qc-remarks">Remarks</Label>
+              <Textarea
+                id="qc-remarks"
+                rows={4}
+                placeholder="Add your inspection notes..."
+                value={dialogRemarks}
+                onChange={(event) => setDialogRemarks(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleDialogSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
-export default QualityControlPage
+export default QualityControlPage;

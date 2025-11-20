@@ -5,6 +5,7 @@ export interface QualityCheckPayload {
   productId: string;
   status: 'approved' | 'rejected' | 'pending';
   remarks?: string;
+  damagedQuantity?: number;
 }
 
 export const qualityCheckService = {
