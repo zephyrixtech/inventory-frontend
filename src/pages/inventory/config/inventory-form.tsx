@@ -131,8 +131,7 @@ const baseInventoryFormSchema = z.object({
   description: z
     .string()
     .min(1, 'Description is required'),
-  reorder_level: z.number().min(0, 'Reorder level cannot be negative').nullable(),
-  max_level: z.number().min(0, 'Maximum level cannot be negative').nullable(),
+  quantity: z.number().min(0, 'Quantity cannot be negative'), // NEW FIELD
   selling_price: z.number().min(0, 'Selling price cannot be negative').nullable(),
   image_1: z
     .any()
@@ -162,25 +161,23 @@ const baseInventoryFormSchema = z.object({
     .string()
     .nullable()
     .refine((val) => {
-      if (!val || val.trim() === '') return true; // allow null or empty
+      if (!val || val.trim() === '') return true;
       try {
         const normalizedVal = val.startsWith('http') ? val : `https://${val}`;
         const url = new URL(normalizedVal);
         const hostname = url.hostname.toLowerCase();
         const pathname = url.pathname;
 
-        // youtube.com (watch or shorts) or youtu.be
         if (hostname.endsWith('youtube.com')) {
-          // Accept watch?v=VIDEO_ID or shorts/VIDEO_ID
           return url.searchParams.has('v') || pathname.startsWith('/shorts/');
         }
         if (hostname.endsWith('youtu.be')) {
-          return pathname.length > 1; // must have /VIDEO_ID
+          return pathname.length > 1;
         }
 
-        return false; // invalid hostname
+        return false;
       } catch {
-        return false; // invalid URL
+        return false;
       }
     }, 'Must be a valid YouTube link'),
 });
@@ -319,6 +316,7 @@ const InventoryForm = () => {
       item_name: '',
       category_id: '',
       description: '',
+      quantity:0,
       reorder_level: null,
       max_level: null,
       selling_price: null,
@@ -386,6 +384,7 @@ const InventoryForm = () => {
       item_name: '',
       category_id: '',
       description: '',
+      quantity:0,
       reorder_level: null,
       max_level: null,
       selling_price: null,
@@ -531,6 +530,7 @@ const InventoryForm = () => {
             item_name: itemData.name || '',
             category_id: categoryId,
             description: itemData.description || '',
+            quantity: itemData.quantity || 0,
             reorder_level: itemData.reorderLevel ?? null,
             max_level: itemData.maxLevel ?? null,
             selling_price: itemData.unitPrice ?? null,
@@ -799,6 +799,7 @@ const InventoryForm = () => {
         name: data.item_name,
         categoryId: data.category_id,
         description: data.description,
+        quantity: data.quantity,
         reorderLevel: data.reorder_level ?? null,
         maxLevel: data.max_level ?? null,
         unitPrice: data.selling_price ?? null,
@@ -1263,31 +1264,7 @@ const InventoryForm = () => {
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex-1 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="reorder_level"
-                        className={`${errors.reorder_level ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-                      >
-                        <Target className="h-4 w-4" /> Reorder Level
-                      </Label>
-                      <Input
-                        id="reorder_level"
-                        type="number"
-                        placeholder="10"
-                        {...register('reorder_level', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className={`${errors.reorder_level
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.reorder_level && !isViewing ? 'border-blue-300' : ''}`}
-                      />
-                      {errors.reorder_level?.message && (
-                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.reorder_level.message}
-                        </p>
-                      )}
-                    </div>
+                   
 
                     {!isViewing && (
                       <div className="flex-1 space-y-4">
@@ -1453,30 +1430,37 @@ const InventoryForm = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2 group">
-                      <Label
-                        htmlFor="max_level"
-                        className={`${errors.max_level ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-                      >
-                        <Target className="h-4 w-4" /> Maximum Level
-                      </Label>
-                      <Input
-                        id="max_level"
-                        type="number"
-                        placeholder="100"
-                        {...register('max_level', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className={`${errors.max_level
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.max_level && !isViewing ? 'border-blue-300' : ''}`}
-                      />
-                      {errors.max_level?.message && (
-                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.max_level.message}
-                        </p>
-                      )}
-                    </div>
+    <Label
+      htmlFor="quantity"
+      className={`${
+        errors.quantity ? 'text-red-500' : 'text-gray-700'
+      } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+    >
+      <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
+    </Label>
+    <Input
+      id="quantity"
+      type="number"
+      min="0"
+      step="1"
+      placeholder="Enter quantity (e.g., 100)"
+      {...register('quantity', { valueAsNumber: true })}
+      disabled={isViewing}
+      className={`${
+        errors.quantity
+          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
+        watchedFields.quantity !== null && watchedFields.quantity !== undefined && !isViewing ? 'border-blue-300' : ''
+      }`}
+    />
+    {errors.quantity?.message && (
+      <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
+        <AlertCircle className="h-3 w-3" />
+        {errors.quantity.message}
+      </p>
+    )}
+  </div>
 
                     <div className="space-y-2 group">
                       <Label
