@@ -7,7 +7,7 @@ export interface ItemListParams {
   search?: string;
   categoryId?: string;
   status?: string;
-  qcStatus?: 'pending' | 'approved' | 'rejected';
+  qcStatus?: 'pending' | 'approved' | 'rejected' | 'all';
   isActive?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';

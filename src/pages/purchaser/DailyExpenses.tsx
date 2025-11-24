@@ -147,19 +147,28 @@ export const DailyExpensesPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  expenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell>{expense.date ? new Date(expense.date).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>{expense.product?.name ?? 'Unassigned'}</TableCell>
-                      <TableCell>{expense.description}</TableCell>
-                      <TableCell>₹{expense.amount?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  expenses.map((expense) => {
+                    const expenseId = expense.id ?? expense._id;
+                    return (
+                      <TableRow key={expenseId ?? `expense-${expense.date}`}>
+                        <TableCell>{expense.date ? new Date(expense.date).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell>{expense.product?.name ?? 'Unassigned'}</TableCell>
+                        <TableCell>{expense.description}</TableCell>
+                        <TableCell>₹{expense.amount?.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              expenseId ? handleDelete(expenseId) : toast.error('Missing expense identifier')
+                            }
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

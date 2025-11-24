@@ -12,7 +12,6 @@ import { storeStockService } from '@/services/storeStockService';
 import { getItems } from '@/services/itemService';
 import { storeService } from '@/services/storeService';
 import type { StoreStock, PaginationMeta } from '@/types/backend';
-import type { ItemManagement } from '@/Utils/constants';
 
 // Define the item type based on the actual API response
 interface ItemType {
