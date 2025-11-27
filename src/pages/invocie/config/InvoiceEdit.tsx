@@ -34,7 +34,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { storeService } from '@/services/storeService';
 import { getItems } from '@/services/itemService';
-import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
+import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { customerService } from '@/services/customerService';
 import { storeStockService } from '@/services/storeStockService';
 import { Textarea } from '@/components/ui/textarea';
@@ -245,9 +245,9 @@ export default function InvoiceEdit() {
           const customer = typeof invoice.customer === 'object' && invoice.customer !== null
             ? invoice.customer
             : null;
-          const store = typeof invoice.store === 'object' && invoice.store !== null
-            ? invoice.store
-            : null;
+          // const store = typeof invoice.store === 'object' && invoice.store !== null
+          //   ? invoice.store
+          //   : null;
 
           const invoiceItems = invoice.items.map((item) => {
             const itemObj = typeof item.item === 'object' && item.item !== null
@@ -624,7 +624,7 @@ export default function InvoiceEdit() {
   };
 
   // Get available stock using store-stock API
-  const getAvailableStock = async (items: any, storeId: string) => {
+  const getAvailableStock = async (items: any) => {
     try {
       const itemIds = items.map((item: any) => item.id);
       
@@ -667,7 +667,7 @@ export default function InvoiceEdit() {
     ];
     setSelectedSupplies(newSelectedSupplies);
     const itemAvailableStocks =
-      (await getAvailableStock(tempSuppliesData, watchedFields.storeId as string)) || [];
+      (await getAvailableStock(tempSuppliesData)) || [];
 
     // Append to invoice form fields
     tempSuppliesData.forEach((supply) => {
@@ -774,7 +774,7 @@ export default function InvoiceEdit() {
   //   }
   // };
 
-  const checkStockAvailability = async (items: InvoiceItem[], storeId: string) => {
+  const checkStockAvailability = async (items: InvoiceItem[]) => {
     const stockErrors: string[] = [];
 
     try {
@@ -880,7 +880,7 @@ export default function InvoiceEdit() {
     }
 
     // Check stock availability before proceeding
-    const stockErrors = await checkStockAvailability(data.items, data?.storeId ?? '');
+    const stockErrors = await checkStockAvailability(data.items);
     if (stockErrors.length > 0) {
       throw new Error(`Insufficient stock for the following items:\n${stockErrors.join('\n')}`);
     }
@@ -1097,9 +1097,10 @@ export default function InvoiceEdit() {
                           setShowCustomerDropdown(true);
                         }
                       }}
-                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 ${errors.customerName
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
+                        errors.customerName
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                         } transition-all duration-200`}
                     />
                     {/* <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /> */}
