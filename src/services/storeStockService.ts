@@ -12,7 +12,7 @@ export const storeStockService = {
     return apiClient.get<ApiListResponse<StoreStock>>(path);
   },
 
-  async save(payload: { productId: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
+  async save(payload: { productId: string; storeId?: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
     return apiClient.post<ApiResponse<StoreStock>>('/store-stock', payload);
   },
 
@@ -20,7 +20,7 @@ export const storeStockService = {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}/quantity`, { quantity });
   },
 
-  async update(id: string, payload: { productId: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
+  async update(id: string, payload: { productId: string; storeId?: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}`, payload);
   }
 };
