@@ -41,7 +41,7 @@ export const StoreStockPage = () => {
   const [records, setRecords] = useState<StoreStock[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
-  const [editingQuantity, setEditingQuantity] = useState<Record<string, number>>({});
+  // const [editingQuantity, setEditingQuantity] = useState<Record<string, number>>({});
 
   // Add/Edit stock modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -112,26 +112,26 @@ export const StoreStockPage = () => {
     }
   };
 
-  const handleAdjustQuantity = async (stock: StoreStock) => {
-    const newQuantity = editingQuantity[stock.id];
-    if (newQuantity == null || Number.isNaN(newQuantity)) {
-      toast.error('Enter a valid quantity');
-      return;
-    }
-    try {
-      await storeStockService.adjustQuantity(stock.id, newQuantity);
-      toast.success('Stock updated');
-      setEditingQuantity((prev) => {
-        const next = { ...prev };
-        delete next[stock.id];
-        return next;
-      });
-      fetchStock(pagination.page);
-    } catch (error) {
-      console.error('Failed to update quantity', error);
-      toast.error('Unable to update quantity');
-    }
-  };
+  // const handleAdjustQuantity = async (stock: StoreStock) => {
+  //   const newQuantity = editingQuantity[stock.id];
+  //   if (newQuantity == null || Number.isNaN(newQuantity)) {
+  //     toast.error('Enter a valid quantity');
+  //     return;
+  //   }
+  //   try {
+  //     await storeStockService.adjustQuantity(stock.id, newQuantity);
+  //     toast.success('Stock updated');
+  //     setEditingQuantity((prev) => {
+  //       const next = { ...prev };
+  //       delete next[stock.id];
+  //       return next;
+  //     });
+  //     fetchStock(pagination.page);
+  //   } catch (error) {
+  //     console.error('Failed to update quantity', error);
+  //     toast.error('Unable to update quantity');
+  //   }
+  // };
 
   // Open modal for adding new stock
   const handleOpenAddModal = () => {
