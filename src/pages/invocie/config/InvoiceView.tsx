@@ -100,8 +100,8 @@ export default function InvoiceView() {
           ? item.item.name
           : 'Unknown Item';
         const grossAmount = item.quantity * item.unitPrice;
-        const discount = item.discount || 0;
-        const discountAmount = (discount / 100) * grossAmount;
+        const discountAmount = item.discount || 0;
+        // const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
         const netAmount = grossAmount - discountAmount;
 
         return {
@@ -110,7 +110,7 @@ export default function InvoiceView() {
           name: itemName,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: discountAmount,
+          discount: discountAmount, 
           grossAmount: grossAmount,
           netAmount: netAmount,
         };
@@ -127,12 +127,7 @@ export default function InvoiceView() {
   };
 
   const calculateTotalDiscount = () => {
-    return invoice?.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.unitPrice;
-      const discount = item.discount || 0;
-      const discountAmount = (discount / 100) * itemTotal;
-      return sum + discountAmount;
-    }, 0) || invoice?.discountTotal || 0;
+    return invoice?.items.reduce((sum, item) => sum + (item.discount || 0), 0) || invoice?.discountTotal || 0;
   };
 
   const calculateSubtotal = () => {
@@ -282,8 +277,8 @@ export default function InvoiceView() {
                           ? item.item.name
                           : 'Unknown Item';
                         const grossAmount = item.quantity * item.unitPrice;
-                        const discount = item.discount || 0;
-                        const discountAmount = (discount / 100) * grossAmount;
+                        const discountAmount = item.discount || 0;
+                        const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
                         const netAmount = grossAmount - discountAmount;
 
                         return (
@@ -292,9 +287,9 @@ export default function InvoiceView() {
                             <TableCell className="text-center">{item.quantity}</TableCell>
                             <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                             <TableCell className="text-center">
-                              {discount > 0 ? (
+                              {discountPercentage > 0 ? (
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                                  {discount}%
+                                  {discountPercentage.toFixed(2)}%
                                 </span>
                               ) : (
                                 <span className="text-gray-400">-</span>
