@@ -12,7 +12,6 @@ import { storeStockService } from '@/services/storeStockService';
 import { getItems } from '@/services/itemService';
 import { storeService } from '@/services/storeService';
 import type { StoreStock, PaginationMeta } from '@/types/backend';
-import type { ItemManagement } from '@/Utils/constants';
 
 // Define the item type based on the actual API response
 interface ItemType {
@@ -155,7 +154,7 @@ export const StoreStockPage = () => {
     setEditingStockId(stock.id);
     setStockForm({
       productId: stock.product?.id || '',
-      storeId: '', // Store is not editable and not part of StoreStock type
+      storeId: stock.store?._id || '',
       quantity: stock.quantity,
       margin: stock.margin,
       currency: stock.currency
@@ -166,14 +165,8 @@ export const StoreStockPage = () => {
 
   // Handle submit for both add and edit
   const handleSubmitStock = async () => {
-    // Only validate storeId for add mode, not edit mode
-    if (!isEditMode && (!stockForm.productId || !stockForm.storeId)) {
+    if (!stockForm.productId || !stockForm.storeId) {
       toast.error('Please select both item and store');
-      return;
-    }
-
-    if (isEditMode && !stockForm.productId) {
-      toast.error('Please select an item');
       return;
     }
 
@@ -187,6 +180,7 @@ export const StoreStockPage = () => {
         // Update existing stock
         await storeStockService.update(editingStockId, {
           productId: stockForm.productId,
+          storeId: stockForm.storeId,
           quantity: stockForm.quantity,
           margin: stockForm.margin,
           currency: stockForm.currency as 'INR' | 'AED'
@@ -196,6 +190,7 @@ export const StoreStockPage = () => {
         // Add new stock
         await storeStockService.save({
           productId: stockForm.productId,
+          storeId: stockForm.storeId,
           quantity: stockForm.quantity,
           margin: stockForm.margin,
           currency: stockForm.currency as 'INR' | 'AED'
@@ -245,6 +240,7 @@ export const StoreStockPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Store</TableHead>
                   <TableHead>Item</TableHead>
                   <TableHead>Margin %</TableHead>
                   <TableHead>Currency</TableHead>
@@ -256,19 +252,23 @@ export const StoreStockPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Loading store stock...
                     </TableCell>
                   </TableRow>
                 ) : records.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No stock available. Approve items from quality control to populate store stock.
                     </TableCell>
                   </TableRow>
                 ) : (
                   records.map((record) => (
                     <TableRow key={record.id}>
+                      <TableCell>
+                        <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
+                        <div className="text-xs text-muted-foreground">{record.store?.code}</div>
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>
                         <div className="text-xs text-muted-foreground">Code: {record.product?.code}</div>
@@ -278,7 +278,7 @@ export const StoreStockPage = () => {
                       <TableCell>{record.priceAfterMargin.toFixed(2)}</TableCell>
                       <TableCell>{record.quantity}</TableCell>
                       <TableCell className="text-right space-x-2">
-                       
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -345,29 +345,27 @@ export const StoreStockPage = () => {
               </Select>
             </div>
 
-            {!isEditMode && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="store" className="text-right">
-                  Store
-                </Label>
-                <Select
-                  value={stockForm.storeId}
-                  onValueChange={(value) => setStockForm({ ...stockForm, storeId: value })}
-                  disabled={storeLoading}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder={storeLoading ? "Loading..." : "Select store"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store._id} value={store._id}>
-                        {store.name} ({store.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="store" className="text-right">
+                Store
+              </Label>
+              <Select
+                value={stockForm.storeId}
+                onValueChange={(value) => setStockForm({ ...stockForm, storeId: value })}
+                disabled={storeLoading}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder={storeLoading ? "Loading..." : "Select store"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((store) => (
+                    <SelectItem key={store._id} value={store._id}>
+                      {store.name} ({store.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="quantity" className="text-right">

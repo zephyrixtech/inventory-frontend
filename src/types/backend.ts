@@ -50,8 +50,6 @@ export interface Item {
   code: string;
   category: Category;
   description?: string;
-  reorderLevel?: number;
-  maxLevel?: number;
   unitOfMeasure?: string;
   vendor?: Vendor;
   unitPrice?: number;
@@ -65,6 +63,7 @@ export interface Item {
   qcRemarks?: string;
   qcCheckedByName?: string | null;
   qcSubmittedByName?: string | null;
+  availableQuantity?: number;
   availableStock?: number;
   additionalAttributes?: Record<string, unknown>;
   videoType?: 'upload' | 'youtube';
@@ -75,9 +74,37 @@ export interface Item {
   updatedAt: string;
 }
 
+export interface Store {
+  _id: string;
+  id?: string;
+  company: string;
+  name: string;
+  code: string;
+  type: 'Central Store' | 'Branch Store';
+  parent?: {
+    _id: string;
+    name: string;
+    code: string;
+    type: 'Central Store' | 'Branch Store';
+  } | null;
+  manager?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  phone?: string;
+  email?: string;
+  address?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StoreStock {
   id: string;
   product: Item;
+  store?: Store;
   quantity: number;
   margin: number;
   currency: 'INR' | 'AED';
@@ -141,33 +168,6 @@ export interface Supplier {
   notes?: string;
   selectedBrands?: string[];
   selectedSupplies?: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Store {
-  _id: string;
-  id?: string;
-  company: string;
-  name: string;
-  code: string;
-  type: 'Central Store' | 'Branch Store';
-  parent?: {
-    _id: string;
-    name: string;
-    code: string;
-    type: 'Central Store' | 'Branch Store';
-  } | null;
-  manager?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  } | null;
-  phone?: string;
-  email?: string;
-  address?: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
