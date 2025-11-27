@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Warehouse, RefreshCcw, Plus } from 'lucide-react';
+import { Warehouse, RefreshCcw, Plus, Pen } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,12 +43,14 @@ export const StoreStockPage = () => {
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [editingQuantity, setEditingQuantity] = useState<Record<string, number>>({});
-  
-  // Add stock modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Add/Edit stock modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [items, setItems] = useState<ItemType[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [addItemForm, setAddItemForm] = useState({
+  const [stockForm, setStockForm] = useState({
     productId: '',
     storeId: '',
     quantity: 1,
@@ -78,11 +80,11 @@ export const StoreStockPage = () => {
     fetchStock(1);
   }, [fetchStock]);
 
-  // Fetch items and stores for the add modal
+  // Fetch items and stores for the modal
   const fetchItemsAndStores = async () => {
     setItemLoading(true);
     setStoreLoading(true);
-    
+
     try {
       // Fetch items with 'approved' QC status
       const itemsResponse = await getItems(1, 100, { qcStatus: 'approved' });
@@ -98,7 +100,7 @@ export const StoreStockPage = () => {
     } finally {
       setItemLoading(false);
     }
-    
+
     try {
       // Fetch active stores
       const storesResponse = await storeService.listStores({ type: 'all' });
@@ -132,38 +134,89 @@ export const StoreStockPage = () => {
     }
   };
 
-  const handleAddStock = async () => {
-    if (!addItemForm.productId || !addItemForm.storeId) {
+  // Open modal for adding new stock
+  const handleOpenAddModal = () => {
+    setIsEditMode(false);
+    setEditingStockId(null);
+    setStockForm({
+      productId: '',
+      storeId: '',
+      quantity: 1,
+      margin: 0,
+      currency: 'INR'
+    });
+    setIsModalOpen(true);
+    fetchItemsAndStores();
+  };
+
+  // Open modal for editing existing stock
+  const handleOpenEditModal = (stock: StoreStock) => {
+    setIsEditMode(true);
+    setEditingStockId(stock.id);
+    setStockForm({
+      productId: stock.product?.id || '',
+      storeId: '', // Store is not editable and not part of StoreStock type
+      quantity: stock.quantity,
+      margin: stock.margin,
+      currency: stock.currency
+    });
+    setIsModalOpen(true);
+    fetchItemsAndStores();
+  };
+
+  // Handle submit for both add and edit
+  const handleSubmitStock = async () => {
+    // Only validate storeId for add mode, not edit mode
+    if (!isEditMode && (!stockForm.productId || !stockForm.storeId)) {
       toast.error('Please select both item and store');
       return;
     }
-    
-    if (addItemForm.quantity <= 0) {
+
+    if (isEditMode && !stockForm.productId) {
+      toast.error('Please select an item');
+      return;
+    }
+
+    if (stockForm.quantity <= 0) {
       toast.error('Quantity must be greater than 0');
       return;
     }
 
     try {
-      await storeStockService.save({
-        productId: addItemForm.productId,
-        quantity: addItemForm.quantity,
-        margin: addItemForm.margin,
-        currency: addItemForm.currency as 'INR' | 'AED'
-      });
-      
-      toast.success('Stock added successfully');
-      setIsAddModalOpen(false);
-      setAddItemForm({
+      if (isEditMode && editingStockId) {
+        // Update existing stock
+        await storeStockService.update(editingStockId, {
+          productId: stockForm.productId,
+          quantity: stockForm.quantity,
+          margin: stockForm.margin,
+          currency: stockForm.currency as 'INR' | 'AED'
+        });
+        toast.success('Stock updated successfully');
+      } else {
+        // Add new stock
+        await storeStockService.save({
+          productId: stockForm.productId,
+          quantity: stockForm.quantity,
+          margin: stockForm.margin,
+          currency: stockForm.currency as 'INR' | 'AED'
+        });
+        toast.success('Stock added successfully');
+      }
+
+      setIsModalOpen(false);
+      setStockForm({
         productId: '',
         storeId: '',
         quantity: 1,
         margin: 0,
         currency: 'INR'
       });
+      setIsEditMode(false);
+      setEditingStockId(null);
       fetchStock(pagination.page);
     } catch (error) {
-      console.error('Failed to add stock', error);
-      toast.error('Unable to add stock');
+      console.error(`Failed to ${isEditMode ? 'update' : 'add'} stock`, error);
+      toast.error(`Unable to ${isEditMode ? 'update' : 'add'} stock`);
     }
   };
 
@@ -179,10 +232,7 @@ export const StoreStockPage = () => {
             <CardDescription>Monitor approved products and apply margin adjustments before billing.</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => {
-              setIsAddModalOpen(true);
-              fetchItemsAndStores();
-            }}>
+            <Button onClick={handleOpenAddModal}>
               <Plus className="mr-2 h-4 w-4" /> Add Stock
             </Button>
             <Button variant="outline" onClick={() => fetchStock(pagination.page)} disabled={loading}>
@@ -200,7 +250,7 @@ export const StoreStockPage = () => {
                   <TableHead>Currency</TableHead>
                   <TableHead>Price After Margin</TableHead>
                   <TableHead>Quantity</TableHead>
-                  <TableHead className="text-right">Adjust Quantity</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -228,15 +278,13 @@ export const StoreStockPage = () => {
                       <TableCell>{record.priceAfterMargin.toFixed(2)}</TableCell>
                       <TableCell>{record.quantity}</TableCell>
                       <TableCell className="text-right space-x-2">
-                        <Input
-                          type="number"
-                          min={0}
-                          className="w-24 inline-flex"
-                          value={editingQuantity[record.id] ?? record.quantity}
-                          onChange={(event) => setEditingQuantity((prev) => ({ ...prev, [record.id]: Number(event.target.value) }))}
-                        />
-                        <Button size="sm" onClick={() => handleAdjustQuantity(record)}>
-                          Update
+                       
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEditModal(record)}
+                        >
+                          <Pen className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -262,25 +310,27 @@ export const StoreStockPage = () => {
         </CardContent>
       </Card>
 
-      {/* Add Stock Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+      {/* Add/Edit Stock Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Stock</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Edit Stock' : 'Add Stock'}</DialogTitle>
             <DialogDescription>
-              Add new stock to a store by selecting an item and specifying quantity.
+              {isEditMode
+                ? 'Update stock details including margin and currency.'
+                : 'Add new stock to a store by selecting an item and specifying quantity.'}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="item" className="text-right">
                 Item
               </Label>
-              <Select 
-                value={addItemForm.productId} 
-                onValueChange={(value) => setAddItemForm({...addItemForm, productId: value})}
-                disabled={itemLoading}
+              <Select
+                value={stockForm.productId}
+                onValueChange={(value) => setStockForm({ ...stockForm, productId: value })}
+                disabled={itemLoading || isEditMode}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder={itemLoading ? "Loading..." : "Select item"} />
@@ -294,29 +344,31 @@ export const StoreStockPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="store" className="text-right">
-                Store
-              </Label>
-              <Select 
-                value={addItemForm.storeId} 
-                onValueChange={(value) => setAddItemForm({...addItemForm, storeId: value})}
-                disabled={storeLoading}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder={storeLoading ? "Loading..." : "Select store"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((store) => (
-                    <SelectItem key={store._id} value={store._id}>
-                      {store.name} ({store.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
+
+            {!isEditMode && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="store" className="text-right">
+                  Store
+                </Label>
+                <Select
+                  value={stockForm.storeId}
+                  onValueChange={(value) => setStockForm({ ...stockForm, storeId: value })}
+                  disabled={storeLoading}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder={storeLoading ? "Loading..." : "Select store"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store._id} value={store._id}>
+                        {store.name} ({store.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="quantity" className="text-right">
                 Quantity
@@ -326,11 +378,11 @@ export const StoreStockPage = () => {
                 type="number"
                 min="1"
                 className="col-span-3"
-                value={addItemForm.quantity}
-                onChange={(e) => setAddItemForm({...addItemForm, quantity: parseInt(e.target.value) || 1})}
+                value={stockForm.quantity}
+                onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 1 })}
               />
             </div>
-            
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="margin" className="text-right">
                 Margin (%)
@@ -340,18 +392,18 @@ export const StoreStockPage = () => {
                 type="number"
                 min="0"
                 className="col-span-3"
-                value={addItemForm.margin}
-                onChange={(e) => setAddItemForm({...addItemForm, margin: parseInt(e.target.value) || 0})}
+                value={stockForm.margin}
+                onChange={(e) => setStockForm({ ...stockForm, margin: parseInt(e.target.value) || 0 })}
               />
             </div>
-            
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="currency" className="text-right">
                 Currency
               </Label>
-              <Select 
-                value={addItemForm.currency} 
-                onValueChange={(value) => setAddItemForm({...addItemForm, currency: value})}
+              <Select
+                value={stockForm.currency}
+                onValueChange={(value) => setStockForm({ ...stockForm, currency: value })}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select currency" />
@@ -363,12 +415,14 @@ export const StoreStockPage = () => {
               </Select>
             </div>
           </div>
-          
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddStock}>Add Stock</Button>
+            <Button onClick={handleSubmitStock}>
+              {isEditMode ? 'Update Stock' : 'Add Stock'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

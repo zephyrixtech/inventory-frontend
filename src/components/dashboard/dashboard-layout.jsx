@@ -127,75 +127,75 @@ export const DashboardLayout = () => {
 
   // All menu items with role access definitions
   const allMenuItems = [
-    { 
-      path: '/dashboard', 
-      label: 'Dashboard', 
+    {
+      path: '/dashboard',
+      label: 'Dashboard',
       icon: <Home className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin', 'purchaser', 'biller', 'store']
     },
-    { 
-      path: '/dashboard/users', 
-      label: 'Users', 
+    {
+      path: '/dashboard/users',
+      label: 'Users',
       icon: <Users className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/category-master', 
-      label: 'Category Master', 
+    {
+      path: '/dashboard/category-master',
+      label: 'Category Master',
       icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/customer-management', 
-      label: 'Customer Master', 
+    {
+      path: '/dashboard/customer-management',
+      label: 'Customer Master',
       icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'biller']
     },
-    { 
-      path: '/dashboard/itemConfigurator', 
-      label: 'Item Configurator', 
+    {
+      path: '/dashboard/itemConfigurator',
+      label: 'Item Configurator',
       icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/item-master', 
-      label: 'Item Master', 
+    {
+      path: '/dashboard/item-master',
+      label: 'Item Master',
       icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/purchaser/qc', 
-      label: 'Quality Control', 
+    {
+      path: '/dashboard/purchaser/qc',
+      label: 'Quality Control',
       icon: <ShieldCheck className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'purchaser']
     },
-    { 
-      path: '/dashboard/purchaser/packing-lists', 
-      label: 'Packing Lists', 
+    {
+      path: '/dashboard/purchaser/packing-lists',
+      label: 'Packing Lists',
       icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'purchaser', 'store']
     },
-    { 
-      path: '/dashboard/purchaser/expenses', 
-      label: 'Daily Expenses', 
+    {
+      path: '/dashboard/purchaser/expenses',
+      label: 'Daily Expenses',
       icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'purchaser']
     },
-    { 
-      path: '/dashboard/supplierManagement', 
-      label: 'Supplier Management', 
+    {
+      path: '/dashboard/supplierManagement',
+      label: 'Supplier Management',
       icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'purchaser']
     },
-    { 
-      path: '/dashboard/storeManagement', 
-      label: 'Store Management', 
+    {
+      path: '/dashboard/storeManagement',
+      label: 'Store Management',
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'purchaser', 'admin', 'store']
     },
-    { 
-      path: '/dashboard/store/stock', 
-      label: 'Store Stock', 
+    {
+      path: '/dashboard/store/stock',
+      label: 'Store Stock',
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'store']
     },
@@ -205,33 +205,33 @@ export const DashboardLayout = () => {
     //   icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
     //   roles: ['superadmin', 'purchaser', 'admin']
     // },
-    { 
-      path: '/dashboard/inventoryManagement', 
-      label: 'Inventory Management', 
+    {
+      path: '/dashboard/inventoryManagement',
+      label: 'Inventory Management',
       icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/invoice', 
-      label: 'Sales Invoice', 
+    {
+      path: '/dashboard/invoice',
+      label: 'Sales Invoice',
       icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'biller']
     },
-    { 
-      path: '/dashboard/reports', 
-      label: 'Reports', 
+    {
+      path: '/dashboard/reports',
+      label: 'Reports',
       icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/administration', 
-      label: 'Administration', 
+    {
+      path: '/dashboard/administration',
+      label: 'Administration',
       icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    { 
-      path: '/dashboard/administration/currency', 
-      label: 'Currency Rates', 
+    {
+      path: '/dashboard/administration/currency',
+      label: 'Currency Rates',
       icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin', 'store']
     },
@@ -251,7 +251,7 @@ export const DashboardLayout = () => {
 
     // Get role from userData.role with proper handling
     let userRoleRaw = 'biller'; // default fallback
-    
+
     // Handle different role data structures
     if (typeof userData.role === 'string') {
       userRoleRaw = userData.role;
@@ -262,10 +262,10 @@ export const DashboardLayout = () => {
     } else if (roleName) {
       userRoleRaw = roleName;
     }
-    
+
     // Normalize role names to lowercase
     const normalizedRole = userRoleRaw.toLowerCase();
-    
+
     // console.log('User role raw:899999999999', userData);
     // console.log('Normalized role:', normalizedRole);
 
@@ -273,7 +273,7 @@ export const DashboardLayout = () => {
     if (normalizedRole === 'superadmin') {
       return allMenuItems;
     }
-    
+
     // Filter based on role
     return allMenuItems.filter(item => item.roles.includes(normalizedRole));
   };
@@ -381,7 +381,7 @@ export const DashboardLayout = () => {
         )}
       >
         <nav className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-3 py-4 space-y-1"
-             style={{ maxHeight: 'calc(100vh - 140px)' }}>
+          style={{ maxHeight: 'calc(100vh - 140px)' }}>
           {visibleItems.map(item => (
             <Link key={item.path} to={item.path}>
               <Button variant="ghost" className={getMenuItemStyles(item.path)}>
@@ -397,8 +397,8 @@ export const DashboardLayout = () => {
           <Link to="/dashboard/userProfile">
             <div className={cn(
               "mx-3 my-2 rounded-lg cursor-pointer transition-all duration-200 ease-in-out relative flex items-center gap-2",
-              isActiveRoute('/dashboard/userProfile') 
-                ? "bg-blue-50 text-blue-700 p-2 pr-8" 
+              isActiveRoute('/dashboard/userProfile')
+                ? "bg-blue-50 text-blue-700 p-2 pr-8"
                 : "hover:bg-gray-50 text-gray-600 p-2"
             )}>
               <img
