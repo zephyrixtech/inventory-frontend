@@ -44,6 +44,8 @@ export interface Category {
 }
 
 export interface Item {
+  maxLevel: null;
+  reorderLevel: null;
   _id: string;
   id: string;
   name: string;
