@@ -18,6 +18,10 @@ export const storeStockService = {
 
   async adjustQuantity(id: string, quantity: number) {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}/quantity`, { quantity });
+  },
+
+  async update(id: string, payload: { productId: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
+    return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}`, payload);
   }
 };
 
