@@ -1,51 +1,18 @@
 import { useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/Utils/types/supabaseClient';
+import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Printer } from "lucide-react";
 import generateInvoicePDF from './InvoicePrintTemplate';
-import { IUser } from '@/Utils/constants';
 import { useAppSelector } from '@/hooks/redux';
 import { formatCurrency } from '@/Utils/formatters';
+import { toast } from 'react-hot-toast';
 
-interface InvoiceItem {
-  id: string;
-  item_id: string;
-  item_name: string;
-  quantity: number;
-  unit_price: number;
-  discount_percentage: number;
-}
-
-interface Company {
-  id: string;
-  name: string;
-  description: string;
-  is_active: boolean;
-  created_at: string;
-  modified_at: string;
-}
-
-interface SalesInvoice {
-  id: string;
-  invoice_number: string;
-  customer_name: string;
-  contact_number: string;
-  invoice_date: string;
-  net_amount: number;
-  status: "paid" | "pending" | "overdue";
-  billing_address: string;
-  email: string;
-  total_items: number;
-  invoice_amount: number;
-  discount_amount: number;
-  company: Company;
-  items: InvoiceItem[];
-}
+// Using SalesInvoice type from service
 
 export default function InvoiceView() {
   const { id } = useParams();
@@ -65,43 +32,17 @@ export default function InvoiceView() {
 
       try {
         setLoading(true);
-        const user = localStorage.getItem('userData');
-        const userData: IUser | null = user ? JSON.parse(user) : null;
-        const companyId = userData?.company_id || null;
-
-        const { data, error: rpcError } = await supabase.rpc('get_sales_invoices_by_id', {
-          company_id_param: companyId!,
-          search_query: '',
-          status_filter: 'all',
-          date_from: undefined,
-          date_to: undefined,
-          page: 1,
-          limit_param: 100,
-          sort_field: 'invoice_number',
-          sort_order: 'asc'
-        });
-
-        if (rpcError) {
-          console.error('RPC Error:', rpcError);
-          setError(`Failed to fetch invoice: ${rpcError.message}`);
-          return;
-        }
-
-        if (!data || !(data as any).invoices) {
-          setError('No invoice data found');
-          return;
-        }
-
-        const foundInvoice = (data as any).invoices.find((inv: SalesInvoice) => inv.id === id);
-        if (!foundInvoice) {
+        const response = await salesInvoiceService.getInvoice(id);
+        
+        if (response.data) {
+          setInvoice(response.data);
+        } else {
           setError('Invoice not found');
-          return;
         }
-
-        setInvoice(foundInvoice);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching invoice:', err);
-        setError('An unexpected error occurred');
+        setError(`Failed to fetch invoice: ${err.message || 'Unknown error'}`);
+        toast.error(`Failed to fetch invoice: ${err.message || 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
@@ -126,72 +67,73 @@ export default function InvoiceView() {
   const handlePrint = () => {
     if (!invoice) return;
 
+    const customerName = typeof invoice.customer === 'object' && invoice.customer !== null
+      ? invoice.customer.name
+      : 'N/A';
+    const customerPhone = typeof invoice.customer === 'object' && invoice.customer !== null
+      ? invoice.customer.phone || 'N/A'
+      : 'N/A';
+    const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
+      ? invoice.customer.email || ''
+      : '';
+
+    const storeName = typeof invoice.store === 'object' && invoice.store !== null
+      ? invoice.store.name
+      : 'N/A';
+    const storeCode = typeof invoice.store === 'object' && invoice.store !== null
+      ? invoice.store.code || ''
+      : '';
+
     const invoiceData = {
-      id: invoice.id,
-      invoiceNumber: invoice.invoice_number,
+      id: invoice._id || invoice.id || '',
+      invoiceNumber: invoice.invoiceNumber,
       customer: {
-        name: invoice.customer_name,
-        contact: invoice.contact_number,
-        address: invoice.billing_address,
-      },
-      companyInfo: {
-        ...userInfo?.company_data,
+        name: customerName,
+        contact: customerPhone,
+        address: '',
       },
       store: {
-        name: invoice.company.name,
-        branch: "Main Branch",
-        address: invoice.billing_address,
-        contact: invoice.contact_number
+        name: storeName,
+        contact: storeCode,
       },
-      vehicle: {
-        plateNo: "N/A",
-        kms: "N/A",
-        brand: "N/A",
-        model: "N/A",
-        vinNo: "N/A",
-        emirates: "N/A",
-      },
-      insurance: {
-        provider: "N/A",
-        claimNo: "N/A",
-        lpoNo: "N/A",
-      },
-      paymentType: "Cash",
-      items: invoice.items.map(item => ({
-        id: item.id,
-        itemNumber: item.item_id,
-        name: item.item_name,
-        description: "",
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        sellingPrice: item.unit_price,
-        amount: item.quantity * item.unit_price,
-        discount: (item.discount_percentage / 100) * (item.quantity * item.unit_price),
-        grossAmount: item.quantity * item.unit_price,
-        vat: (item.quantity * item.unit_price) * 0.05,
-        netAmount: (item.quantity * item.unit_price) * 1.05,
-      })),
-      date: invoice.invoice_date,
-      status: invoice.status,
-      paymentDetails: {
-        type: "Cash",
-        terms: "Net 30"
-      }
+      items: invoice.items.map((item, index) => {
+        const itemName = typeof item.item === 'object' && item.item !== null
+          ? item.item.name
+          : 'Unknown Item';
+        const grossAmount = item.quantity * item.unitPrice;
+        const discount = item.discount || 0;
+        const discountAmount = (discount / 100) * grossAmount;
+        const netAmount = grossAmount - discountAmount;
+
+        return {
+          id: typeof item.item === 'object' && item.item !== null ? item.item._id : String(index),
+          itemNumber: typeof item.item === 'object' && item.item !== null ? item.item.code || '' : '',
+          name: itemName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: discountAmount,
+          grossAmount: grossAmount,
+          netAmount: netAmount,
+        };
+      }),
+      date: invoice.invoiceDate,
+      status: 'pending' as const,
     };
 
     generateInvoicePDF(invoiceData);
   };
 
   const calculateGrossTotal = () => {
-    return invoice?.items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0) || 0;
+    return invoice?.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) || 0;
   };
 
   const calculateTotalDiscount = () => {
     return invoice?.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.unit_price;
-      const discount = (item.discount_percentage / 100) * itemTotal;
-      return sum + discount;
-    }, 0) || 0;
+      const itemTotal = item.quantity * item.unitPrice;
+      const discount = item.discount || 0;
+      const discountAmount = (discount / 100) * itemTotal;
+      return sum + discountAmount;
+    }, 0) || invoice?.discountTotal || 0;
   };
 
   const calculateSubtotal = () => {
@@ -201,8 +143,8 @@ export default function InvoiceView() {
   const grossTotal = calculateGrossTotal();
   const totalDiscount = calculateTotalDiscount();
   const subtotal = calculateSubtotal();
-  const tax = 0;
-  const finalAmount = subtotal + tax;
+  const tax = invoice?.taxAmount || 0;
+  const finalAmount = invoice?.netAmount || (subtotal + tax);
 
   if (loading) {
     return (
@@ -272,11 +214,8 @@ export default function InvoiceView() {
                 </div>
                 <div className="text-right space-y-2">
                   <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
-                  <p className="text-gray-600">Invoice #: {invoice.invoice_number}</p>
-                  <p className="text-gray-600">Date: {new Date(invoice.invoice_date).toLocaleDateString()}</p>
-                  <Badge className={`${getStatusColor(invoice.status)} px-3 py-1 text-sm font-semibold capitalize`}>
-                    {invoice.status}
-                  </Badge>
+                  <p className="text-gray-600">Invoice #: {invoice.invoiceNumber}</p>
+                  <p className="text-gray-600">Date: {new Date(invoice.invoiceDate).toLocaleDateString()}</p>
                 </div>
               </div>
 
@@ -285,10 +224,19 @@ export default function InvoiceView() {
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold text-gray-900">Bill To</h3>
                   <div className="border-l-4 border-blue-600 pl-4 space-y-1">
-                    <p className="text-lg font-medium text-gray-800">{invoice.customer_name}</p>
-                    <p className="text-gray-600">Contact: {invoice.contact_number}</p>
-                    {invoice.email && <p className="text-gray-600">Email: {invoice.email}</p>}
-                    {invoice.billing_address && <p className="text-gray-600">{invoice.billing_address}</p>}
+                    <p className="text-lg font-medium text-gray-800">
+                      {typeof invoice.customer === 'object' && invoice.customer !== null
+                        ? invoice.customer.name
+                        : 'N/A'}
+                    </p>
+                    <p className="text-gray-600">
+                      Contact: {typeof invoice.customer === 'object' && invoice.customer !== null
+                        ? invoice.customer.phone || 'N/A'
+                        : 'N/A'}
+                    </p>
+                    {typeof invoice.customer === 'object' && invoice.customer !== null && invoice.customer.email && (
+                      <p className="text-gray-600">Email: {invoice.customer.email}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -296,7 +244,7 @@ export default function InvoiceView() {
                   <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Items:</span>
-                      <span className="font-medium">{invoice.total_items}</span>
+                      <span className="font-medium">{invoice.items.length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Gross Amount:</span>
@@ -330,20 +278,24 @@ export default function InvoiceView() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {invoice.items.map((item) => {
-                        const grossAmount = item.quantity * item.unit_price;
-                        const discountAmount = (item.discount_percentage / 100) * grossAmount;
+                      {invoice.items.map((item, index) => {
+                        const itemName = typeof item.item === 'object' && item.item !== null
+                          ? item.item.name
+                          : 'Unknown Item';
+                        const grossAmount = item.quantity * item.unitPrice;
+                        const discount = item.discount || 0;
+                        const discountAmount = (discount / 100) * grossAmount;
                         const netAmount = grossAmount - discountAmount;
 
                         return (
-                          <TableRow key={item.id} className="hover:bg-gray-50 transition-colors">
-                            <TableCell className="font-medium text-gray-800">{item.item_name}</TableCell>
+                          <TableRow key={item.item && typeof item.item === 'object' ? item.item._id : index} className="hover:bg-gray-50 transition-colors">
+                            <TableCell className="font-medium text-gray-800">{itemName}</TableCell>
                             <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                             <TableCell className="text-center">
-                              {item.discount_percentage > 0 ? (
+                              {discount > 0 ? (
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                                  {item.discount_percentage}%
+                                  {discount}%
                                 </span>
                               ) : (
                                 <span className="text-gray-400">-</span>
@@ -414,7 +366,7 @@ export default function InvoiceView() {
                 </div>
                 <div className="text-center mt-6 text-gray-500 text-sm print:fixed print:bottom-0 print:left-0 print:right-0">
                   <p>Thank you for your business!</p>
-                  <p>For any queries, please contact us at support@{invoice.company.name.toLowerCase().replace(/\s+/g, '')}.com</p>
+                  <p>For any queries, please contact us</p>
                 </div>
               </div>
             </div>

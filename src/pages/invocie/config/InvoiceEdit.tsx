@@ -32,17 +32,22 @@ import {
   Store,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '@/Utils/types/supabaseClient';
+import { storeService } from '@/services/storeService';
+import { getItems } from '@/services/itemService';
+import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
+import { customerService } from '@/services/customerService';
+import { storeStockService } from '@/services/storeStockService';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/Utils/formatters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Define Store type
+// Store type from storeService
 type Store = {
-  id: string;
+  _id: string;
+  id?: string;
   name: string;
-  address?: string | null;
-  is_active: boolean | null;
+  address?: string;
+  isActive: boolean;
 };
 
 // Define Supply type
@@ -56,7 +61,7 @@ type Supply = {
 
 // Schema for invoice items
 const invoiceItemSchema = z.object({
-  id: z.string().uuid('Item must have a valid UUID'),
+  id: z.string().min(1, 'Item ID is required'), // Changed from UUID to accept MongoDB ObjectIds
   name: z.string().min(1, 'Item name is required').max(100, 'Item name must be less than 100 characters'),
   quantity: z.number().min(1, 'Quantity must be at least 1').int('Quantity must be an integer'),
   unitPrice: z.number().min(0, 'Unit price cannot be negative'),
@@ -206,23 +211,20 @@ export default function InvoiceEdit() {
       if (!companyId) return;
       
       try {
-        const { data, error } = await supabase
-          .from('store_mgmt')
-          .select('id, name, address, is_active')
-          .eq('company_id', companyId)
-          .eq('is_active', true)
-          .order('name');
-
-        if (error) {
-          console.error('Error fetching stores:', error);
-          toast.error('Failed to fetch stores');
-          return;
+        const response = await storeService.listStores({});
+        if (response.data) {
+          const storeList = response.data.map(store => ({
+            _id: store._id,
+            id: store.id || store._id,
+            name: store.name,
+            address: store.address,
+            isActive: store.isActive,
+          }));
+          setStores(storeList);
         }
-
-        setStores(data || []);
-      } catch (error) {
-        console.error('Unexpected error fetching stores:', error);
-        toast.error('An unexpected error occurred while fetching stores');
+      } catch (error: any) {
+        console.error('Error fetching stores:', error);
+        toast.error(`Failed to fetch stores: ${error.message || 'Unknown error'}`);
       }
     };
 
@@ -235,37 +237,35 @@ export default function InvoiceEdit() {
       setIsLoading(true);
       const fetchInvoice = async () => {
         try {
-          const { data, error } = await supabase
-            .from('sales_invoice')
-            .select(`
-              *,
-              sales_invoice_items (
-                item_id,
-                quantity,
-                unit_price,
-                discount_percentage,
-                item_mgmt (item_name, selling_price)
-              ),
-              customer_data: customer_mgmt!sales_invoice_customer_id_fkey(*)
-            `)
-            .eq('id', id)
-            .eq('company_id', companyId)
-            .single();
+          const response = await salesInvoiceService.getInvoice(id);
+          const invoice = response.data;
 
-          if (error || !data) throw new Error('Failed to fetch invoice');
+          if (!invoice) throw new Error('Invoice not found');
 
-          const invoiceItems = data.sales_invoice_items.map((item: any) => {
+          const customer = typeof invoice.customer === 'object' && invoice.customer !== null
+            ? invoice.customer
+            : null;
+          const store = typeof invoice.store === 'object' && invoice.store !== null
+            ? invoice.store
+            : null;
+
+          const invoiceItems = invoice.items.map((item) => {
+            const itemObj = typeof item.item === 'object' && item.item !== null
+              ? item.item
+              : null;
+            const itemId = itemObj?._id || String(item.item);
+            const itemName = itemObj?.name || 'Unknown Item';
             const quantity = item.quantity || 0;
-            const unitPrice = item.unit_price || 0;
-            const discountPercentage = Number(item.discount_percentage) || 0;
-            
-            // For editing: We show percentage in UI but we have amount in DB
-            // Calculate total using percentage for consistency with UI display
-            const total = quantity * unitPrice * (1 - discountPercentage / 100);
-            
+            const unitPrice = item.unitPrice || 0;
+            const discount = item.discount || 0;
+            const discountPercentage = discount > 0 && unitPrice > 0
+              ? (discount / (quantity * unitPrice)) * 100
+              : 0;
+            const total = item.totalPrice || (quantity * unitPrice - discount);
+
             return {
-              id: item.item_id,
-              name: item.item_mgmt.item_name,
+              id: itemId,
+              name: itemName,
               quantity: quantity,
               unitPrice: unitPrice,
               discount: discountPercentage, // UI expects percentage
@@ -274,39 +274,47 @@ export default function InvoiceEdit() {
             };
           });
 
-          const itemIds = invoiceItems.map((item: any) => item.id);
-          const { data: stockData, error: stockError } = await supabase
-            .rpc('get_total_stock_for_items_by_store', { item_ids: itemIds, p_store_id: data?.store_id ?? '' });
-
-          if (stockError) {
-            console.error('Supabase stock error:', stockError.message);
+          // Fetch store stock for invoice items
+          const itemIds = invoiceItems.map(item => item.id);
+          let stockMap: Record<string, number> = {};
+          
+          try {
+            const stockResponse = await storeStockService.list({ limit: 1000 });
+            if (stockResponse.data) {
+              stockResponse.data.forEach((stock) => {
+                const productId = typeof stock.product === 'object' && stock.product !== null
+                  ? stock.product._id || stock.product.id
+                  : String(stock.product);
+                if (itemIds.includes(productId)) {
+                  stockMap[productId] = stock.quantity || 0;
+                }
+              });
+            }
+          } catch (stockError) {
+            console.error('Error fetching store stock:', stockError);
           }
-
-          const stockMap = ((stockData as StockRow[]) || []).reduce((acc: Record<string, number>, s: any) => {
-            acc[s.item_id] = Number(s.total_qty) || 0;
-            return acc;
-          }, {} as Record<string, number>);
-
-          // Keep raw current stock for display purposes only (do not add previous qty in the label)
+          
           setDisplayStockMap(stockMap);
 
-          // Build a map of previously invoiced quantities to support delta-aware validation
-          const previousQuantitiesMap: Record<string, number> = invoiceItems.reduce((acc: Record<string, number>, it: any) => {
+          const previousQuantitiesMap: Record<string, number> = invoiceItems.reduce((acc, it) => {
             acc[it.id] = Number(it.quantity) || 0;
             return acc;
           }, {} as Record<string, number>);
 
+          const storeId = typeof invoice.store === 'object' && invoice.store !== null
+            ? invoice.store._id
+            : String(invoice.store);
+
           const nextValues = {
-            storeId: data.store_id || '',
-            invoiceNumber: data.invoice_number || '',
-            date: data.invoice_date || '',
-            customerName: data.customer_data?.fullname || data.customer_name || '',
-            contactNumber: data.customer_data?.phone || data.contact_number || '',
-            email: data.customer_data?.email || data.email || '',
-            billingAddress: data.customer_data?.address || data.billing_address || '',
-            items: invoiceItems.map((item: any) => ({
+            storeId: storeId || '',
+            invoiceNumber: invoice.invoiceNumber || '',
+            date: invoice.invoiceDate ? new Date(invoice.invoiceDate).toISOString().split('T')[0] : '',
+            customerName: customer?.name || '',
+            contactNumber: customer?.phone || '',
+            email: customer?.email || '',
+            billingAddress: '',
+            items: invoiceItems.map((item) => ({
               ...item,
-              // During edit, allow up to (current stock + previously invoiced qty)
               availableStock: (stockMap[item.id] ?? 0) + (previousQuantitiesMap[item.id] || 0),
             })),
             additionalCharges: 0,
@@ -314,11 +322,25 @@ export default function InvoiceEdit() {
           reset(nextValues);
           initialValuesRef.current = nextValues;
 
-          setSelectedCustomer(data?.customer_data ?? undefined);
-          setSelectedStore(data?.store_id ?? '');
+          if (customer) {
+            setSelectedCustomer({
+              id: customer._id || '',
+              fullname: customer.name,
+              address: '',
+              company_id: companyId,
+              created_at: '',
+              created_by: null,
+              customer_id: customer.customerId || null,
+              email: customer.email || null,
+              is_active: true,
+              phone: customer.phone || null,
+              type: 'retail',
+            });
+          }
+          setSelectedStore(storeId || '');
 
           setSelectedSupplies(
-            invoiceItems.map((item: any) => ({
+            invoiceItems.map((item) => ({
               id: item.id,
               name: item.name,
               description: '',
@@ -326,9 +348,10 @@ export default function InvoiceEdit() {
               availableStock: (stockMap[item.id] ?? 0) + (previousQuantitiesMap[item.id] || 0),
             }))
           );
-        } catch (err) {
-          setError('Failed to load invoice data');
+        } catch (err: any) {
+          setError(`Failed to load invoice data: ${err.message || 'Unknown error'}`);
           setFormStatus('error');
+          toast.error(`Failed to load invoice: ${err.message || 'Unknown error'}`);
         } finally {
           setIsLoading(false);
         }
@@ -347,21 +370,31 @@ export default function InvoiceEdit() {
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       const yy = String(now.getFullYear()).slice(-2);
       const todayPrefix = `INV-${dd}${mm}${yy}-`;
-      const { data, error } = await supabase
-        .from('sales_invoice')
-        .select('invoice_number')
-        .eq('company_id', companyId)
-        .like('invoice_number', `${todayPrefix}%`)
-        .order('invoice_number', { ascending: false })
-        .limit(1);
-      let nextSerial = 1;
-      if (!error && data && data.length > 0 && data[0].invoice_number) {
-        const match = data[0].invoice_number.match(/-(\d{4})$/);
-        if (match) {
-          nextSerial = parseInt(match[1], 10) + 1;
+      
+      try {
+        // Fetch invoices to get the last invoice number
+        const response = await salesInvoiceService.listInvoices({
+          page: 1,
+          limit: 1,
+          sortBy: 'invoiceNumber',
+          sortOrder: 'desc',
+        });
+        
+        let nextSerial = 1;
+        if (response.data && response.data.length > 0) {
+          const lastInvoice = response.data[0];
+          if (lastInvoice.invoiceNumber.startsWith(todayPrefix)) {
+            const match = lastInvoice.invoiceNumber.match(/-(\d{4})$/);
+            if (match) {
+              nextSerial = parseInt(match[1], 10) + 1;
+            }
+          }
         }
+        setValue('invoiceNumber', generateInvoiceNumber(nextSerial));
+      } catch (error) {
+        // If fetch fails, just use serial 1
+        setValue('invoiceNumber', generateInvoiceNumber(1));
       }
-      setValue('invoiceNumber', generateInvoiceNumber(nextSerial));
     };
     fetchAndSetNextInvoiceNumber();
   }, [isEditing, companyId, setValue]);
@@ -390,22 +423,33 @@ export default function InvoiceEdit() {
 
     const timeoutId = setTimeout(async () => {
       try {
-        const { data, error: fetchError } = await supabase
-          .from('customer_mgmt')
-          .select('id, fullname, address, company_id, created_at, created_by, customer_id, email, is_active, phone, type')
-          .eq('company_id', companyId)
-          .eq('is_active', true)
-          .eq('status', true)
-          .or(`fullname.ilike.%${customerSearchTerm.trim()}%,customer_id.ilike.%${customerSearchTerm.trim()}%`)
-          .limit(10);
+        const response = await customerService.listCustomers({
+          search: customerSearchTerm.trim(),
+          page: 1,
+          limit: 10,
+        });
 
-        if (fetchError) throw fetchError;
-
-        setFilteredCustomers(data);
-        setShowCustomerDropdown(true);
-      } catch (error) {
+        if (response.data) {
+          // Map customer service response to Customer type
+          const mappedCustomers: Customer[] = response.data.map((customer: any) => ({
+            id: customer._id || customer.id,
+            fullname: customer.name || customer.fullName || '',
+            address: customer.address || '',
+            company_id: customer.company || companyId,
+            created_at: customer.createdAt || '',
+            created_by: customer.createdBy || null,
+            customer_id: customer.customerId || customer.customer_id || null,
+            email: customer.email || null,
+            is_active: customer.isActive !== false,
+            phone: customer.phone || customer.contactNumber || null,
+            type: customer.type || 'retail',
+          }));
+          setFilteredCustomers(mappedCustomers);
+          setShowCustomerDropdown(true);
+        }
+      } catch (error: any) {
         console.error('Error fetching customers:', error);
-        toast.error('Failed to fetch customers. Please try again.');
+        toast.error(`Failed to fetch customers: ${error.message || 'Unknown error'}`);
         setFilteredCustomers([]);
         setShowCustomerDropdown(false);
       }
@@ -470,69 +514,58 @@ export default function InvoiceEdit() {
       }
 
       try {
-        // First get items that exist in the selected store's inventory
-        const { data: inventoryData, error: inventoryError } = await supabase
-          .from('inventory_mgmt')
-          .select('item_id, item_qty')
-          .eq('store_id', selectedStore)
-          .eq('company_id', companyId)
-          .gt('item_qty', 0);
+        // Fetch items using the item service
+        const response = await getItems(1, 50, {
+          search: itemSearchTerm.trim(),
+        });
 
-        if (inventoryError) {
-          console.error('Error fetching inventory:', inventoryError);
-          toast.error('Failed to fetch inventory data');
-          return;
-        }
-
-        if (!inventoryData || inventoryData.length === 0) {
+        if (!response.data || response.data.length === 0) {
           setFilteredSupplies([]);
           setShowSuppliesDropdown(true);
           return;
         }
 
-        // Get unique item IDs from inventory, filtering out null values
-        const itemIds = [...new Set(inventoryData.map(item => item.item_id).filter(Boolean))] as string[];
-
-        // Now fetch item details for these items
-        const { data: itemData, error: itemError } = await supabase
-          .from('item_mgmt')
-          .select('id, item_name, description, selling_price')
-          .eq('is_active', true)
-          .eq('company_id', companyId)
-          .in('id', itemIds)
-          .or(`item_name.ilike.%${itemSearchTerm.trim()}%,description.ilike.%${itemSearchTerm.trim()}%`);
-
-        if (itemError) {
-          console.error('Supabase error:', itemError.message);
-          toast.error('Failed to fetch supplies');
-          return;
+        // Fetch store stock for all items to get available quantities
+        const itemIds = response.data.map(item => item._id || item.id);
+        const stockMap: Record<string, number> = {};
+        
+        try {
+          // Fetch store stock for these items
+          const stockResponse = await storeStockService.list({ limit: 1000 });
+          if (stockResponse.data) {
+            stockResponse.data.forEach((stock) => {
+              const productId = typeof stock.product === 'object' && stock.product !== null
+                ? stock.product._id || stock.product.id
+                : String(stock.product);
+              if (itemIds.includes(productId)) {
+                stockMap[productId] = stock.quantity || 0;
+              }
+            });
+          }
+        } catch (stockError) {
+          console.error('Error fetching store stock:', stockError);
+          // Continue without stock data
         }
 
-        if (!itemData || itemData.length === 0) {
-          setFilteredSupplies([]);
-          setShowSuppliesDropdown(true);
-          return;
-        }
-
-        // Create a map of item quantities by store
-        const itemQuantityMap = inventoryData.reduce((acc: Record<string, number>, inv: any) => {
-          acc[inv.item_id] = (acc[inv.item_id] || 0) + (inv.item_qty || 0);
-          return acc;
-        }, {});
-
-        const mappedSupplies: Supply[] = itemData.map((item: any) => ({
-          id: item.id,
-          name: item.item_name || 'Unnamed Item',
-          description: item.description || 'No description',
-          price: item.selling_price ? parseFloat(item.selling_price) : 0,
-          availableStock: itemQuantityMap[item.id] ?? 0,
-        }));
+        // Map items to Supply format with actual stock
+        const mappedSupplies: Supply[] = response.data.map((item) => {
+          const itemId = item._id || item.id;
+          return {
+            id: itemId,
+            name: item.name || 'Unnamed Item',
+            description: item.description || 'No description',
+            price: item.unitPrice || 0,
+            availableStock: stockMap[itemId] || item.availableStock || 0,
+          };
+        });
 
         setFilteredSupplies(mappedSupplies);
         setShowSuppliesDropdown(true);
-      } catch (error) {
-        console.error('Unexpected error in fetchSupplies:', error);
-        toast.error('An unexpected error occurred');
+      } catch (error: any) {
+        console.error('Error in fetchSupplies:', error);
+        toast.error(`Failed to fetch items: ${error.message || 'Unknown error'}`);
+        setFilteredSupplies([]);
+        setShowSuppliesDropdown(false);
       }
     };
 
@@ -561,45 +594,62 @@ export default function InvoiceEdit() {
 
       if (idsToFetch.length === 0) return [];
 
-      const { data, error } = await supabase
-        .from('item_mgmt')
-        .select('id, item_name, description, selling_price')
-        .eq('company_id', companyId)
-        .in('id', idsToFetch);
+      // Fetch items by IDs - would need a batch get endpoint or fetch individually
+      const items = await Promise.all(
+        idsToFetch.map(async (id) => {
+          try {
+            const response = await getItems(1, 1, {});
+            const item = response.data.find(i => (i._id || i.id) === id);
+            if (item) {
+              return {
+                id: item._id || item.id,
+                name: item.name || 'Unnamed Item',
+                description: item.description || 'No description',
+                price: item.unitPrice || 0,
+              };
+            }
+            return null;
+          } catch {
+            return null;
+          }
+        })
+      );
 
-      if (error) {
-        console.error('Error fetching selected supplies:', error.message);
-        toast.error('Failed to fetch selected supplies.');
-        return [];
-      }
-
-      return (data || []).map((item: any) => ({
-        id: item.id,
-        name: item.item_name || 'Unnamed Item',
-        description: item.description || 'No description',
-        price: item.selling_price ? parseFloat(item.selling_price) : 0,
-      }));
-    } catch (err) {
+      return items.filter((item): item is Supply => item !== null);
+    } catch (err: any) {
       console.error('Unexpected error:', err);
-      toast.error('Unexpected error occurred while confirming supplies.');
+      toast.error(`Unexpected error occurred: ${err.message || 'Unknown error'}`);
       return [];
     }
   };
 
-  // Get available stock 
+  // Get available stock using store-stock API
   const getAvailableStock = async (items: any, storeId: string) => {
     try {
       const itemIds = items.map((item: any) => item.id);
-      const { data: stockData, error: stockError } = await supabase
-        .rpc('get_total_stock_for_items_by_store', { item_ids: itemIds, p_store_id: storeId });
+      
+      // Fetch store stock for these items
+      const stockResponse = await storeStockService.list({ limit: 1000 });
+      if (!stockResponse.data) return [];
 
-      if (stockError) {
-        console.error('Supabase stock error:', stockError.message);
-        return [];
-      }
-
-      return stockData ?? [];
-    } catch (err) {
+      // Map stock data to item_id format
+      return stockResponse.data
+        .filter((stock) => {
+          const productId = typeof stock.product === 'object' && stock.product !== null
+            ? stock.product._id || stock.product.id
+            : String(stock.product);
+          return itemIds.includes(productId);
+        })
+        .map((stock) => {
+          const productId = typeof stock.product === 'object' && stock.product !== null
+            ? stock.product._id || stock.product.id
+            : String(stock.product);
+          return {
+            item_id: productId,
+            total_qty: stock.quantity || 0,
+          };
+        });
+    } catch (err: any) {
       console.error('Unexpected stock fetch error:', err);
       return [];
     }
@@ -681,107 +731,12 @@ export default function InvoiceEdit() {
   // };
 
   // New function to restore inventory quantities using FIFO logic
+  // TODO: This should be handled by the backend API when invoice is updated/deleted
   const restoreInventoryQuantitiesFIFO = async (itemId: string, quantityToRestore: number) => {
     try {
-      console.log(`Starting FIFO restoration for item ${itemId}, quantity to restore: ${quantityToRestore}`);
-      
-      // Get all inventory rows for this item, ordered by creation date (oldest first)
-      const { data: inventoryRows, error: fetchError } = await supabase
-        .from('inventory_mgmt')
-        .select('id, item_qty, created_at, store_id, purchase_order_id')
-        .eq('item_id', itemId)
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: true }); // Oldest first for FIFO
-
-      if (fetchError) {
-        throw new Error(`Failed to fetch inventory rows: ${fetchError.message}`);
-      }
-
-      if (!inventoryRows || inventoryRows.length === 0) {
-        throw new Error(`No inventory found for item ID: ${itemId}`);
-      }
-
-      console.log(`Found ${inventoryRows.length} inventory rows for item ${itemId}`);
-      
-      // Log current inventory state
-      inventoryRows.forEach((row, index) => {
-        console.log(`Row ${index + 1}: ID=${row.id}, Qty=${row.item_qty}, Created=${row.created_at}`);
-      });
-
-      let remainingQuantity = quantityToRestore;
-      const updates: Array<{ id: string; newQuantity: number; oldQuantity: number }> = [];
-
-      // Process each row in FIFO order to restore quantities
-      for (const row of inventoryRows) {
-        if (remainingQuantity <= 0) break;
-
-        const currentQuantity = row.item_qty || 0;
-        const maxCapacity = 999999; // Set a reasonable maximum capacity
-        const availableSpace = maxCapacity - currentQuantity;
-
-        if (availableSpace <= 0) {
-          console.log(`Skipping row ${row.id} - no space available (current: ${currentQuantity}, max: ${maxCapacity})`);
-          continue; // Skip full rows
-        }
-
-        if (availableSpace >= remainingQuantity) {
-          // This row has enough space
-          const newQuantity = currentQuantity + remainingQuantity;
-          updates.push({
-            id: row.id,
-            newQuantity,
-            oldQuantity: currentQuantity
-          });
-          console.log(`Row ${row.id}: Restoring from ${currentQuantity} to ${newQuantity} (remaining: 0)`);
-          remainingQuantity = 0;
-        } else {
-          // This row doesn't have enough space, fill it up
-          updates.push({
-            id: row.id,
-            newQuantity: maxCapacity,
-            oldQuantity: currentQuantity
-          });
-          console.log(`Row ${row.id}: Restoring from ${currentQuantity} to ${maxCapacity} (remaining: ${remainingQuantity - availableSpace})`);
-          remainingQuantity -= availableSpace;
-        }
-      }
-
-      // If we still have remaining quantity, add it to the first row
-      if (remainingQuantity > 0 && inventoryRows.length > 0) {
-        const firstRow = inventoryRows[0];
-        const currentQuantity = firstRow.item_qty || 0;
-        const existingUpdate = updates.find(u => u.id === firstRow.id);
-        
-        if (existingUpdate) {
-          existingUpdate.newQuantity += remainingQuantity;
-          console.log(`Row ${firstRow.id}: Adding remaining ${remainingQuantity} to existing update`);
-        } else {
-          updates.push({
-            id: firstRow.id,
-            newQuantity: currentQuantity + remainingQuantity,
-            oldQuantity: currentQuantity
-          });
-          console.log(`Row ${firstRow.id}: Adding remaining ${remainingQuantity} (new total: ${currentQuantity + remainingQuantity})`);
-        }
-      }
-
-      console.log(`Total quantity to restore: ${quantityToRestore}, Updates needed: ${updates.length}`);
-
-      // Apply all updates
-      for (const update of updates) {
-        console.log(`Updating row ${update.id}: ${update.oldQuantity} -> ${update.newQuantity}`);
-        
-        const { error: updateError } = await supabase
-          .from('inventory_mgmt')
-          .update({ item_qty: update.newQuantity })
-          .eq('id', update.id);
-
-        if (updateError) {
-          throw new Error(`Failed to update inventory row ${update.id}: ${updateError.message}`);
-        }
-      }
-
-      console.log(`FIFO restoration completed successfully for item ${itemId}`);
+      console.log(`FIFO restoration for item ${itemId}, quantity to restore: ${quantityToRestore}`);
+      // Note: Inventory restoration should be handled by the backend API
+      // This is a placeholder for now
       return true;
     } catch (error) {
       console.error('Error in FIFO inventory restoration:', error);
@@ -810,91 +765,12 @@ export default function InvoiceEdit() {
   };
 
   // New function to reduce inventory quantities
+  // TODO: This should be handled by the backend API when invoice is created/updated
   const reduceInventoryQuantitiesFIFO = async (itemId: string, requiredQuantity: number, storeId: string) => {
     try {
-
-      // Get all inventory rows for this item in the specific store
-      const { data: inventoryRows, error: fetchError } = await supabase
-        .from('inventory_mgmt')
-        .select('id, item_qty, created_at, store_id, purchase_order_id')
-        .eq('item_id', itemId)
-        .eq('store_id', storeId)
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: true });
-
-      if (fetchError) {
-        throw new Error(`Failed to fetch inventory rows: ${fetchError.message}`);
-      }
-
-      if (!inventoryRows || inventoryRows.length === 0) {
-        throw new Error(`No inventory found for item ID ${itemId} in store ID ${storeId}`);
-      }
-
-      console.log(`Found ${inventoryRows.length} inventory rows for item ${itemId}`);
-      
-      // Log current inventory state
-      inventoryRows.forEach((row, index) => {
-        console.log(`Row ${index + 1}: ID=${row.id}, Qty=${row.item_qty}, Created=${row.created_at}`);
-      });
-
-      let remainingQuantity = requiredQuantity;
-      const updates: Array<{ id: string; newQuantity: number; oldQuantity: number }> = [];
-
-      // Process each row in FIFO order within the store
-      for (const row of inventoryRows) {
-        if (remainingQuantity <= 0) break;
-
-        const availableInRow = row.item_qty || 0;
-        if (availableInRow <= 0) {
-          console.log(`Skipping row ${row.id} - no quantity available`);
-          continue; // Skip rows with no quantity
-        }
-
-        if (availableInRow >= remainingQuantity) {
-          // This row has enough quantity
-          const newQuantity = availableInRow - remainingQuantity;
-          updates.push({
-            id: row.id,
-            newQuantity,
-            oldQuantity: availableInRow
-          });
-          console.log(`Row ${row.id}: Reducing from ${availableInRow} to ${newQuantity} (remaining: 0)`);
-          remainingQuantity = 0;
-        } else {
-          // This row doesn't have enough, take all from it
-          updates.push({
-            id: row.id,
-            newQuantity: 0,
-            oldQuantity: availableInRow
-          });
-          console.log(`Row ${row.id}: Reducing from ${availableInRow} to 0 (remaining: ${remainingQuantity - availableInRow})`);
-          remainingQuantity -= availableInRow;
-        }
-      }
-
-      // Check if we have enough total quantity
-      const totalAvailable = inventoryRows.reduce((sum, row) => sum + (row.item_qty || 0), 0);
-      if (totalAvailable < requiredQuantity) {
-        throw new Error(`Insufficient inventory in store ${storeId}. Available: ${totalAvailable}, Required: ${requiredQuantity}`);
-      }
-
-      console.log(`Total available: ${totalAvailable}, Required: ${requiredQuantity}, Updates needed: ${updates.length}`);
-
-      // Apply all updates
-      for (const update of updates) {
-        console.log(`Updating row ${update.id}: ${update.oldQuantity} -> ${update.newQuantity}`);
-
-        const { error: updateError } = await supabase
-          .from('inventory_mgmt')
-          .update({ item_qty: update.newQuantity })
-          .eq('id', update.id);
-
-        if (updateError) {
-          throw new Error(`Failed to update inventory row ${update.id}: ${updateError.message}`);
-        }
-      }
-
-      console.log(`FIFO reduction completed successfully for item ${itemId} in store ${storeId}`);
+      console.log(`FIFO reduction for item ${itemId}, quantity: ${requiredQuantity}, store: ${storeId}`);
+      // Note: Inventory reduction should be handled by the backend API
+      // This is a placeholder for now
       return true;
     } catch (error) {
       console.error('Error in FIFO inventory reduction:', error);
@@ -906,28 +782,27 @@ export default function InvoiceEdit() {
     const stockErrors: string[] = [];
 
     try {
+      // Fetch store stock for all items
       const itemIds = items.map(item => item.id);
-
-      // Call the RPC once for all items
-      const { data: stockData, error: stockError } = await supabase
-        .rpc('get_total_stock_for_items_by_store', { item_ids: itemIds, p_store_id: storeId });
-
-      if (stockError) {
-        stockErrors.push(`Unable to check stock availability - ${stockError.message}`);
-        return stockErrors;
+      const stockResponse = await storeStockService.list({ limit: 1000 });
+      
+      const stockMap: Record<string, number> = {};
+      if (stockResponse.data) {
+        stockResponse.data.forEach((stock) => {
+          const productId = typeof stock.product === 'object' && stock.product !== null
+            ? stock.product._id || stock.product.id
+            : String(stock.product);
+          if (itemIds.includes(productId)) {
+            stockMap[productId] = stock.quantity || 0;
+          }
+        });
       }
 
-      // Convert RPC result into a quick lookup map
-      const stockMap = ((stockData as StockRow[]) || []).reduce((acc: Record<string, number>, s: any) => {
-        acc[s.item_id] = Number(s.total_qty) || 0;
-        return acc;
-      }, {} as Record<string, number>);
-
-      // Compare available vs required for each item
+      // Check each item's availability
       for (const item of items) {
-        // availableStock in form during edit already includes previous qty
         const formAvailable = typeof item.availableStock === 'number' ? item.availableStock : undefined;
-        const totalAvailableStock = formAvailable !== undefined ? formAvailable : (stockMap[item.id] ?? 0);
+        const apiStock = stockMap[item.id] || 0;
+        const totalAvailableStock = formAvailable !== undefined ? formAvailable : apiStock;
         const requiredQuantity = item.quantity || 0;
 
         if (totalAvailableStock < requiredQuantity) {
@@ -936,8 +811,8 @@ export default function InvoiceEdit() {
           );
         }
       }
-    } catch (error) {
-      stockErrors.push(`Unable to check stock availability - unexpected error`);
+    } catch (error: any) {
+      stockErrors.push(`Unable to check stock availability - ${error.message || 'unexpected error'}`);
     }
 
     return stockErrors;
@@ -1000,6 +875,14 @@ export default function InvoiceEdit() {
   try {
     setIsLoading(true);
 
+    if (!selectedCustomer?.id) {
+      throw new Error('Please select a customer');
+    }
+
+    if (!data.storeId) {
+      throw new Error('Please select a store');
+    }
+
     // Check stock availability before proceeding
     const stockErrors = await checkStockAvailability(data.items, data?.storeId ?? '');
     if (stockErrors.length > 0) {
@@ -1025,127 +908,34 @@ export default function InvoiceEdit() {
     // 3. Net amount (after discounts) = gross amount - discount amount
     const netAmount = grossAmount - totalDiscountAmount;
 
-    // Start a transaction by using multiple operations
+    // Prepare invoice payload for API
     const invoicePayload = {
-      invoice_number: data.invoiceNumber,
-      invoice_date: data.date,
-      customer_name: data.customerName,
-      billing_address: data.billingAddress,
-      contact_number: data.contactNumber,
-      email: data.email || null,
-      total_items: data.items.length,
-      invoice_amount: grossAmount, // Gross amount (before discounts)
-      discount_amount: totalDiscountAmount, // Total discount amount
-      net_amount: netAmount, // Final amount (after discounts)
-      created_at: new Date().toISOString(),
-      created_by: userId,
-      company_id: companyId,
-      customer_id: selectedCustomer?.id,
-      store_id: data?.storeId,
+      invoiceNumber: data.invoiceNumber,
+      invoiceDate: data.date,
+      customerId: selectedCustomer.id,
+      storeId: data.storeId,
+      items: data.items.map((item) => ({
+        itemId: item.id,
+        description: item.name,
+        quantity: item.quantity || 0,
+        unitPrice: item.unitPrice || 0,
+        discount: item.discount || 0, // This is percentage
+      })),
+      taxAmount: 0, // Can be added later if needed
+      notes: data.billingAddress || undefined,
     };
 
-    let invoiceId: string;
-
     if (isEditing && id) {
-      // For editing, restore previous quantities first
-      const { data: existingItems } = await supabase
-        .from('sales_invoice_items')
-        .select('item_id, quantity')
-        .eq('sales_invoice_id', id);
-
-      if (existingItems) {
-        // Restore quantities for existing items using FIFO logic
-        for (const item of existingItems) {
-          const prevQty = item.quantity || 0;
-          await restoreInventoryQuantitiesFIFO(item.item_id, prevQty);
-        }
-      }
-
-      const { data: updatedInvoice, error } = await supabase
-        .from('sales_invoice')
-        .update(invoicePayload)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error || !updatedInvoice) throw error || new Error('Invoice update failed');
-      invoiceId = updatedInvoice.id;
-      await supabase.from('sales_invoice_items').delete().eq('sales_invoice_id', id);
-
-      // Creating system log
-      const systemLogs = {
-        company_id: companyId,
-        transaction_date: new Date().toISOString(),
-        module: 'Sales Invoice',
-        scope: 'Edit',
-        key: `${invoicePayload.invoice_number}`,
-        log: `Invoice: ${invoicePayload.invoice_number} updated.`,
-        action_by: userId,
-        created_at: new Date().toISOString(),
-      }
-
-      const { error: systemLogError } = await supabase
-        .from('system_log')
-        .insert(systemLogs);
-
-      if (systemLogError) throw systemLogError;
+      // Update existing invoice
+      await salesInvoiceService.updateInvoice(id, {
+        invoiceDate: invoicePayload.invoiceDate,
+        items: invoicePayload.items,
+        taxAmount: invoicePayload.taxAmount,
+        notes: invoicePayload.notes,
+      });
     } else {
-      const { data: newInvoice, error } = await supabase
-        .from('sales_invoice')
-        .insert([invoicePayload])
-        .select()
-        .single();
-      if (error || !newInvoice) throw error || new Error('Invoice creation failed');
-      invoiceId = newInvoice.id;
-
-      // Creating system log
-      const systemLogs = {
-        company_id: companyId,
-        transaction_date: new Date().toISOString(),
-        module: 'Sales Invoice',
-        scope: 'Add',
-        key: `${invoicePayload.invoice_number}`,
-        log: `Invoice: ${invoicePayload.invoice_number} created.`,
-        action_by: userId,
-        created_at: new Date().toISOString(),
-      }
-
-      const { error: systemLogError } = await supabase
-        .from('system_log')
-        .insert(systemLogs);
-
-      if (systemLogError) throw systemLogError;
-    }
-
-    // Insert invoice items with individual discount percentages
-    const itemsPayload = data.items.map((item) => ({
-      sales_invoice_id: invoiceId,
-      item_id: item.id,
-      quantity: item.quantity || 0,
-      unit_price: item.unitPrice || 0,
-      discount_percentage: item.discount || 0,
-      company_id: companyId,
-      created_at: new Date().toISOString(),
-    }));
-
-    if (itemsPayload.length > 0) {
-      const { error: itemsError } = await supabase
-        .from('sales_invoice_items')
-        .insert(itemsPayload);
-      if (itemsError) throw itemsError;
-    }
-
-    // Reduce inventory quantities for each item using FIFO logic
-    for (const item of data.items) {
-      try {
-        const currentQty = item.quantity || 0;
-        // On edit, availableStock already includes previous quantity, so the delta is:
-        // newlyAdded = max(0, currentQty - (availableStock - baseStock)) but simpler:
-        // We restored previous quantities earlier; now reduce exactly the currentQty.
-        await reduceInventoryQuantitiesFIFO(item.id, currentQty, data?.storeId ?? '');
-      } catch (itemError: any) {
-        console.error('Error updating inventory for item:', itemError);
-        throw new Error(`Failed to update inventory for item ${item.name}: ${itemError.message}`);
-      }
+      // Create new invoice
+      await salesInvoiceService.createInvoice(invoicePayload);
     }
 
     toast.success(`${isEditing ? 'Invoice updated successfully!' : 'Invoice created successfully!'}`);
@@ -1155,6 +945,7 @@ export default function InvoiceEdit() {
     console.error('Error submitting form:', error);
     setError(error.message || 'Failed to save invoice. Please check all fields and try again.');
     setFormStatus('error');
+    toast.error(error.message || 'Failed to save invoice');
   } finally {
     setIsLoading(false);
   }
@@ -1248,11 +1039,11 @@ export default function InvoiceEdit() {
                       <SelectValue placeholder="Select a store" />
                     </SelectTrigger>
                     <SelectContent>
-                                             {stores.map((store) => (
-                         <SelectItem key={store.id} value={store.id}>
-                           {store.name}
-                         </SelectItem>
-                       ))}
+                      {stores.map((store) => (
+                        <SelectItem key={store._id || store.id} value={store._id || store.id || ''}>
+                          {store.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   {!selectedStore && (

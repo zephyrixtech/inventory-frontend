@@ -18,6 +18,7 @@ interface PackingListFormState {
   shipmentDate?: string;
   packingDate?: string;
   image?: string;
+  notes?: string;
   items: { productId: string; quantity: number }[];
 }
 
@@ -34,6 +35,7 @@ const DEFAULT_FORM: PackingListFormState = {
   shipmentDate: '',
   packingDate: '',
   image: '',
+  notes: '',
   items: []
 };
 
@@ -145,6 +147,7 @@ export const PackingListsPage = () => {
         shipmentDate: formState.shipmentDate || undefined,
         packingDate: formState.packingDate || undefined,
         image: formState.image || undefined,
+        notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
         items: formState.items.filter((item) => item.productId && item.quantity > 0)
       });
       toast.success('Packing list created');
@@ -237,21 +240,32 @@ export const PackingListsPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedLists.map((packing) => (
-                    <TableRow key={packing.id}>
-                      <TableCell className="font-medium">{packing.boxNumber}</TableCell>
-                      <TableCell>{packing.location}</TableCell>
-                      <TableCell className="capitalize">{packing.status}</TableCell>
-                      <TableCell>{packing.packingDate ? new Date(packing.packingDate).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>
-                        {packing.items?.map((item: any) => (
-                          <div key={item.product} className="text-sm text-muted-foreground">
-                            {item.product?.name ?? 'Unknown'} × {item.quantity}
-                          </div>
-                        ))}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  sortedLists.map((packing, index) => {
+                    const packingId = packing.id ?? packing._id ?? `packing-${index}`;
+                    return (
+                      <TableRow key={packingId}>
+                        <TableCell className="font-medium">{packing.boxNumber}</TableCell>
+                        <TableCell>{packing.location}</TableCell>
+                        <TableCell className="capitalize">{packing.status}</TableCell>
+                        <TableCell>{packing.packingDate ? new Date(packing.packingDate).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell>
+                          {packing.items?.map((item: any, itemIndex: number) => {
+                            const itemKey =
+                              item.id ??
+                              item._id ??
+                              item.productId ??
+                              item.product?._id ??
+                              `${packingId}-item-${itemIndex}`;
+                            return (
+                              <div key={itemKey} className="text-sm text-muted-foreground">
+                                {item.product?.name ?? 'Unknown'} × {item.quantity}
+                              </div>
+                            );
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -370,8 +384,14 @@ export const PackingListsPage = () => {
             </div>
 
             <div className="grid gap-2">
-              <Label>Notes</Label>
-              <Textarea rows={3} readOnly placeholder="Add packing instructions using the items section." />
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                rows={3}
+                value={formState.notes}
+                onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
+                placeholder="Add packing instructions or handling notes."
+              />
             </div>
           </div>
           <DialogFooter>

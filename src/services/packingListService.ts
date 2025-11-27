@@ -13,6 +13,7 @@ export interface PackingListInput {
   shipmentDate?: string;
   packingDate?: string;
   image?: string;
+  notes?: string;
   status?: 'pending' | 'approved' | 'shipped' | 'rejected';
 }
 
