@@ -20,7 +20,8 @@ export const DailyExpensesPage = () => {
     productId: '',
     description: '',
     amount: '',
-    date: new Date().toISOString().substring(0, 10)
+    date: new Date().toISOString().substring(0, 10),
+    type: 'purchase' as 'purchase' | 'petty' | 'sale'
   });
 
   const fetchExpenses = useCallback(async () => {
@@ -57,7 +58,8 @@ export const DailyExpensesPage = () => {
         productId: formState.productId,
         description: formState.description,
         amount: Number(formState.amount),
-        date: formState.date
+        date: formState.date,
+        type: formState.type
       });
       toast.success('Expense recorded');
       setShowDialog(false);
@@ -65,7 +67,8 @@ export const DailyExpensesPage = () => {
         productId: '',
         description: '',
         amount: '',
-        date: new Date().toISOString().substring(0, 10)
+        date: new Date().toISOString().substring(0, 10),
+        type: 'purchase'
       });
       fetchExpenses();
     } catch (error) {
@@ -128,6 +131,7 @@ export const DailyExpensesPage = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Product</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -153,6 +157,7 @@ export const DailyExpensesPage = () => {
                       <TableRow key={expenseId ?? `expense-${expense.date}`}>
                         <TableCell>{expense.date ? new Date(expense.date).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>{expense.product?.name ?? 'Unassigned'}</TableCell>
+                        <TableCell>{expense.type ? expense.type.charAt(0).toUpperCase() + expense.type.slice(1) + ' Expense' : '-'}</TableCell>
                         <TableCell>{expense.description}</TableCell>
                         <TableCell>₹{expense.amount?.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
@@ -190,6 +195,19 @@ export const DailyExpensesPage = () => {
                 value={formState.date}
                 onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expenseType">Type</Label>
+              <select
+                id="expenseType"
+                className="border rounded-md px-3 py-2 text-sm bg-background"
+                value={formState.type}
+                onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value as 'purchase' | 'petty' | 'sale' }))}
+              >
+                <option value="purchase">Purchase Expense</option>
+                <option value="petty">Petty Expense</option>
+                <option value="sale">Sale Expense</option>
+              </select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="productId">Product</Label>
@@ -230,7 +248,7 @@ export const DailyExpensesPage = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateExpense} disabled={!formState.productId || !formState.description || !formState.amount}>
+            <Button onClick={handleCreateExpense} disabled={!formState.productId || !formState.description || !formState.amount || !formState.type}>
               Save Expense
             </Button>
           </DialogFooter>
