@@ -49,6 +49,7 @@ import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 import QualityControlPage from '@/pages/purchaser/QC';
 import {PackingListsPage} from '@/pages/purchaser/PackingLists'
+import { PackingListView } from '@/pages/purchaser/PackingListView';
 import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { StoreStockPage } from "@/pages/store/StoreStock";
 
@@ -110,6 +111,7 @@ const protectedRoutes = [
   { path: 'customer-management/view/:id', element: <CustomerView />, module: 'Customer Master' },
   { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
   { path: 'purchaser/packing-lists',element: <PackingListsPage /> ,module: 'Packing Lists'},
+  { path: 'purchaser/packing-lists/view/:id',element: <PackingListView /> ,module: 'Packing Lists'},
   { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'}
 ];
 
