@@ -10,12 +10,15 @@ export interface PackingListInput {
   location: string;
   boxNumber: string;
   storeId: string;
+  toStoreId?: string;
+  currency?: 'INR' | 'AED';
+  exchangeRate?: number;
   items: PackingListItemInput[];
   shipmentDate?: string;
   packingDate?: string;
   image?: string;
   notes?: string;
-  status?: 'pending' | 'approved' | 'shipped' | 'rejected';
+  status?: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
 
 export interface PackingList {
@@ -36,7 +39,19 @@ export interface PackingList {
   image?: string;
   shipmentDate?: string;
   packingDate?: string;
-  status: 'pending' | 'approved' | 'shipped' | 'rejected';
+  store?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  toStore?: {
+    _id: string;
+    name: string;
+    code: string;
+  } | string;
+  currency?: 'INR' | 'AED';
+  exchangeRate?: number;
+  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   createdBy?: {
     _id: string;
     firstName: string;

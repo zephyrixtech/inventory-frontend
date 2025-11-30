@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Box, Calendar, MapPin, Package, User, CheckCircle, XCircle, Clock, Truck } from 'lucide-react';
+import { ArrowLeft, Box, Calendar, MapPin, Package, User, CheckCircle, XCircle, Clock, Truck, Store, DollarSign, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,8 +8,9 @@ import { packingListService, type PackingList } from '@/services/packingListServ
 import toast from 'react-hot-toast';
 import { Loader2 } from 'lucide-react';
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+  in_transit: { label: 'In Transit', color: 'bg-purple-100 text-purple-800', icon: Truck },
   approved: { label: 'Approved', color: 'bg-green-100 text-green-800', icon: CheckCircle },
   shipped: { label: 'Shipped', color: 'bg-blue-100 text-blue-800', icon: Truck },
   rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800', icon: XCircle }
@@ -63,8 +64,8 @@ export const PackingListView = () => {
     );
   }
 
-  const StatusIcon = statusConfig[packingList.status]?.icon || Clock;
-  const statusInfo = statusConfig[packingList.status] || statusConfig.pending;
+  const StatusIcon = statusConfig[packingList.status as string]?.icon || Clock;
+  const statusInfo = statusConfig[packingList.status as string] || statusConfig.pending;
 
   return (
     <div className="space-y-6">
@@ -198,6 +199,63 @@ export const PackingListView = () => {
         </Card>
       </div>
 
+      {/* Store & Financial Information */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Store className="h-5 w-5 text-primary" />
+              Store Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {packingList.store && (
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-muted-foreground">From Store</label>
+                <p className="text-base">
+                  {packingList.store.name} ({packingList.store.code})
+                </p>
+              </div>
+            )}
+            {packingList.toStore && (
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-muted-foreground">To Store</label>
+                <p className="text-base">
+                  {(packingList.toStore as any).name} ({(packingList.toStore as any).code})
+                </p>
+              </div>
+            )}
+            {!packingList.store && !packingList.toStore && (
+              <p className="text-sm text-muted-foreground">No store information available</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-primary" />
+              Financial Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-muted-foreground">Currency</label>
+              <p className="text-base font-semibold">{packingList.currency || 'INR'}</p>
+            </div>
+            {packingList.exchangeRate && packingList.currency === 'AED' && (
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-muted-foreground">Exchange Rate (to INR)</label>
+                <p className="text-base">{packingList.exchangeRate}</p>
+              </div>
+            )}
+            {!packingList.exchangeRate && packingList.currency === 'INR' && (
+              <p className="text-sm text-muted-foreground">No exchange rate applicable for INR</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -234,6 +292,22 @@ export const PackingListView = () => {
         </CardContent>
       </Card>
 
+      {/* Notes Section */}
+      {(packingList as any).notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Notes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-base whitespace-pre-wrap">{(packingList as any).notes}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reference Image */}
       {packingList.image && (
         <Card>
           <CardHeader>

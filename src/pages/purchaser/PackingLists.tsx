@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { packingListService, type PackingList } from '@/services/packingListService';
@@ -16,6 +16,7 @@ import type { PaginationMeta, StoreStock } from '@/types/backend';
 
 interface PackingListFormState {
   storeId: string;
+  toStoreId: string;
   location: string;
   boxNumber: string;
   shipmentDate?: string;
@@ -29,6 +30,9 @@ interface PackingListFormState {
     productName?: string;
     productCode?: string;
   }[];
+  currency: 'INR' | 'AED';
+  exchangeRate?: number;
+  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
 
 type SortOrder = 'asc' | 'desc' | null;
@@ -40,13 +44,17 @@ interface SortConfig {
 
 const DEFAULT_FORM: PackingListFormState = {
   storeId: '',
+  toStoreId: '',
   location: '',
   boxNumber: '',
   shipmentDate: '',
   packingDate: '',
   image: '',
   notes: '',
-  items: []
+  items: [],
+  currency: 'INR',
+  exchangeRate: undefined,
+  status: 'pending'
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -133,7 +141,6 @@ export const PackingListsPage = () => {
   useEffect(() => {
     if (formState.storeId) {
       loadStoreStock(formState.storeId);
-      // Only reset items when store changes in create mode (not edit mode)
       if (!editingId) {
         setFormState((prev) => ({ ...prev, items: [] }));
       }
@@ -213,16 +220,13 @@ export const PackingListsPage = () => {
       const response = await packingListService.get(id);
       const packingList = response.data;
 
-      // Extract product IDs from packing list items
       const productIds = packingList.items?.map((item: any) => {
         const productId = (item.product as any)?._id || (item.product as any)?.id || item.product;
         return typeof productId === 'string' ? productId : productId?.toString();
       }).filter(Boolean) || [];
 
-      // Find the store that has stock for these products
       let foundStoreId = '';
       if (productIds.length > 0) {
-        // Check each store to find which one has stock for these products
         for (const store of stores) {
           const storeId = store._id || store.id;
           if (!storeId) continue;
@@ -231,7 +235,6 @@ export const PackingListsPage = () => {
             const stockResponse = await storeStockService.list({ storeId, limit: 1000 });
             const stockItems = stockResponse.data || [];
 
-            // Check if all products in packing list exist in this store's stock
             const hasAllProducts = productIds.every((pid: string) =>
               stockItems.some((stock: StoreStock) => {
                 const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
@@ -244,13 +247,11 @@ export const PackingListsPage = () => {
               break;
             }
           } catch (err) {
-            // Continue to next store if this one fails
             continue;
           }
         }
       }
 
-      // Extract items with product information from the populated response
       const itemsWithProductInfo = packingList.items?.map((item: any) => {
         const product = item.product;
         const productId = product?._id || product?.id || product;
@@ -261,36 +262,37 @@ export const PackingListsPage = () => {
         return {
           productId: productIdStr || '',
           quantity: item.quantity,
-          availableQuantity: 0, // Will be loaded when store stock is loaded
+          availableQuantity: 0,
           productName,
           productCode
         };
       }) || [];
 
-      // Set form state with found store or empty
       const formData: PackingListFormState = {
         storeId: foundStoreId,
+        toStoreId: (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || packingList.toStore || '',
         location: packingList.location,
         boxNumber: packingList.boxNumber,
         shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
         packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
         image: packingList.image || '',
-        notes: '',
-        items: itemsWithProductInfo
+        notes: (packingList as any).notes || '',
+        items: itemsWithProductInfo,
+        currency: packingList.currency || 'INR',
+        exchangeRate: packingList.exchangeRate,
+        status: packingList.status || 'pending'
       };
 
       setFormState(formData);
       setEditingId(id);
       setShowDialog(true);
 
-      // Load store stock if store was found and update available quantities
       if (foundStoreId) {
         try {
           const stockResponse = await storeStockService.list({ storeId: foundStoreId, limit: 1000 });
           const stockData = stockResponse.data || [];
           setStoreStock(stockData);
 
-          // Update available quantities in form state
           setFormState((prev) => ({
             ...prev,
             items: prev.items.map((item) => {
@@ -344,7 +346,6 @@ export const PackingListsPage = () => {
       return;
     }
 
-    // Validate quantities (only for create mode or when store is selected in edit mode)
     if (formState.storeId) {
       const invalidItems = formState.items.filter(
         (item) => item.productId && item.quantity > item.availableQuantity
@@ -371,7 +372,11 @@ export const PackingListsPage = () => {
           image: formState.image || undefined,
           notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
           items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
-          storeId: formState.storeId
+          storeId: formState.storeId,
+          toStoreId: formState.toStoreId || undefined,
+          currency: formState.currency,
+          exchangeRate: formState.exchangeRate,
+          status: formState.status
         });
         toast.success('Packing list updated successfully');
       } else {
@@ -383,10 +388,13 @@ export const PackingListsPage = () => {
           packingDate: formState.packingDate || undefined,
           image: formState.image || undefined,
           notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
-          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity }))
+          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          toStoreId: formState.toStoreId || undefined,
+          currency: formState.currency,
+          exchangeRate: formState.exchangeRate,
+          status: formState.status
         });
         toast.success('Packing list created and stock updated');
-        // Reload store stock to reflect updated quantities
         if (formState.storeId) {
           loadStoreStock(formState.storeId);
         }
@@ -394,7 +402,6 @@ export const PackingListsPage = () => {
       setShowDialog(false);
       setFormState(DEFAULT_FORM);
       setEditingId(null);
-      // Reload the list to show updated data with populated product information
       await loadPackingLists(pagination.page);
     } catch (error: any) {
       console.error(`Failed to ${editingId ? 'update' : 'create'} packing list`, error);
@@ -560,6 +567,7 @@ export const PackingListsPage = () => {
         </CardContent>
       </Card>
 
+      {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={(open) => {
         setShowDialog(open);
         if (!open) {
@@ -577,7 +585,7 @@ export const PackingListsPage = () => {
           </DialogHeader>
 
           <div className="space-y-8 py-4">
-            {/* Section 1: Basic Information */}
+            {/* Section 1: Packing Details */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <Box className="h-4 w-4 text-primary" />
@@ -587,7 +595,7 @@ export const PackingListsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="storeId" className="text-sm font-medium">
-                    {!editingId ? 'Store *' : 'Store'}
+                    {!editingId ? 'From Store *' : 'From Store'}
                   </Label>
                   <select
                     id="storeId"
@@ -601,6 +609,25 @@ export const PackingListsPage = () => {
                         {store.name} ({store.code})
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="toStoreId" className="text-sm font-medium">To Store</Label>
+                  <select
+                    id="toStoreId"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.toStoreId}
+                    onChange={(e) => setFormState(prev => ({ ...prev, toStoreId: e.target.value }))}
+                  >
+                    <option value="">Select destination store</option>
+                    {stores
+                      .filter(store => (store._id || store.id) !== formState.storeId)
+                      .map((store) => (
+                        <option key={store._id || store.id} value={store._id || store.id}>
+                          {store.name} ({store.code})
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -658,10 +685,54 @@ export const PackingListsPage = () => {
                     placeholder="https://example.com/image.jpg"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="status" className="text-sm font-medium">Status</Label>
+                  <select
+                    id="status"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.status}
+                    onChange={(e) => setFormState(prev => ({ ...prev, status: e.target.value as any }))}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_transit">In Transit</option>
+                    <option value="approved">Approved</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
+                  <select
+                    id="currency"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.currency}
+                    onChange={(e) => setFormState(prev => ({ ...prev, currency: e.target.value as 'INR' | 'AED' }))}
+                  >
+                    <option value="INR">INR</option>
+                    <option value="AED">AED</option>
+                  </select>
+                </div>
+
+                {formState.currency === 'AED' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="exchangeRate" className="text-sm font-medium">Exchange Rate (to INR)</Label>
+                    <Input
+                      id="exchangeRate"
+                      type="number"
+                      step="0.01"
+                      value={formState.exchangeRate || ''}
+                      onChange={(e) => setFormState(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) }))}
+                      className="h-10 focus-visible:ring-primary/20"
+                      placeholder="e.g. 22.5"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Section 3: Items */}
+            {/* Section 2: Items */}
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b">
                 <div className="flex items-center gap-2">
@@ -679,7 +750,6 @@ export const PackingListsPage = () => {
                 </Button>
               </div>
 
-              {/* Status Messages */}
               {!formState.storeId && !editingId && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                   <p className="text-sm text-yellow-800">Please select a store first to view available items.</p>
@@ -697,10 +767,8 @@ export const PackingListsPage = () => {
                 </div>
               )}
 
-              {/* Items Table */}
               {formState.items.length > 0 && (
                 <div className="border rounded-lg overflow-hidden bg-white">
-                  {/* Table Header */}
                   <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
                     <div className="font-semibold text-sm">Product</div>
                     <div className="font-semibold text-sm text-center">Available Stock</div>
@@ -708,7 +776,6 @@ export const PackingListsPage = () => {
                     <div className="font-semibold text-sm text-center">Action</div>
                   </div>
 
-                  {/* Table Body */}
                   <div className="divide-y max-h-[400px] overflow-y-auto">
                     {formState.items.map((item, index) => {
                       const stockItem = storeStock.find(s => {
@@ -726,7 +793,6 @@ export const PackingListsPage = () => {
                           key={index}
                           className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors border-b last:border-0"
                         >
-                          {/* Product Column */}
                           <div className="min-w-0">
                             {editingId && !formState.storeId ? (
                               <div className="space-y-1">
@@ -762,7 +828,6 @@ export const PackingListsPage = () => {
                             )}
                           </div>
 
-                          {/* Available Stock Column */}
                           <div className="flex justify-center">
                             <Input
                               type="number"
@@ -774,7 +839,6 @@ export const PackingListsPage = () => {
                             />
                           </div>
 
-                          {/* Quantity Column */}
                           <div className="flex justify-center">
                             <div className="space-y-1 w-28">
                               <Input
@@ -801,7 +865,6 @@ export const PackingListsPage = () => {
                             </div>
                           </div>
 
-                          {/* Action Column */}
                           <div className="flex justify-center">
                             <Button
                               variant="ghost"
@@ -878,28 +941,23 @@ export const PackingListsPage = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogTitle>Delete Packing List</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete this packing list? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex justify-end gap-2">
-            <DialogClose asChild>
-              <Button variant="outline" onClick={() => setPackingListToDelete(null)} disabled={isDeleting}>
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isDeleting}>
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -907,4 +965,3 @@ export const PackingListsPage = () => {
     </div>
   );
 };
-
