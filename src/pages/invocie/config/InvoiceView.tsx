@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -51,18 +50,18 @@ export default function InvoiceView() {
     fetchInvoice();
   }, [id]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "overdue":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case "paid":
+  //       return "bg-green-100 text-green-800";
+  //     case "pending":
+  //       return "bg-yellow-100 text-yellow-800";
+  //     case "overdue":
+  //       return "bg-red-100 text-red-800";
+  //     default:
+  //       return "bg-gray-100 text-gray-800";
+  //   }
+  // };
 
   const handlePrint = () => {
     if (!invoice) return;
@@ -73,9 +72,9 @@ export default function InvoiceView() {
     const customerPhone = typeof invoice.customer === 'object' && invoice.customer !== null
       ? invoice.customer.phone || 'N/A'
       : 'N/A';
-    const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
-      ? invoice.customer.email || ''
-      : '';
+    // const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
+    //   ? invoice.customer.email || ''
+    //   : '';
 
     const storeName = typeof invoice.store === 'object' && invoice.store !== null
       ? invoice.store.name
@@ -101,8 +100,8 @@ export default function InvoiceView() {
           ? item.item.name
           : 'Unknown Item';
         const grossAmount = item.quantity * item.unitPrice;
-        const discount = item.discount || 0;
-        const discountAmount = (discount / 100) * grossAmount;
+        const discountAmount = item.discount || 0;
+        // const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
         const netAmount = grossAmount - discountAmount;
 
         return {
@@ -111,7 +110,7 @@ export default function InvoiceView() {
           name: itemName,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: discountAmount,
+          discount: discountAmount, 
           grossAmount: grossAmount,
           netAmount: netAmount,
         };
@@ -128,12 +127,7 @@ export default function InvoiceView() {
   };
 
   const calculateTotalDiscount = () => {
-    return invoice?.items.reduce((sum, item) => {
-      const itemTotal = item.quantity * item.unitPrice;
-      const discount = item.discount || 0;
-      const discountAmount = (discount / 100) * itemTotal;
-      return sum + discountAmount;
-    }, 0) || invoice?.discountTotal || 0;
+    return invoice?.items.reduce((sum, item) => sum + (item.discount || 0), 0) || invoice?.discountTotal || 0;
   };
 
   const calculateSubtotal = () => {
@@ -283,8 +277,8 @@ export default function InvoiceView() {
                           ? item.item.name
                           : 'Unknown Item';
                         const grossAmount = item.quantity * item.unitPrice;
-                        const discount = item.discount || 0;
-                        const discountAmount = (discount / 100) * grossAmount;
+                        const discountAmount = item.discount || 0;
+                        const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
                         const netAmount = grossAmount - discountAmount;
 
                         return (
@@ -293,9 +287,9 @@ export default function InvoiceView() {
                             <TableCell className="text-center">{item.quantity}</TableCell>
                             <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                             <TableCell className="text-center">
-                              {discount > 0 ? (
+                              {discountPercentage > 0 ? (
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                                  {discount}%
+                                  {discountPercentage.toFixed(2)}%
                                 </span>
                               ) : (
                                 <span className="text-gray-400">-</span>
@@ -354,7 +348,7 @@ export default function InvoiceView() {
                     <p className="text-gray-600 text-sm">Please make payment via bank transfer to:</p>
                     <p className="text-gray-600 text-sm">Bank: {userInfo?.company_data?.bank_name}</p>
                     <p className="text-gray-600 text-sm">Account: {userInfo?.company_data?.bank_account_number}</p>
-                    <p className="text-gray-600 text-sm">Reference: {invoice.invoice_number}</p>
+                    <p className="text-gray-600 text-sm">Reference: {invoice.invoiceNumber}</p>
                   </div>
                   <div className="space-y-2">
                     <h4 className="font-semibold text-gray-800">Terms & Conditions</h4>

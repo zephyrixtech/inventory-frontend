@@ -11,6 +11,7 @@ export interface DailyExpense {
   description: string;
   amount: number;
   date: string;
+  type: 'purchase' | 'petty' | 'sale';
   createdBy: {
     id: string;
     firstName?: string;
@@ -31,7 +32,7 @@ export const dailyExpenseService = {
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
   },
 
-  async create(payload: { productId: string; description: string; amount: number; date?: string }) {
+  async create(payload: { productId: string; description: string; amount: number; date?: string; type: 'purchase' | 'petty' | 'sale' }) {
     return apiClient.post<ApiResponse<DailyExpense>>('/expenses', payload);
   },
 

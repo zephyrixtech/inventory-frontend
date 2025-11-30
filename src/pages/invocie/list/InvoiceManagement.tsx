@@ -265,9 +265,9 @@ export default function SalesInvoiceList() {
     const customerPhone = typeof invoice.customer === 'object' && invoice.customer !== null
       ? invoice.customer.phone || 'N/A'
       : 'N/A';
-    const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
-      ? invoice.customer.email || ''
-      : '';
+    // const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
+    //   ? invoice.customer.email || ''
+    //   : '';
 
     const storeName = typeof invoice.store === 'object' && invoice.store !== null
       ? invoice.store.name

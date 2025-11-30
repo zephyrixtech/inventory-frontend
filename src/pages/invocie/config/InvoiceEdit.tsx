@@ -34,7 +34,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { storeService } from '@/services/storeService';
 import { getItems } from '@/services/itemService';
-import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
+import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { customerService } from '@/services/customerService';
 import { storeStockService } from '@/services/storeStockService';
 import { Textarea } from '@/components/ui/textarea';
@@ -112,7 +112,7 @@ type Customer = {
   type: string;
 };
 
-type StockRow = { item_id: string; total_qty: number };
+// type StockRow = { item_id: string; total_qty: number };
 
 // Generate invoice number
 function generateInvoiceNumber(lastNumber = 1): string {
@@ -128,7 +128,7 @@ export default function InvoiceEdit() {
   const userData = localStorage.getItem('userData');
   const user = userData ? JSON.parse(userData) : null;
   const companyId = user?.company_id;
-  const userId = user?.id;
+  // const userId = user?.id;
 
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -245,9 +245,9 @@ export default function InvoiceEdit() {
           const customer = typeof invoice.customer === 'object' && invoice.customer !== null
             ? invoice.customer
             : null;
-          const store = typeof invoice.store === 'object' && invoice.store !== null
-            ? invoice.store
-            : null;
+          // const store = typeof invoice.store === 'object' && invoice.store !== null
+          //   ? invoice.store
+          //   : null;
 
           const invoiceItems = invoice.items.map((item) => {
             const itemObj = typeof item.item === 'object' && item.item !== null
@@ -624,7 +624,7 @@ export default function InvoiceEdit() {
   };
 
   // Get available stock using store-stock API
-  const getAvailableStock = async (items: any, storeId: string) => {
+  const getAvailableStock = async (items: any) => {
     try {
       const itemIds = items.map((item: any) => item.id);
       
@@ -667,7 +667,7 @@ export default function InvoiceEdit() {
     ];
     setSelectedSupplies(newSelectedSupplies);
     const itemAvailableStocks =
-      (await getAvailableStock(tempSuppliesData, watchedFields.storeId as string)) || [];
+      (await getAvailableStock(tempSuppliesData)) || [];
 
     // Append to invoice form fields
     tempSuppliesData.forEach((supply) => {
@@ -730,19 +730,17 @@ export default function InvoiceEdit() {
   //   }
   // };
 
-  // New function to restore inventory quantities using FIFO logic
-  // TODO: This should be handled by the backend API when invoice is updated/deleted
-  const restoreInventoryQuantitiesFIFO = async (itemId: string, quantityToRestore: number) => {
-    try {
-      console.log(`FIFO restoration for item ${itemId}, quantity to restore: ${quantityToRestore}`);
-      // Note: Inventory restoration should be handled by the backend API
-      // This is a placeholder for now
-      return true;
-    } catch (error) {
-      console.error('Error in FIFO inventory restoration:', error);
-      throw error;
-    }
-  };
+  // const restoreInventoryQuantitiesFIFO = async (itemId: string, quantityToRestore: number) => {
+  //   try {
+  //     console.log(`FIFO restoration for item ${itemId}, quantity to restore: ${quantityToRestore}`);
+  //     // Note: Inventory restoration should be handled by the backend API
+  //     // This is a placeholder for now
+  //     return true;
+  //   } catch (error) {
+  //     console.error('Error in FIFO inventory restoration:', error);
+  //     throw error;
+  //   }
+  // };
 
   // Function to handle form submission with proper validation
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -764,21 +762,19 @@ export default function InvoiceEdit() {
     handleSubmit(onSubmit)(e);
   };
 
-  // New function to reduce inventory quantities
-  // TODO: This should be handled by the backend API when invoice is created/updated
-  const reduceInventoryQuantitiesFIFO = async (itemId: string, requiredQuantity: number, storeId: string) => {
-    try {
-      console.log(`FIFO reduction for item ${itemId}, quantity: ${requiredQuantity}, store: ${storeId}`);
-      // Note: Inventory reduction should be handled by the backend API
-      // This is a placeholder for now
-      return true;
-    } catch (error) {
-      console.error('Error in FIFO inventory reduction:', error);
-      throw error;
-    }
-  };
+  // const reduceInventoryQuantitiesFIFO = async (itemId: string, requiredQuantity: number, storeId: string) => {
+  //   try {
+  //     console.log(`FIFO reduction for item ${itemId}, quantity: ${requiredQuantity}, store: ${storeId}`);
+  //     // Note: Inventory reduction should be handled by the backend API
+  //     // This is a placeholder for now
+  //     return true;
+  //   } catch (error) {
+  //     console.error('Error in FIFO inventory reduction:', error);
+  //     throw error;
+  //   }
+  // };
 
-  const checkStockAvailability = async (items: InvoiceItem[], storeId: string) => {
+  const checkStockAvailability = async (items: InvoiceItem[]) => {
     const stockErrors: string[] = [];
 
     try {
@@ -884,29 +880,27 @@ export default function InvoiceEdit() {
     }
 
     // Check stock availability before proceeding
-    const stockErrors = await checkStockAvailability(data.items, data?.storeId ?? '');
+    const stockErrors = await checkStockAvailability(data.items);
     if (stockErrors.length > 0) {
       throw new Error(`Insufficient stock for the following items:\n${stockErrors.join('\n')}`);
     }
 
-    // Calculate amounts for invoice
-    // 1. Gross amount (before discounts) + additional charges
-    const grossItemsTotal = data.items.reduce((sum, item) => {
-      const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-      return sum + itemSubtotal;
-    }, 0);
-    const grossAmount = grossItemsTotal + (data.additionalCharges || 0);
 
-    // 2. Total discount amount (convert percentage to actual amount)
-    const totalDiscountAmount = data.items.reduce((sum, item) => {
-      const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-      const discountPercentage = item.discount || 0; // This is percentage from UI
-      const discountAmount = (itemSubtotal * discountPercentage) / 100; // Convert to actual amount
-      return sum + discountAmount;
-    }, 0);
+    // const grossItemsTotal = data.items.reduce((sum, item) => {
+    //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+    //   return sum + itemSubtotal;
+    // }, 0);
+    // const grossAmount = grossItemsTotal + (data.additionalCharges || 0);
+
+    // const totalDiscountAmount = data.items.reduce((sum, item) => {
+    //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+    //   const discountPercentage = item.discount || 0; // This is percentage from UI
+    //   const discountAmount = (itemSubtotal * discountPercentage) / 100; // Convert to actual amount
+    //   return sum + discountAmount;
+    // }, 0);
 
     // 3. Net amount (after discounts) = gross amount - discount amount
-    const netAmount = grossAmount - totalDiscountAmount;
+    // const netAmount = grossAmount - totalDiscountAmount;
 
     // Prepare invoice payload for API
     const invoicePayload = {
@@ -1103,9 +1097,10 @@ export default function InvoiceEdit() {
                           setShowCustomerDropdown(true);
                         }
                       }}
-                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 ${errors.customerName
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
+                        errors.customerName
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                         } transition-all duration-200`}
                     />
                     {/* <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /> */}

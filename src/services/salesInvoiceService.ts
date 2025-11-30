@@ -11,6 +11,7 @@ export interface SalesInvoiceItem {
 }
 
 export interface SalesInvoice {
+  email: any;
   _id: string;
   id?: string;
   company: string;
