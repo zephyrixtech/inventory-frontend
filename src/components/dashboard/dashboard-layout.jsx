@@ -205,12 +205,12 @@ export const DashboardLayout = () => {
     //   icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
     //   roles: ['superadmin', 'purchaser', 'admin']
     // },
-    {
-      path: '/dashboard/inventoryManagement',
-      label: 'Inventory Management',
-      icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
-    },
+    // {
+    //   path: '/dashboard/inventoryManagement',
+    //   label: 'Inventory Management',
+    //   icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'admin']
+    // },
     {
       path: '/dashboard/invoice',
       label: 'Sales Invoice',
@@ -223,18 +223,18 @@ export const DashboardLayout = () => {
       icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    {
-      path: '/dashboard/administration',
-      label: 'Administration',
-      icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
-    },
-    {
-      path: '/dashboard/administration/currency',
-      label: 'Currency Rates',
-      icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin', 'store']
-    },
+    // {
+    //   path: '/dashboard/administration',
+    //   label: 'Administration',
+    //   icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'admin']
+    // },
+    // {
+    //   path: '/dashboard/administration/currency',
+    //   label: 'Currency Rates',
+    //   icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'admin', 'store']
+    // },
     // { 
     //   path: '/dashboard/audit-trial', 
     //   label: 'Audit Trial', 
