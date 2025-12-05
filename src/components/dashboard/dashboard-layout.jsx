@@ -170,18 +170,6 @@ export const DashboardLayout = () => {
       roles: ['superadmin', 'purchaser']
     },
     {
-      path: '/dashboard/purchaser/packing-lists',
-      label: 'Packing Lists',
-      icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser', 'store']
-    },
-    {
-      path: '/dashboard/purchaser/expenses',
-      label: 'Daily Expenses',
-      icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser']
-    },
-    {
       path: '/dashboard/supplierManagement',
       label: 'Supplier Management',
       icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" />,
@@ -198,6 +186,18 @@ export const DashboardLayout = () => {
       label: 'Store Stock',
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'store']
+    },
+    {
+      path: '/dashboard/purchaser/packing-lists',
+      label: 'Packing Lists',
+      icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'store']
+    },
+    {
+      path: '/dashboard/purchaser/expenses',
+      label: 'Daily Expenses',
+      icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser']
     },
     // { 
     //   path: '/dashboard/purchaseOrderManagement', 
