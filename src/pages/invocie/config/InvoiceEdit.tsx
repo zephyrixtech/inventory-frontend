@@ -584,7 +584,7 @@ export default function InvoiceEdit() {
   };
 
   console.log("filteredSupplies =>", filteredSupplies);
-  console.log("tempSelectedSupplies =>", filteredSupplies);
+  console.log("tempSelectedSupplies =>", tempSelectedSupplies);
 
   const fetchTempSuppliesData = async (tempSelectedSuppliesIDs: string[]) => {
     try {
@@ -594,28 +594,55 @@ export default function InvoiceEdit() {
 
       if (idsToFetch.length === 0) return [];
 
-      // Fetch items by IDs - would need a batch get endpoint or fetch individually
-      const items = await Promise.all(
-        idsToFetch.map(async (id) => {
-          try {
-            const response = await getItems(1, 1, {});
-            const item = response.data.find(i => (i._id || i.id) === id);
-            if (item) {
-              return {
-                id: item._id || item.id,
-                name: item.name || 'Unnamed Item',
-                description: item.description || 'No description',
-                price: item.unitPrice || 0,
-              };
-            }
-            return null;
-          } catch {
-            return null;
-          }
-        })
+      // Fetch items by IDs from filteredSupplies first
+      const itemsFromFiltered = filteredSupplies.filter(item => 
+        idsToFetch.includes(item.id)
       );
 
-      return items.filter((item): item is Supply => item !== null);
+      // For any remaining items not found in filteredSupplies, fetch from API
+      const remainingIds = idsToFetch.filter(id => 
+        !itemsFromFiltered.some(item => item.id === id)
+      );
+
+      let additionalItems: Supply[] = [];
+      if (remainingIds.length > 0) {
+        // Fetch remaining items individually
+        const fetchedItems = await Promise.all(
+          remainingIds.map(async (id) => {
+            try {
+              const response = await getItems(1, 1, { search: id });
+              const item = response.data.find(i => (i._id || i.id) === id);
+              if (item) {
+                // Create object matching Supply type exactly
+                const supplyItem: Supply = {
+                  id: item._id || item.id,
+                  name: item.name || 'Unnamed Item',
+                  description: item.description || 'No description',
+                  price: item.unitPrice || 0,
+                };
+                
+                // Only add availableStock if it exists
+                if (item.availableStock !== undefined) {
+                  supplyItem.availableStock = item.availableStock;
+                }
+                
+                return supplyItem;
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        // Filter out null values and cast to Supply[]
+        additionalItems = fetchedItems.filter((item): item is Supply => item !== null);
+      }
+
+      // Combine items from filtered supplies and API, ensuring no null values
+      const combinedItems: Supply[] = [...itemsFromFiltered];
+      combinedItems.push(...additionalItems);
+      
+      return combinedItems;
     } catch (err: any) {
       console.error('Unexpected error:', err);
       toast.error(`Unexpected error occurred: ${err.message || 'Unknown error'}`);
@@ -624,9 +651,9 @@ export default function InvoiceEdit() {
   };
 
   // Get available stock using store-stock API
-  const getAvailableStock = async (items: any) => {
+  const getAvailableStock = async (items: Supply[]) => {
     try {
-      const itemIds = items.map((item: any) => item.id);
+      const itemIds = items.map((item) => item.id);
       
       // Fetch store stock for these items
       const stockResponse = await storeStockService.list({ limit: 1000 });
@@ -658,6 +685,11 @@ export default function InvoiceEdit() {
   const handleConfirmSupplies = async () => {
     // Fetch data for new supplies
     const tempSuppliesData = await fetchTempSuppliesData(tempSelectedSupplies) || [];
+    
+    if (tempSuppliesData.length === 0) {
+      toast.error('No valid items selected');
+      return;
+    }
 
     // Merge with existing selected supplies, avoiding duplicates
     const newSelectedSupplyIds = [...new Set([...tempSelectedSupplies, ...selectedSupplies.map(s => s.id)])];
@@ -666,13 +698,15 @@ export default function InvoiceEdit() {
       ...tempSuppliesData
     ];
     setSelectedSupplies(newSelectedSupplies);
-    const itemAvailableStocks =
-      (await getAvailableStock(tempSuppliesData)) || [];
+    
+    const itemAvailableStocks = await getAvailableStock(tempSuppliesData) || [];
 
     // Append to invoice form fields
     tempSuppliesData.forEach((supply) => {
-      // Get availableStock from filteredSupplies if present
-      const availableStock = itemAvailableStocks.find(item => item.item_id === supply.id)?.total_qty ?? 0;
+      // Get availableStock from filteredSupplies if present, otherwise from API
+      const filteredSupply = filteredSupplies.find(item => item.id === supply.id);
+      const stockFromApi = itemAvailableStocks.find(item => item.item_id === supply.id)?.total_qty ?? 0;
+      const availableStock = filteredSupply?.availableStock ?? stockFromApi;
 
       append({
         id: supply.id,
