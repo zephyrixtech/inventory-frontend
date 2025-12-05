@@ -16,7 +16,8 @@ export interface PackingListInput {
   items: PackingListItemInput[];
   shipmentDate?: string;
   packingDate?: string;
-  image?: string;
+  image1?: string;
+  image2?: string;
   notes?: string;
   status?: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
@@ -36,7 +37,8 @@ export interface PackingList {
     quantity: number;
   }>;
   totalQuantity: number;
-  image?: string;
+  image1?: string;
+  image2?: string;
   shipmentDate?: string;
   packingDate?: string;
   store?: {
@@ -95,4 +97,3 @@ export const packingListService = {
     return apiClient.delete<ApiResponse<{ success: boolean }>>(`/packing-lists/${id}`);
   }
 };
-

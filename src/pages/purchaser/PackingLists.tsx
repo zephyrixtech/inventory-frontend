@@ -21,7 +21,8 @@ interface PackingListFormState {
   boxNumber: string;
   shipmentDate?: string;
   packingDate?: string;
-  image?: string;
+  image1?: string;
+  image2?: string;
   notes?: string;
   items: {
     productId: string;
@@ -35,13 +36,6 @@ interface PackingListFormState {
   status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
 
-type SortOrder = 'asc' | 'desc' | null;
-
-interface SortConfig {
-  field: string | null;
-  order: SortOrder;
-}
-
 const DEFAULT_FORM: PackingListFormState = {
   storeId: '',
   toStoreId: '',
@@ -49,7 +43,8 @@ const DEFAULT_FORM: PackingListFormState = {
   boxNumber: '',
   shipmentDate: '',
   packingDate: '',
-  image: '',
+  image1: '',
+  image2: '',
   notes: '',
   items: [],
   currency: 'INR',
@@ -73,7 +68,7 @@ export const PackingListsPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: null, order: null });
+  const [sortConfig, setSortConfig] = useState<{ field: string | null; order: 'asc' | 'desc' | null }>({ field: null, order: null });
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formState, setFormState] = useState<PackingListFormState>(DEFAULT_FORM);
@@ -83,6 +78,7 @@ export const PackingListsPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [packingListToDelete, setPackingListToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<{image1?: string; image2?: string}>({image1: '', image2: ''});
 
   const loadPackingLists = useCallback(async (page?: number) => {
     setLoading(true);
@@ -150,7 +146,7 @@ export const PackingListsPage = () => {
   }, [formState.storeId, loadStoreStock, editingId]);
 
   const handleSort = (field: string) => {
-    setSortConfig((prev) => {
+    setSortConfig((prev: { field: string | null; order: 'asc' | 'desc' | null }) => {
       if (prev.field === field) {
         const nextOrder = prev.order === 'asc' ? 'desc' : prev.order === 'desc' ? null : 'asc';
         return { field: nextOrder ? field : null, order: nextOrder };
@@ -275,7 +271,8 @@ export const PackingListsPage = () => {
         boxNumber: packingList.boxNumber,
         shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
         packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
-        image: packingList.image || '',
+        image1: (packingList as any).image1 || '',
+        image2: (packingList as any).image2 || '',
         notes: (packingList as any).notes || '',
         items: itemsWithProductInfo,
         currency: packingList.currency || 'INR',
@@ -284,6 +281,7 @@ export const PackingListsPage = () => {
       };
 
       setFormState(formData);
+      setImagePreviews({image1: formData.image1, image2: formData.image2});
       setEditingId(id);
       setShowDialog(true);
 
@@ -340,6 +338,42 @@ export const PackingListsPage = () => {
     }
   };
 
+  const convertImageToDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (index: number, file: File | null) => {
+    if (!file) {
+      if (index === 1) {
+        setFormState(prev => ({ ...prev, image1: '' }));
+        setImagePreviews(prev => ({ ...prev, image1: '' }));
+      } else {
+        setFormState(prev => ({ ...prev, image2: '' }));
+        setImagePreviews(prev => ({ ...prev, image2: '' }));
+      }
+      return;
+    }
+
+    try {
+      const dataURL = await convertImageToDataURL(file);
+      if (index === 1) {
+        setFormState(prev => ({ ...prev, image1: dataURL }));
+        setImagePreviews(prev => ({ ...prev, image1: dataURL }));
+      } else {
+        setFormState(prev => ({ ...prev, image2: dataURL }));
+        setImagePreviews(prev => ({ ...prev, image2: dataURL }));
+      }
+    } catch (error) {
+      toast.error('Failed to process image');
+      console.error('Image processing error:', error);
+    }
+  };
+
   const handleSavePackingList = async () => {
     if (!editingId && !formState.storeId) {
       toast.error('Please select a store');
@@ -369,7 +403,8 @@ export const PackingListsPage = () => {
           boxNumber: formState.boxNumber,
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
-          image: formState.image || undefined,
+          image1: formState.image1 || undefined,
+          image2: formState.image2 || undefined,
           notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
           items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
           storeId: formState.storeId,
@@ -386,7 +421,8 @@ export const PackingListsPage = () => {
           boxNumber: formState.boxNumber,
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
-          image: formState.image || undefined,
+          image1: formState.image1 || undefined,
+          image2: formState.image2 || undefined,
           notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
           items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
           toStoreId: formState.toStoreId || undefined,
@@ -401,6 +437,7 @@ export const PackingListsPage = () => {
       }
       setShowDialog(false);
       setFormState(DEFAULT_FORM);
+      setImagePreviews({image1: '', image2: ''});
       setEditingId(null);
       await loadPackingLists(pagination.page);
     } catch (error: any) {
@@ -675,16 +712,16 @@ export const PackingListsPage = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label htmlFor="image" className="text-sm font-medium">Reference Image URL</Label>
                   <Input
                     id="image"
-                    value={formState.image}
-                    onChange={(e) => setFormState(prev => ({ ...prev, image: e.target.value }))}
+                    value={formState.image1}
+                    onChange={(e) => setFormState(prev => ({ ...prev, image1: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="https://example.com/image.jpg"
                   />
-                </div>
+                </div> */}
 
                 <div className="space-y-2">
                   <Label htmlFor="status" className="text-sm font-medium">Status</Label>
@@ -889,13 +926,81 @@ export const PackingListsPage = () => {
               )}
             </div>
 
-            {/* Section 3: Notes */}
+            {/* Section 3: Images and Notes */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <Box className="h-4 w-4 text-primary" />
-                <h3 className="text-base font-semibold">Additional Notes</h3>
+                <h3 className="text-base font-semibold">Images and Notes</h3>
               </div>
 
+              {/* Image Upload Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Image 1 Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image1" className="text-sm font-medium">Image 1</Label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      id="image1"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(1, e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {(formState.image1 || imagePreviews.image1) && (
+                      <div className="mt-2">
+                        <img
+                          src={formState.image1 || imagePreviews.image1}
+                          alt="Preview 1"
+                          className="max-w-full h-32 object-contain rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleImageUpload(1, null)}
+                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Image 2 Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image2" className="text-sm font-medium">Image 2</Label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      id="image2"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(2, e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {(formState.image2 || imagePreviews.image2) && (
+                      <div className="mt-2">
+                        <img
+                          src={formState.image2 || imagePreviews.image2}
+                          alt="Preview 2"
+                          className="max-w-full h-32 object-contain rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleImageUpload(2, null)}
+                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section */}
               <div className="space-y-2">
                 <Label htmlFor="notes" className="text-sm font-medium">Notes</Label>
                 <Textarea

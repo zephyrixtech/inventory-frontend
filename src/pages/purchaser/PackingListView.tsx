@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Box, Calendar, MapPin, Package, User, CheckCircle, XCircle, Clock, Truck, Store, DollarSign, FileText } from 'lucide-react';
+import { ArrowLeft, Box, Calendar, MapPin, Package, User, CheckCircle, XCircle, Clock, Truck, Store, DollarSign, FileText, Image as ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,230 +67,192 @@ export const PackingListView = () => {
   const StatusIcon = statusConfig[packingList.status as string]?.icon || Clock;
   const statusInfo = statusConfig[packingList.status as string] || statusConfig.pending;
 
+  // Helper function to render an image with error handling
+  const renderImage = (imageSrc: string, alt: string) => {
+    if (!imageSrc) return null;
+    
+    return (
+      <img
+        src={imageSrc}
+        alt={alt}
+        className="max-w-full h-auto rounded-lg border"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate('/dashboard/purchaser/packing-lists')}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Packing List Details</h1>
-            <p className="text-muted-foreground">View packing list information</p>
-          </div>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard/purchaser/packing-lists')}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Packing List Details</h1>
+          <p className="text-muted-foreground">View and manage packing list information</p>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Box className="h-5 w-5 text-primary" />
-              Basic Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-muted-foreground">Box Number</label>
-              <p className="text-base font-semibold">{packingList.boxNumber}</p>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                Location
-              </label>
-              <p className="text-base">{packingList.location}</p>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <StatusIcon className="h-4 w-4" />
-                Status
-              </label>
-              <Badge className={`w-fit ${statusInfo.color}`}>
-                {statusInfo.label}
-              </Badge>
-            </div>
-            {packingList.packingDate && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Packing Date
-                </label>
-                <p className="text-base">
-                  {new Date(packingList.packingDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Box className="h-5 w-5 text-primary" />
+                Basic Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Box Number</p>
+                <p className="font-medium">{packingList.boxNumber}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Location</p>
+                <p className="font-medium">{packingList.location}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Packing Date</p>
+                <p className="font-medium">
+                  {packingList.packingDate ? new Date(packingList.packingDate).toLocaleDateString() : '-'}
                 </p>
               </div>
-            )}
-            {packingList.shipmentDate && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Shipment Date
-                </label>
-                <p className="text-base">
-                  {new Date(packingList.shipmentDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+              <div>
+                <p className="text-sm text-muted-foreground">Shipment Date</p>
+                <p className="font-medium">
+                  {packingList.shipmentDate ? new Date(packingList.shipmentDate).toLocaleDateString() : '-'}
                 </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge className={`inline-flex items-center gap-1 ${statusInfo.color}`}>
+                  <StatusIcon className="h-3 w-3" />
+                  {statusInfo.label}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Items</p>
+                <p className="font-medium">{packingList.totalQuantity}</p>
+              </div>
+              {packingList.currency && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Currency</p>
+                  <p className="font-medium">{packingList.currency}</p>
+                </div>
+              )}
+              {packingList.exchangeRate && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Exchange Rate</p>
+                  <p className="font-medium">{packingList.exchangeRate}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              Created By
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {packingList.createdBy && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground">Created By</label>
-                <p className="text-base">
+          {/* Items */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Items ({packingList.items?.length || 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {packingList.items?.map((item: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-2 rounded-lg">
+                        <Package className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{item.product?.name || 'Unknown Product'}</p>
+                        <p className="text-sm text-muted-foreground">Code: {item.product?.code || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{item.quantity}</p>
+                      <p className="text-sm text-muted-foreground">Quantity</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          {/* Store Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5 text-primary" />
+                Store Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">From Store</p>
+                <p className="font-medium">
+                  {packingList.store ? `${packingList.store.name} (${packingList.store.code})` : 'Not specified'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">To Store</p>
+                <p className="font-medium">
+                  {packingList.toStore 
+                    ? typeof packingList.toStore === 'string' 
+                      ? packingList.toStore 
+                      : `${packingList.toStore.name} (${packingList.toStore.code})`
+                    : 'Not specified'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Created By */}
+          {packingList.createdBy && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  Created By
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium">
                   {packingList.createdBy.firstName} {packingList.createdBy.lastName}
                 </p>
-              </div>
-            )}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-muted-foreground">Created At</label>
-              <p className="text-base">
-                {new Date(packingList.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            </div>
-            {packingList.approvedBy && (
-              <>
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium text-muted-foreground">Approved By</label>
-                  <p className="text-base">
-                    {packingList.approvedBy.firstName} {packingList.approvedBy.lastName}
-                  </p>
-                </div>
-                {packingList.approvedAt && (
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium text-muted-foreground">Approved At</label>
-                    <p className="text-base">
-                      {new Date(packingList.approvedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Store & Financial Information */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Store className="h-5 w-5 text-primary" />
-              Store Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {packingList.store && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground">From Store</label>
-                <p className="text-base">
-                  {packingList.store.name} ({packingList.store.code})
-                </p>
-              </div>
-            )}
-            {packingList.toStore && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground">To Store</label>
-                <p className="text-base">
-                  {(packingList.toStore as any).name} ({(packingList.toStore as any).code})
-                </p>
-              </div>
-            )}
-            {!packingList.store && !packingList.toStore && (
-              <p className="text-sm text-muted-foreground">No store information available</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" />
-              Financial Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-muted-foreground">Currency</label>
-              <p className="text-base font-semibold">{packingList.currency || 'INR'}</p>
-            </div>
-            {packingList.exchangeRate && packingList.currency === 'AED' && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-muted-foreground">Exchange Rate (to INR)</label>
-                <p className="text-base">{packingList.exchangeRate}</p>
-              </div>
-            )}
-            {!packingList.exchangeRate && packingList.currency === 'INR' && (
-              <p className="text-sm text-muted-foreground">No exchange rate applicable for INR</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-primary" />
-            Items ({packingList.items?.length || 0})
-          </CardTitle>
-          <CardDescription>Total Quantity: {packingList.totalQuantity || 0} units</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {packingList.items && packingList.items.length > 0 ? (
-            <div className="space-y-2">
-              {packingList.items.map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium">
-                      {item.product?.name || 'Unknown Product'}
-                    </p>
-                    {item.product?.code && (
-                      <p className="text-sm text-muted-foreground">Code: {item.product.code}</p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">Quantity: {item.quantity}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-4">No items in this packing list</p>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          {/* Approved By */}
+          {packingList.approvedBy && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-primary" />
+                  Approved By
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium">
+                  {packingList.approvedBy.firstName} {packingList.approvedBy.lastName}
+                </p>
+                {packingList.approvedAt && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {new Date(packingList.approvedAt).toLocaleString()}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
 
       {/* Notes Section */}
       {(packingList as any).notes && (
@@ -307,25 +269,33 @@ export const PackingListView = () => {
         </Card>
       )}
 
-      {/* Reference Image */}
-      {packingList.image && (
+      {/* Images Section */}
+      {((packingList as any).image1 || (packingList as any).image2) && (
         <Card>
           <CardHeader>
-            <CardTitle>Reference Image</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-primary" />
+              Images
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <img
-              src={packingList.image}
-              alt="Packing list reference"
-              className="max-w-full h-auto rounded-lg border"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(packingList as any).image1 && (
+                <div>
+                  <h3 className="font-medium mb-2">Image 1</h3>
+                  {renderImage((packingList as any).image1, "Packing list image 1")}
+                </div>
+              )}
+              {(packingList as any).image2 && (
+                <div>
+                  <h3 className="font-medium mb-2">Image 2</h3>
+                  {renderImage((packingList as any).image2, "Packing list image 2")}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
     </div>
   );
 };
-
