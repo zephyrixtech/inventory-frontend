@@ -21,8 +21,8 @@ import {
   Package,
   Target,
   DollarSign,
-  Youtube,
-  Video,
+  // Youtube,
+  // Video,
   ChevronUp,
   ChevronDown,
   X,
@@ -295,10 +295,10 @@ const InventoryForm = () => {
   const userData: IUser | null = user ? JSON.parse(user) : null;
   const companyId = userData?.company_id || null;
   const [videoType, setVideoType] = useState('upload'); // 'upload' or 'youtube'
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
-  const [showZoom, setShowZoom] = useState(false);
-  const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null);
+  // const [youtubeUrl, setYoutubeUrl] = useState('');
+  // const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  // const [showZoom, setShowZoom] = useState(false);
+  // const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null);
   // Initialize form
   const {
     register,
@@ -329,52 +329,50 @@ const InventoryForm = () => {
 
   const watchedFields = watch();
 
-  // Extract video ID from YouTube URL
-  const extractVideoId = (url: string) => {
-    try {
-      const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
-      const parsedUrl = new URL(normalizedUrl);
-      const hostname = parsedUrl.hostname.toLowerCase();
-      const pathname = parsedUrl.pathname;
+  // const extractVideoId = (url: string) => {
+  //   try {
+  //     const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
+  //     const parsedUrl = new URL(normalizedUrl);
+  //     const hostname = parsedUrl.hostname.toLowerCase();
+  //     const pathname = parsedUrl.pathname;
 
-      if (hostname.endsWith('youtu.be')) {
-        return pathname.slice(1);
-      }
+  //     if (hostname.endsWith('youtu.be')) {
+  //       return pathname.slice(1);
+  //     }
 
-      if (hostname.endsWith('youtube.com')) {
-        const v = parsedUrl.searchParams.get('v');
-        if (v) return v;
+  //     if (hostname.endsWith('youtube.com')) {
+  //       const v = parsedUrl.searchParams.get('v');
+  //       if (v) return v;
 
-        const shortsMatch = pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
-        if (shortsMatch) return shortsMatch[1];
-      }
+  //       const shortsMatch = pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
+  //       if (shortsMatch) return shortsMatch[1];
+  //     }
 
-      return null;
-    } catch {
-      return null;
-    }
-  };
+  //     return null;
+  //   } catch {
+  //     return null;
+  //   }
+  // };
 
-  const handleYoutubeChange = (e: string | React.ChangeEvent<HTMLInputElement>) => {
-    const url = typeof e === 'string' ? e : e.target.value;
-    setYoutubeUrl(url);
-    const id = url ? extractVideoId(url) : null;
-    setYoutubeVideoId(id);
-    setValue('youtube_link', url, { shouldValidate: true });
-  };
+  // const handleYoutubeChange = (e: string | React.ChangeEvent<HTMLInputElement>) => {
+  //   const url = typeof e === 'string' ? e : e.target.value;
+  //   setYoutubeUrl(url);
+  //   const id = url ? extractVideoId(url) : null;
+  //   setYoutubeVideoId(id);
+  //   setValue('youtube_link', url, { shouldValidate: true });
+  // };
 
-  const handleMouseEnter = (imageSrc: string) => {
-    setActiveZoomImage(imageSrc);
-    setShowZoom(true);
-  };
+  // const handleMouseEnter = (imageSrc: string) => {
+  //   setActiveZoomImage(imageSrc);
+  //   setShowZoom(true);
+  // };
 
-  const handleMouseLeave = () => {
-    setShowZoom(false);
-    setActiveZoomImage(null);
-  };
+  // const handleMouseLeave = () => {
+  //   setShowZoom(false);
+  //   setActiveZoomImage(null);
+  // };
 
 
-  // Update default values when configurators change
   useEffect(() => {
     // Do not reset defaults while editing or viewing an existing item
     if (isEditing || isViewing || configurators.length === 0) return;
@@ -388,9 +386,9 @@ const InventoryForm = () => {
       reorder_level: null,
       max_level: null,
       selling_price: null,
-      image_1: null,
-      image_2: null,
-      video: null,
+      // image_1: null,
+      // image_2: null,
+      // video: null,
       youtube_link: null,
     };
 
@@ -407,26 +405,26 @@ const InventoryForm = () => {
   }, [configurators.length, isEditing, isViewing]);
 
   // Handle media change (images and video)
-  const handleMediaChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: 'image_1' | 'image_2' | 'video',
-    setPreview: (value: string | null) => void
-  ) => {
-    if (isViewing) return; // Prevent changes in view mode
-    const file = e.target.files?.[0];
-    setValue(field, file || null, { shouldDirty: true });
-    if (file) {
-      // For now, we'll just show a preview but won't actually upload
-      // This would need to be implemented with proper backend file endpoints
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreview(null);
-    }
-  };
+  // const handleMediaChange = (
+  //   e: React.ChangeEvent<HTMLInputElement>,
+  //   field: 'image_1' | 'image_2' | 'video',
+  //   setPreview: (value: string | null) => void
+  // ) => {
+  //   if (isViewing) return; // Prevent changes in view mode
+  //   const file = e.target.files?.[0];
+  //   setValue(field, file || null, { shouldDirty: true });
+  //   if (file) {
+  //     // For now, we'll just show a preview but won't actually upload
+  //     // This would need to be implemented with proper backend file endpoints
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => {
+  //       setPreview(reader.result as string);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   } else {
+  //     setPreview(null);
+  //   }
+  // };
 
   // Fetch data
   useEffect(() => {
@@ -594,8 +592,8 @@ const InventoryForm = () => {
           formValues.youtube_link = youtubeLinkFromApi;
           formValues.video = null;
           setVideoType(inferredVideoType);
-          setYoutubeUrl(youtubeLinkFromApi || '');
-          setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
+          // setYoutubeUrl(youtubeLinkFromApi || '');
+          // setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
 
           // Alternative items - for now we'll skip this as it requires additional endpoints
           setSelectedAlternativesWithNames([]);
@@ -922,8 +920,8 @@ const InventoryForm = () => {
     setInitialImage1Preview(null);
     setInitialImage2Preview(null);
     setInitialVideoPreview(null);
-    setYoutubeUrl('');
-    setYoutubeVideoId(null);
+    // setYoutubeUrl('');
+    // setYoutubeVideoId(null);
     setVideoType('upload');
     setFormStatus('idle');
     setExistingAdditionalAttributes({});
@@ -1490,7 +1488,7 @@ const InventoryForm = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2 group">
                       <Label
                         htmlFor="image_1"
@@ -1527,7 +1525,6 @@ const InventoryForm = () => {
                                 />
                               </div>
 
-                              {/* Full Image Zoom Modal */}
                               {showZoom && activeZoomImage === image1Preview && (
                                 <div className="absolute left-36 top-0 w-80 h-80 border-2 border-blue-500 rounded-lg overflow-hidden bg-white shadow-2xl z-50">
                                   <img
@@ -1591,7 +1588,6 @@ const InventoryForm = () => {
                                 />
                               </div>
 
-                              {/* Full Image Zoom Modal */}
                               {showZoom && activeZoomImage === image2Preview && (
                                 <div className="absolute left-36 top-0 w-80 h-80 border-2 border-blue-500 rounded-lg overflow-hidden bg-white shadow-2xl z-50">
                                   <img
@@ -1618,9 +1614,9 @@ const InventoryForm = () => {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <div className="space-y-2 group">
                         <Label className='group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium'>
@@ -1739,7 +1735,7 @@ const InventoryForm = () => {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* {!isViewing && ( 
