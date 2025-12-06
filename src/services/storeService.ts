@@ -7,19 +7,9 @@ export interface Store {
   company: string;
   name: string;
   code: string;
-  type: 'Central Store' | 'Branch Store';
-  parent?: {
-    _id: string;
-    name: string;
-    code: string;
-    type: 'Central Store' | 'Branch Store';
-  } | null;
-  manager?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  } | null;
+  manager?: string;
+  purchaser?: string;
+  biller?: string;
   phone?: string;
   email?: string;
   address?: string;
@@ -32,7 +22,6 @@ export interface Store {
   ifscCode?: string;
   ibanCode?: string;
   taxCode?: string;
-  directPurchaseAllowed?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -40,16 +29,14 @@ export interface Store {
 
 export interface ListStoresParams {
   search?: string;
-  type?: 'all' | 'Central Store' | 'Branch Store';
   managerId?: string;
-  parentId?: string;
+  userId?: string;
+  userRole?: string;
 }
 
 export interface CreateStorePayload {
   name: string;
   code: string;
-  type: 'Central Store' | 'Branch Store';
-  parentId?: string | null;
   managerId?: string | null;
   phone?: string;
   email?: string;
@@ -63,7 +50,6 @@ export interface CreateStorePayload {
   ifscCode?: string;
   ibanCode?: string;
   taxCode?: string;
-  directPurchaseAllowed?: boolean;
 }
 
 export interface UpdateStorePayload extends Partial<CreateStorePayload> {
@@ -75,9 +61,9 @@ export const storeService = {
     const queryParams = new URLSearchParams();
 
     if (params.search) queryParams.append('search', params.search);
-    if (params.type && params.type !== 'all') queryParams.append('type', params.type);
     if (params.managerId) queryParams.append('managerId', params.managerId);
-    if (params.parentId) queryParams.append('parentId', params.parentId);
+    if (params.userId) queryParams.append('userId', params.userId);
+    if (params.userRole) queryParams.append('userRole', params.userRole);
 
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
     return apiClient.get<ApiResponse<Store[]>>(`/stores${queryString}`);
@@ -99,4 +85,3 @@ export const storeService = {
     return apiClient.delete<ApiResponse<{ success: boolean }>>(`/stores/${id}`);
   }
 };
-

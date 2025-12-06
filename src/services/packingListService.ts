@@ -7,7 +7,6 @@ export interface PackingListItemInput {
 }
 
 export interface PackingListInput {
-  location: string;
   boxNumber: string;
   storeId: string;
   toStoreId?: string;
@@ -19,14 +18,13 @@ export interface PackingListInput {
   image1?: string;
   image2?: string;
   notes?: string;
-  status?: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
 
 export interface PackingList {
   _id: string;
   id?: string;
   company: string;
-  location: string;
   boxNumber: string;
   items: Array<{
     product: {
@@ -53,7 +51,7 @@ export interface PackingList {
   } | string;
   currency?: 'INR' | 'AED';
   exchangeRate?: number;
-  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  status: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   createdBy?: {
     _id: string;
     firstName: string;

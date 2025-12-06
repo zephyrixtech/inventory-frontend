@@ -62,6 +62,34 @@ import { storeService } from '@/services/storeService';
 import type { Store } from '@/services/storeService';
 import { useNavigate } from 'react-router-dom';
 
+// Helper function to get user role from localStorage
+const getUserRole = (): string | null => {
+  try {
+    const userDataString = localStorage.getItem('userData');
+    if (userDataString) {
+      const userData = JSON.parse(userDataString);
+      return userData.role_name || null;
+    }
+  } catch (error) {
+    console.error('Error getting user role from localStorage:', error);
+  }
+  return null;
+};
+
+// Helper function to get user ID from localStorage
+const getUserId = (): string | null => {
+  try {
+    const userDataString = localStorage.getItem('userData');
+    if (userDataString) {
+      const userData = JSON.parse(userDataString);
+      return userData.id || null;
+    }
+  } catch (error) {
+    console.error('Error getting user ID from localStorage:', error);
+  }
+  return null;
+};
+
 export const StoreManagement = () => {
   const navigate = useNavigate();
   const [stores, setStores] = useState<Store[]>([]);
@@ -71,8 +99,6 @@ export const StoreManagement = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [storeTypeFilter, setStoreTypeFilter] = useState('all');
   const [managerFilter, setManagerFilter] = useState('all');
-  const [nameFilter, setNameFilter] = useState('all');
-  const [parentStoreFilter, setParentStoreFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -86,32 +112,45 @@ export const StoreManagement = () => {
     direction: null,
   });
 
-  const storeTypes = ['all', 'Central Store', 'Branch Store'];
-
-  // Fetch stores from API
+  // Load stores when component mounts
   useEffect(() => {
-    const fetchStores = async () => {
+    const loadStores = async () => {
       try {
         setIsLoading(true);
-        const response = await storeService.listStores();
+        const userRole = getUserRole();
+        const userId = getUserId();
+        
+        // Prepare params for the API call
+        const params: any = {};
+        
+        // Only pass userId and userRole if the user is purchaser or biller
+        if (userRole && (userRole === 'purchaser' || userRole === 'biller')) {
+          params.userId = userId;
+          params.userRole = userRole;
+        }
+        
+        const response = await storeService.listStores(params);
         setStores(response.data || []);
-      } catch (error) {
-        console.error('Error fetching stores:', error);
-        toast.error('Failed to load stores');
+      } catch (error: any) {
+        console.error('Error loading stores:', error);
+        toast.error(error?.message || 'Failed to load stores');
+        setStores([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStores();
+    loadStores();
   }, []);
 
-  // Get unique managers and store names for filters
+  const storeTypes = ['all'];
+
+  // Get unique managers for filters
   const managers = useMemo(() => {
     const managerSet = new Set<string>(['all']);
     stores.forEach((store) => {
       if (store.manager) {
-        managerSet.add(`${store.manager.firstName} ${store.manager.lastName}`);
+        managerSet.add(store.manager);
       }
     });
     return Array.from(managerSet);
@@ -123,20 +162,6 @@ export const StoreManagement = () => {
       nameSet.add(store.name);
     });
     return Array.from(nameSet);
-  }, [stores]);
-
-  const parentStores = useMemo(() => {
-    const parentList = [{ id: 'all', name: 'All Parent Stores', type: '' }];
-    stores
-      .filter((store) => store.type === 'Central Store')
-      .forEach((store) => {
-        parentList.push({
-          id: store._id,
-          name: store.name,
-          type: store.type,
-        });
-      });
-    return parentList;
   }, [stores]);
 
   // === Filter, Sort, Paginate with useMemo ===
@@ -154,20 +179,9 @@ export const StoreManagement = () => {
     }
 
     // Filters
-    if (storeTypeFilter !== 'all') {
-      filtered = filtered.filter((s) => s.type === storeTypeFilter);
-    }
-    if (nameFilter !== 'all') {
-      filtered = filtered.filter((s) => s.name === nameFilter);
-    }
-    if (parentStoreFilter !== 'all') {
-      filtered = filtered.filter((s) => s.parent?._id === parentStoreFilter);
-    }
     if (managerFilter !== 'all') {
       filtered = filtered.filter(
-        (s) =>
-          s.manager &&
-          `${s.manager.firstName} ${s.manager.lastName}` === managerFilter
+        (s) => s.manager === managerFilter
       );
     }
 
@@ -189,17 +203,9 @@ export const StoreManagement = () => {
             aVal = a.address || '';
             bVal = b.address || '';
             break;
-          case 'type':
-            aVal = a.type;
-            bVal = b.type;
-            break;
-          case 'parent_store':
-            aVal = a.parent?.name || '';
-            bVal = b.parent?.name || '';
-            break;
           case 'store_manager':
-            aVal = a.manager ? `${a.manager.firstName} ${a.manager.lastName}` : '';
-            bVal = b.manager ? `${b.manager.firstName} ${b.manager.lastName}` : '';
+            aVal = a.manager || '';
+            bVal = b.manager || '';
             break;
           default:
             aVal = a.name;
@@ -213,7 +219,7 @@ export const StoreManagement = () => {
     }
 
     return filtered;
-  }, [stores, searchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, sortConfig]);
+  }, [stores, searchQuery, managerFilter, sortConfig]);
 
   const totalItems = filteredAndSortedStores.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -224,24 +230,12 @@ export const StoreManagement = () => {
 
   // === Tree View ===
   const buildTree = useMemo(() => {
-    const childrenMap: Record<string, Store[]> = {};
-    stores.forEach((store) => {
-      if (store.parent?._id) {
-        const parentId = store.parent._id;
-        if (!childrenMap[parentId]) childrenMap[parentId] = [];
-        childrenMap[parentId].push(store);
-      }
-    });
-
-    const roots = stores
-      .filter((s) => !s.parent)
-      .map((root) => ({
-        ...root,
-        children: (childrenMap[root._id] || []).map((child) => ({
-          ...child,
-          children: [],
-        })),
-      }));
+    // Since we don't have parent/child relationships in the current Store model,
+    // we'll treat all stores as root nodes
+    const roots = stores.map((store) => ({
+      ...store,
+      children: [],
+    }));
 
     return roots;
   }, [stores]);
@@ -291,20 +285,13 @@ export const StoreManagement = () => {
             ) : (
               <div className="w-4 h-4" />
             )}
-            <div className={`p-1.5 rounded ${node.type === 'Central Store' ? 'bg-blue-100' : 'bg-green-100'}`}>
-              {node.type === 'Central Store' ? (
-                <Building2 className="h-4 w-4 text-blue-600" />
-              ) : (
-                <StoreIcon className="h-4 w-4 text-green-600" />
-              )}
+            <div className="p-1.5 rounded bg-blue-100">
+              <StoreIcon className="h-4 w-4 text-blue-600" />
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <span className="font-medium text-sm">{node.name}</span>
                 <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{node.code}</span>
-                <span className={`text-xs px-2 py-1 rounded ${node.type === 'Central Store' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                  {node.type}
-                </span>
               </div>
               <div className="flex items-center space-x-4 mt-1 text-xs text-gray-600">
                 <div className="flex items-center space-x-1">
@@ -313,9 +300,14 @@ export const StoreManagement = () => {
                     {node.address || 'No address'}
                   </span>
                 </div>
-                {node.manager && (
+                {node.purchaser === 'ROLE_PURCHASER' && (
                   <span>
-                    Manager: {node.manager.firstName} {node.manager.lastName}
+                    Purchaser Role Assigned
+                  </span>
+                )}
+                {node.biller === 'ROLE_BILLER' && (
+                  <span>
+                    Biller Role Assigned
                   </span>
                 )}
               </div>
@@ -351,14 +343,14 @@ export const StoreManagement = () => {
 
   // === Export CSV ===
   const exportStoresToCSV = () => {
-    const headers = ['Store ID', 'Store Name', 'Address', 'Store Type', 'Parent Store', 'Store Manager'];
+    const headers = ['Store ID', 'Store Name', 'Address', 'Store Manager', 'Purchaser', 'Biller'];
     const rows = filteredAndSortedStores.map((store) => [
       `"${store.code}"`,
       `"${store.name}"`,
       `"${store.address || ''}"`,
-      `"${store.type}"`,
-      `"${store.parent?.name || ''}"`,
-      `"${store.manager ? `${store.manager.firstName} ${store.manager.lastName}` : ''}"`,
+      `"${store.manager || ''}"`,
+      `"${store.purchaser || ''}"`,
+      `"${store.biller || ''}"`,
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -388,7 +380,19 @@ export const StoreManagement = () => {
       setIsDialogOpen(false);
       setStoreToDelete(null);
       // Refresh stores list
-      const response = await storeService.listStores();
+      const userRole = getUserRole();
+      const userId = getUserId();
+      
+      // Prepare params for the API call
+      const params: any = {};
+      
+      // Only pass userId and userRole if the user is purchaser or biller
+      if (userRole && (userRole === 'purchaser' || userRole === 'biller')) {
+        params.userId = userId;
+        params.userRole = userRole;
+      }
+      
+      const response = await storeService.listStores(params);
       setStores(response.data || []);
     } catch (error: any) {
       console.error('Error deleting store:', error);
@@ -403,8 +407,6 @@ export const StoreManagement = () => {
     setSearchQuery('');
     setStoreTypeFilter('all');
     setManagerFilter('all');
-    setNameFilter('all');
-    setParentStoreFilter('all');
     setItemsPerPage(10);
     setCurrentPage(1);
     setSortConfig({ field: null, direction: null });
@@ -486,33 +488,9 @@ export const StoreManagement = () => {
                         <SelectValue placeholder="Filter by manager" />
                       </SelectTrigger>
                       <SelectContent>
-                        {managers.map(m => (
+                        {managers.map((m: string) => (
                           <SelectItem key={m} value={m}>
                             {m === 'all' ? 'All Managers' : m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={nameFilter} onValueChange={(v) => { setNameFilter(v); setCurrentPage(1); }}>
-                      <SelectTrigger className="w-full sm:w-[200px]">
-                        <SelectValue placeholder="Filter by name" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {storeNames.map(n => (
-                          <SelectItem key={n} value={n}>
-                            {n === 'all' ? 'All Store Names' : n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={parentStoreFilter} onValueChange={(v) => { setParentStoreFilter(v); setCurrentPage(1); }}>
-                      <SelectTrigger className="w-full sm:w-[200px]">
-                        <SelectValue placeholder="Filter by parent store" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {parentStores.map(s => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -545,18 +523,18 @@ export const StoreManagement = () => {
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('type')}>
-                          Store Type {getSortIcon('type')}
-                        </p>
-                      </TableHead>
-                      <TableHead className="font-semibold">
-                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('parent_store')}>
-                          Parent Store {getSortIcon('parent_store')}
-                        </p>
-                      </TableHead>
-                      <TableHead className="font-semibold">
                         <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('store_manager')}>
                           Store Manager {getSortIcon('store_manager')}
+                        </p>
+                      </TableHead>
+                      <TableHead className="font-semibold">
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600">
+                          Purchaser
+                        </p>
+                      </TableHead>
+                      <TableHead className="font-semibold">
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600">
+                          Biller
                         </p>
                       </TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
@@ -565,7 +543,7 @@ export const StoreManagement = () => {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
                             <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
                             <p className="text-base font-medium">Loading stores...</p>
@@ -574,7 +552,7 @@ export const StoreManagement = () => {
                       </TableRow>
                     ) : paginatedStores.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
                             <p className="text-base font-medium">No stores found</p>
                             <p className="text-sm text-gray-500">Try adjusting your search or filter</p>
@@ -583,11 +561,8 @@ export const StoreManagement = () => {
                       </TableRow>
                     ) : (
                       paginatedStores.map((store) => {
-                        // Check if store has children (is a parent)
-                        const hasChildren = stores.some(s => s.parent?._id === store._id);
-                        // For now, we'll disable delete if it has children or if it's a central store with branches
-                        // The backend will also check for inventory usage
-                        const isDeleteDisabled = hasChildren || store.type === 'Central Store';
+                        // Since we're using role-based assignment, we don't need to check for parent/child relationships
+                        const isDeleteDisabled = false;
 
                         return (
                           <TableRow key={store._id} className="hover:bg-gray-50">
@@ -596,12 +571,12 @@ export const StoreManagement = () => {
                             <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address || ''}>
                               {store.address || 'No address'}
                             </TableCell>
-                            <TableCell>{store.type}</TableCell>
-                            <TableCell>{store.parent?.name || 'None'}</TableCell>
+                            <TableCell>{store.manager || 'None'}</TableCell>
                             <TableCell>
-                              {store.manager
-                                ? `${store.manager.firstName} ${store.manager.lastName}`
-                                : 'None'}
+                              {store.purchaser === 'ROLE_PURCHASER' ? 'Purchaser Role Assigned' : 'None'}
+                            </TableCell>
+                            <TableCell>
+                              {store.biller === 'ROLE_BILLER' ? 'Biller Role Assigned' : 'None'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-center gap-2">
@@ -623,9 +598,7 @@ export const StoreManagement = () => {
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p>
-                                        {hasChildren
-                                          ? 'Deletion restricted: Connected to branch store.'
-                                          : 'Cannot delete: Store is in use.'}
+                                        Cannot delete: Store is in use.
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
@@ -696,57 +669,7 @@ export const StoreManagement = () => {
             </CardContent>
           </Card>
 
-          {/* Tree View Card */}
-          <Card className="shadow-sm">
-            <CardHeader className="rounded-t-lg border-b pb-6">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 rounded-lg bg-blue-100 shadow-sm">
-                  <Building2 className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-bold">Store Hierarchy</CardTitle>
-                  <CardDescription className="mt-1">
-                    View the hierarchical structure of central stores and their branches
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {storeTree.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Building2 className="h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-lg font-medium text-gray-600">No store hierarchy available</p>
-                  <p className="text-sm text-gray-500">Add central and branch stores to see hierarchy</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-600">
-                        Total Central Stores: <span className="font-semibold">{storeTree.length}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Total Branch Stores: <span className="font-semibold">{storeTree.reduce((acc, r) => acc + countDescendants(r), 0)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setExpandedNodes(new Set())}>
-                        Collapse All
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setExpandedNodes(new Set(getAllExpandable(storeTree)))}>
-                        Expand All
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="border rounded-lg bg-gray-50/50 p-4 max-h-[600px] overflow-y-auto">
-                    <div className="space-y-1">
-                      {storeTree.map(node => renderTreeNode(node))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        
 
           {/* Delete Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -780,4 +703,3 @@ export const StoreManagement = () => {
     </TooltipProvider>
   );
 };
-

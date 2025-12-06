@@ -36,7 +36,6 @@ interface ExtendedUser {
   role: string;
   status: string | null;
   isActive: boolean | null;
-  companyId: string;
   createdAt: string;
   lastLoginAt: string | null;
   full_name?: string;
@@ -94,22 +93,6 @@ const createStoreSchema = (centralStoreExists: boolean, isEditing: boolean) =>
         .refine((val) => val === val.toLowerCase(), {
           message: "Email must not contain uppercase letters"
         }),
-      type: z
-        .enum(["Central Store", "Branch Store"], {
-          required_error: "Store type is required",
-        })
-        .refine(
-          (value) => {
-            if (!isEditing && value === "Central Store" && centralStoreExists) {
-              return false;
-            }
-            return true;
-          },
-          {
-            message: "Only one Central Store is allowed. A Central Store already exists.",
-          }
-        ),
-      parent_id: z.string().optional(),
       bank_name: z.string().max(100, "Bank name cannot exceed 100 characters").optional().or(z.literal("")),
       bank_account_number: z.string().max(50, "Bank account number cannot exceed 50 characters").optional().or(z.literal("")),
       bank_ifsc_code: z.string().max(20, "IFSC code cannot exceed 20 characters").optional().or(z.literal("")),
@@ -119,24 +102,8 @@ const createStoreSchema = (centralStoreExists: boolean, isEditing: boolean) =>
         .min(1, "Tax code is required")
         .max(50, "Tax code cannot exceed 50 characters")
         .trim(),
-      store_manager_id: z.string().min(1, "Store manager is required"),
-      direct_purchase_allowed: z.boolean(),
+      store_manager_id: z.string().min(1, "Role is required"),
     })
-    .refine(
-      (data) => {
-        if (data.type === "Central Store") {
-          return !data.parent_id || data.parent_id.trim() === "";
-        }
-        if (data.type === "Branch Store") {
-          return data.parent_id && data.parent_id.trim() !== "";
-        }
-        return true;
-      },
-      {
-        message: "Parent store is required for Branch Store",
-        path: ["parent_id"],
-      }
-    )
     .superRefine((data, ctx) => {
       if (data.bank_account_number && !data.bank_ifsc_code && !data.bank_iban_code) {
         ctx.addIssue({
@@ -174,6 +141,18 @@ interface UserData {
   status: string;
   company_id: string;
   full_name: string;
+  // Add company object structure
+  company?: {
+    id: string;
+    name: string;
+    code: string;
+    currency: string;
+  };
+  user?: {
+    company?: {
+      id: string;
+    };
+  };
 }
 
 export default function AddStoreForm() {
@@ -186,8 +165,6 @@ export default function AddStoreForm() {
   const [centralStoreExists, setCentralStoreExists] = useState(false);
   const [isCheckingCentralStore, setIsCheckingCentralStore] = useState(!id);
   const [formError, setFormError] = useState<string | null>(null);
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  // const [userId, setUserId] = useState<string | null>(null); // Unused variable
   const [initialCheckComplete, setInitialCheckComplete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -198,7 +175,7 @@ export default function AddStoreForm() {
 
   const isEditing = Boolean(id);
 
-  // Get default values based on central store existence
+  // Get default values
   const getDefaultValues = useCallback((): StoreFormData => ({
     code: "",
     name: "",
@@ -209,16 +186,13 @@ export default function AddStoreForm() {
     country: "",
     phone: "",
     email: "",
-    type: (!isEditing && centralStoreExists) ? "Branch Store" : "Central Store",
-    parent_id: "",
     bank_name: "",
     bank_account_number: "",
     bank_ifsc_code: "",
     bank_iban_code: "",
     tax_code: "",
     store_manager_id: "",
-    direct_purchase_allowed: false,
-  }), [centralStoreExists, isEditing]);
+  }), []);
 
   // Create schema with current state
   const storeSchema = createStoreSchema(centralStoreExists, isEditing);
@@ -237,7 +211,6 @@ export default function AddStoreForm() {
     defaultValues: getDefaultValues(),
   });
 
-  const watchedStoreType = watch("type");
   const watchedBankAccountNumber = watch("bank_account_number");
   const watchedBankIfscCode = watch("bank_ifsc_code");
   const watchedBankIbanCode = watch("bank_iban_code");
@@ -254,30 +227,16 @@ export default function AddStoreForm() {
   // Fetch company_id from local storage on component mount
   useEffect(() => {
     try {
-      const userDataString = localStorage.getItem("userData");
-      if (userDataString) {
-        const userData: UserData = JSON.parse(userDataString);
-        if (userData.company_id) {
-          setCompanyId(userData.company_id);
-          // setUserId(userData.id); // Unused variable
-        } else {
-          throw new Error("Company ID not found in user data");
-        }
-      } else {
-        throw new Error("User data not found in local storage");
-      }
+      setInitialCheckComplete(true);
     } catch (error) {
-      console.error("Error fetching company_id from local storage:", error);
-      toast.error("Failed to load user data. Please log in again.", {
-        position: "top-right",
-      });
-      navigate("/login");
+      console.error("Error in company ID handling:", error);
+      setInitialCheckComplete(true);
     }
   }, [navigate]);
 
   // Check if a Central Store already exists
   const checkCentralStoreExists = useCallback(async () => {
-    if (isEditing || !companyId) {
+    if (isEditing) {
       setInitialCheckComplete(true);
       return;
     }
@@ -285,7 +244,7 @@ export default function AddStoreForm() {
     setIsCheckingCentralStore(true);
     try {
       // Use storeService to check if a central store exists
-      const response = await storeService.listStores({ type: "Central Store" });
+      const response = await storeService.listStores();
       
       // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
       const data = response.data;
@@ -294,58 +253,29 @@ export default function AddStoreForm() {
       setCentralStoreExists(exists);
       setInitialCheckComplete(true);
 
-      // Reset form with correct default type
-      const defaultType = exists ? "Branch Store" : "Central Store";
-      reset({
-        ...getDefaultValues(),
-        type: defaultType
-      });
-
-      clearErrors("type");
+      reset(getDefaultValues());
     } catch (error) {
       console.error("Error checking central stores:", error);
       // On error, assume central store exists to be safe
       setCentralStoreExists(true);
       setInitialCheckComplete(true);
-      reset({
-        ...getDefaultValues(),
-        type: "Branch Store"
-      });
-      clearErrors("type");
+      reset(getDefaultValues());
       toast.error("Failed to check store configuration. Please try again.", {
         position: "top-right",
       });
     } finally {
       setIsCheckingCentralStore(false);
     }
-  }, [isEditing, companyId, reset, getDefaultValues, clearErrors]);
+  }, [isEditing, reset, getDefaultValues]);
 
-  // Effect to handle store type validation after initial check
+  // Effect to handle initial check completion
   useEffect(() => {
     if (isEditing || !initialCheckComplete) return;
-
-    // If central store exists and user tries to select it, show error and prevent selection
-    if (centralStoreExists && watchedStoreType === "Central Store") {
-      setError("type", {
-        type: "manual",
-        message: "Only one Central Store is allowed in the system. A Central Store already exists.",
-      });
-      // Force change to Branch Store
-      setValue("type", "Branch Store");
-    } else {
-      clearErrors("type");
-    }
-
-    // Clear parent_id for Central Store
-    if (watchedStoreType === "Central Store") {
-      setValue("parent_id", "");
-      clearErrors("parent_id");
-    }
-  }, [watchedStoreType, centralStoreExists, isEditing, initialCheckComplete, setValue, setError, clearErrors]);
+  }, [isEditing, initialCheckComplete]);
 
   // Store ID validation function
   const validateStoreIdUniqueness = useCallback(async (storeCode: string) => {
-    if (!storeCode || storeCode.length !== 6 || !companyId) {
+    if (!storeCode || storeCode.length !== 6) {
       return;
     }
 
@@ -389,7 +319,7 @@ export default function AddStoreForm() {
     } finally {
       // Validation complete - status is already set above
     }
-  }, [companyId, isEditing, store, setError, clearErrors]);
+  }, [isEditing, store, setError, clearErrors]);
 
   // Debounced store ID validation
   useEffect(() => {
@@ -421,8 +351,8 @@ export default function AddStoreForm() {
 
   // Load store data if editing
   useEffect(() => {
-    if (!id || !companyId) {
-      if (!isEditing && companyId) {
+    if (!id) {
+      if (!isEditing) {
         checkCentralStoreExists();
       }
       return;
@@ -439,9 +369,6 @@ export default function AddStoreForm() {
         setStore(data as any as IStore); // Type assertion to match the existing IStore type
         
         if (data) {
-          const validTypes = ["Central Store", "Branch Store"] as const;
-          const storeType = validTypes.includes(data.type) ? data.type : "Branch Store";
-
           reset({
             code: data.code || "",
             name: data.name || "",
@@ -452,15 +379,12 @@ export default function AddStoreForm() {
             country: data.country || "",
             phone: data.phone || "",
             email: data.email || "",
-            type: storeType,
-            parent_id: data.parent?._id ? String(data.parent._id) : "",
             bank_name: data.bankName || "",
             bank_account_number: data.bankAccountNumber || "",
             bank_ifsc_code: data.ifscCode || "",
             bank_iban_code: data.ibanCode || "",
             tax_code: data.taxCode || "",
-            store_manager_id: data.manager?._id ? String(data.manager._id) : "",
-            direct_purchase_allowed: data.directPurchaseAllowed || false,
+            store_manager_id: data.manager || "",
           });
         }
       } catch (error: any) {
@@ -471,12 +395,11 @@ export default function AddStoreForm() {
       }
     };
     loadStore();
-  }, [id, reset, companyId, checkCentralStoreExists, isEditing]);
+  }, [id, reset, isEditing]);
 
   // Load parent stores - show all stores (both Central and Branch) when creating Branch Store
   useEffect(() => {
     const loadParentStores = async () => {
-      if (!companyId) return;
       try {
         // Use storeService to fetch all stores (both Central and Branch)
         const response = await storeService.listStores();
@@ -504,91 +427,67 @@ export default function AddStoreForm() {
     };
 
     loadParentStores();
-  }, [isEditing, store, companyId]);
+  }, [isEditing, store]);
 
-  // Load store managers
-// Load store managers
-useEffect(() => {
-  const loadManagers = async () => {
-    if (!companyId) return;
-    try {
-      // 1. Fetch ALL active users (the API does not have a role filter)
-      const response = await userService.list({
-        status: 'active',
-        limit: 1000,
-      });
-      let usersData = response.data || [];
+  // Load store managers, purchasers, and billers
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        // 1. Fetch ALL active users (the API does not have a role filter)
+        const response = await userService.list({
+          status: 'active',
+          limit: 1000,
+        });
+        let usersData = response.data || [];
 
-      const adminUsers = usersData.filter(
-        (user) =>
-          user.role?.toLowerCase() === 'admin'          // <-- if role is a string like "admin"
-                );
+        const adminUsers = usersData.filter(
+          (user) =>
+            user.role?.toLowerCase() === 'admin'          // <-- if role is a string like "admin"
+        );
 
-      // 3. If we are editing, also include the current manager even if he is not admin
-      // Note: The manager property may not be available in the current IStore interface
-      // We'll skip this logic for now to avoid TypeScript errors
-      // if (isEditing && id && store?.manager) {
-      //   const currentManagerId =
-      //     typeof store.manager === 'object' && store.manager !== null
-      //       ? (store.manager as any)._id
-      //       : store.manager;
+        const purchaserUsers = usersData.filter(
+          (user) =>
+            user.role?.toLowerCase() === 'purchaser'
+        );
 
-      //   if (currentManagerId) {
-      //     const alreadyIncluded = adminUsers.some(
-      //       (u) => u.id === currentManagerId || u.id === String(currentManagerId)
-      //     );
+        const billerUsers = usersData.filter(
+          (user) =>
+            user.role?.toLowerCase() === 'biller'
+        );
 
-      //     if (!alreadyIncluded) {
-      //       try {
-      //         const managerResponse = await userService.get(String(currentManagerId));
-      //         if (managerResponse.data) {
-      //           adminUsers = [...adminUsers, managerResponse.data];
-      //         }
-      //       } catch (error) {
-      //         console.warn('Could not fetch current store manager:', error);
-      //       }
-      //     }
-      //   }
-      // }
+        // Combine all users for the managers dropdown
+        const allManagers = [...adminUsers, ...purchaserUsers, ...billerUsers];
 
-      const mappedManagers: ExtendedUser[] = adminUsers.map((user) => ({
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone || '',
-        role: user.role || '',
-        status: user.status,
-        isActive: user.isActive,
-        companyId: companyId,
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt || '',
-        full_name: `${user.firstName} ${user.lastName}`,
-      }));
+        const mappedManagers: ExtendedUser[] = allManagers.map((user) => ({
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone || '',
+          role: user.role || '',
+          status: user.status,
+          isActive: user.isActive,
+          createdAt: user.createdAt,
+          lastLoginAt: user.lastLoginAt || '',
+          full_name: `${user.firstName} ${user.lastName}`,
+        }));
 
-      setManagers(mappedManagers);
-    } catch (error) {
-      console.error('Error loading managers:', error);
-      toast.error('Failed to load store managers.', { position: 'top-right' });
-      setManagers([]);
-    }
-  };
+        setManagers(mappedManagers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+        toast.error('Failed to load users.', { position: 'top-right' });
+        setManagers([]);
+      }
+    };
 
-  loadManagers();
-}, [companyId, id, isEditing, store]);
+    loadUsers();
+  }, [id, isEditing, store]);
 
   // Handle form submission
   const onSubmit = async (data: StoreFormData) => {
     setFormError(null);
 
-    if (!companyId) {
-      setFormError("Company ID is missing. Please log in again.");
-      toast.error("Company ID is missing. Please log in again.", {
-        position: "top-right",
-      });
-      navigate("/login");
-      return;
-    }
+    // Company ID is no longer required for store creation
 
     // Prevent submission if store ID validation is still in progress or invalid
     if (!isEditing && storeIdValidationStatus === 'validating') {
@@ -605,20 +504,10 @@ useEffect(() => {
       return;
     }
 
-    if (data.type === "Central Store" && !isEditing && centralStoreExists) {
-      setError("type", {
-        type: "manual",
-        message: "Only one Central Store is allowed in the system. A Central Store already exists.",
-      });
-      setFormError("Please correct the highlighted errors before saving.");
-      return;
-    }
-
     // Map form fields to database columns and remove form-specific fields
     const cleanedData: any = {
       name: data.name?.trim(),
       code: data.code?.trim(),
-      type: data.type,
       // Address fields
       address: data.address?.trim(),
       city: data.city?.trim(),
@@ -632,20 +521,9 @@ useEffect(() => {
       ibanCode: data.bank_iban_code?.trim(),
       // Tax field
       taxCode: data.tax_code?.trim(),
-      // Configuration field
-      directPurchaseAllowed: data.direct_purchase_allowed || false,
+      // Handle managerId - only include if provided and not empty
+      managerId: data.store_manager_id.trim(),
     };
-
-    // Handle parentId - only include if Branch Store and has a valid parent
-    if (data.type === "Branch Store" && data.parent_id && data.parent_id.trim() !== "") {
-      cleanedData.parentId = data.parent_id.trim();
-    }
-    // For Central Store, don't include parentId at all (backend expects it to be omitted)
-
-    // Handle managerId - only include if provided and not empty
-    if (data.store_manager_id && data.store_manager_id.trim() !== "") {
-      cleanedData.managerId = data.store_manager_id.trim();
-    }
 
     // Optional fields - only include if they have values
     if (data.phone && data.phone.trim() !== "") {
@@ -683,13 +561,6 @@ useEffect(() => {
             type: "manual",
             message: "This email is already in use",
           });
-        } else if (error.message.toLowerCase().includes("central store") && data.type === "Central Store") {
-          setError("type", {
-            type: "manual",
-            message: "Only one Central Store is allowed in the system.",
-          });
-          errorMessage = "Only one Central Store is allowed in the system.";
-          checkCentralStoreExists();
         } else {
           errorMessage = error.message;
         }
@@ -727,13 +598,10 @@ useEffect(() => {
   };
 
   // UI Control Logic
-  const isStoreTypeDisabled = isEditing;
-  const isCentralStoreDisabled = !isEditing && centralStoreExists;
-  const isBranchStoreDisabled = !isEditing && (!centralStoreExists || isCheckingCentralStore);
-  const isParentStoreDisabled =
-    isEditing && store
-      ? watchedStoreType === "Central Store"
-      : isCheckingCentralStore || watchedStoreType === "Central Store";
+  const isStoreTypeDisabled = false; // Always false since we're removing store configuration
+  const isCentralStoreDisabled = false; // Always false since we're removing store configuration
+  const isBranchStoreDisabled = false; // Always false since we're removing store configuration
+  const isParentStoreDisabled = true; // Always true since we're removing store configuration
 
   return (
     <>
@@ -1101,7 +969,8 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* Store Configuration Section */}
+                  {/* Store Configuration Section - REMOVED */}
+                  {/* 
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900">
                       Store Configuration
@@ -1223,8 +1092,9 @@ useEffect(() => {
                       </div>
                     </div>
                   </div>
+                  */}
 
-                  {/* Financial Information Section */}
+{/* Financial Information Section */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
                       <CreditCard className="h-5 w-5 text-blue-600" />
@@ -1406,7 +1276,7 @@ useEffect(() => {
                             : "text-gray-700"
                             } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                         >
-                          <User className="h-4 w-4" /> Store Admin <span className="text-red-500">*</span>
+                          <User className="h-4 w-4" /> Assign to Role <span className="text-red-500">*</span>
                         </Label>
                         <Controller
                           name="store_manager_id"
@@ -1423,30 +1293,17 @@ useEffect(() => {
                                   } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${field.value ? "border-blue-300" : ""
                                   }`}
                               >
-                                <SelectValue placeholder="Select store manager" />
+                                <SelectValue placeholder="Select role (purchaser or biller)" />
                               </SelectTrigger>
                               <SelectContent>
-                                {managers.length === 0 ? (
-                                  <p className="text-sm text-gray-500 px-2 py-1">
-                                    No store managers found
-                                  </p>
-                                ) : (
-                                  managers.map((manager: ExtendedUser) => (
-                                    <SelectItem
-                                      key={manager.id}
-                                      value={manager.id}
-                                    >
-                                      {manager.full_name || `${manager.firstName || ''} ${manager.lastName || ''}`.trim() || manager.email}
-                                    </SelectItem>
-                                  ))
-                                )}
+                                <SelectItem value="purchaser">Purchaser</SelectItem>
+                                <SelectItem value="biller">Biller</SelectItem>
                               </SelectContent>
                             </Select>
                           )}
                         />
                         <ErrorMessage message={errors.store_manager_id?.message} />
-                      </div>
-                    </div>
+                      </div>                    </div>
                   </div>
 
                   {/* Form Actions */}

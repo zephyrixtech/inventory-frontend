@@ -111,10 +111,6 @@ export const PackingListView = () => {
                 <p className="font-medium">{packingList.boxNumber}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Location</p>
-                <p className="font-medium">{packingList.location}</p>
-              </div>
-              <div>
                 <p className="text-sm text-muted-foreground">Packing Date</p>
                 <p className="font-medium">
                   {packingList.packingDate ? new Date(packingList.packingDate).toLocaleDateString() : '-'}

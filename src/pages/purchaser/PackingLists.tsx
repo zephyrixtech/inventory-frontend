@@ -17,7 +17,6 @@ import type { PaginationMeta, StoreStock } from '@/types/backend';
 interface PackingListFormState {
   storeId: string;
   toStoreId: string;
-  location: string;
   boxNumber: string;
   shipmentDate?: string;
   packingDate?: string;
@@ -33,13 +32,12 @@ interface PackingListFormState {
   }[];
   currency: 'INR' | 'AED';
   exchangeRate?: number;
-  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  status: 'india' | 'uae';
 }
 
 const DEFAULT_FORM: PackingListFormState = {
   storeId: '',
   toStoreId: '',
-  location: '',
   boxNumber: '',
   shipmentDate: '',
   packingDate: '',
@@ -49,7 +47,7 @@ const DEFAULT_FORM: PackingListFormState = {
   items: [],
   currency: 'INR',
   exchangeRate: undefined,
-  status: 'pending'
+  status: 'india'
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -73,6 +71,8 @@ export const PackingListsPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formState, setFormState] = useState<PackingListFormState>(DEFAULT_FORM);
   const [stores, setStores] = useState<Store[]>([]);
+  const [purchaserStores, setPurchaserStores] = useState<Store[]>([]); // Stores with ROLE_PURCHASER
+  const [billerStores, setBillerStores] = useState<Store[]>([]); // Stores with ROLE_BILLER
   const [storeStock, setStoreStock] = useState<StoreStock[]>([]);
   const [loadingStoreStock, setLoadingStoreStock] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -103,8 +103,18 @@ export const PackingListsPage = () => {
 
   const loadStores = useCallback(async () => {
     try {
-      const response = await storeService.listStores({ type: 'all' });
-      setStores(response.data || []);
+      // Load all stores
+      const response = await storeService.listStores();
+      const allStores = response.data || [];
+      setStores(allStores);
+      
+      // Filter stores with ROLE_PURCHASER for "From Store"
+      const purchaserFilteredStores = allStores.filter(store => store.purchaser === 'ROLE_PURCHASER');
+      setPurchaserStores(purchaserFilteredStores);
+      
+      // Filter stores with ROLE_BILLER for "To Store"
+      const billerFilteredStores = allStores.filter(store => store.biller === 'ROLE_BILLER');
+      setBillerStores(billerFilteredStores);
     } catch (error) {
       console.error('Failed to load stores', error);
       toast.error('Unable to load stores');
@@ -267,7 +277,7 @@ export const PackingListsPage = () => {
       const formData: PackingListFormState = {
         storeId: foundStoreId,
         toStoreId: (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || packingList.toStore || '',
-        location: packingList.location,
+
         boxNumber: packingList.boxNumber,
         shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
         packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
@@ -277,7 +287,7 @@ export const PackingListsPage = () => {
         items: itemsWithProductInfo,
         currency: packingList.currency || 'INR',
         exchangeRate: packingList.exchangeRate,
-        status: packingList.status || 'pending'
+        status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae'
       };
 
       setFormState(formData);
@@ -399,7 +409,6 @@ export const PackingListsPage = () => {
     try {
       if (editingId) {
         await packingListService.update(editingId, {
-          location: formState.location,
           boxNumber: formState.boxNumber,
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
@@ -417,7 +426,6 @@ export const PackingListsPage = () => {
       } else {
         await packingListService.create({
           storeId: formState.storeId,
-          location: formState.location,
           boxNumber: formState.boxNumber,
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
@@ -469,7 +477,7 @@ export const PackingListsPage = () => {
             <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by box number or location"
+                placeholder="Search by box number"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-10"
@@ -486,10 +494,8 @@ export const PackingListsPage = () => {
               onChange={(event) => setStatusFilter(event.target.value)}
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="shipped">Shipped</option>
-              <option value="rejected">Rejected</option>
+              <option value="india">India</option>
+              <option value="uae">UAE</option>
             </select>
           </div>
 
@@ -507,7 +513,6 @@ export const PackingListsPage = () => {
                         : <ArrowUpDown className="h-4 w-4" />}
                     </div>
                   </TableHead>
-                  <TableHead>Location</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Packing Date</TableHead>
                   <TableHead>Items</TableHead>
@@ -517,13 +522,13 @@ export const PackingListsPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Loading packing lists...
                     </TableCell>
                   </TableRow>
                 ) : sortedLists.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No packing lists found.
                     </TableCell>
                   </TableRow>
@@ -533,7 +538,6 @@ export const PackingListsPage = () => {
                     return (
                       <TableRow key={packingId}>
                         <TableCell className="font-medium">{packing.boxNumber}</TableCell>
-                        <TableCell>{packing.location}</TableCell>
                         <TableCell className="capitalize">{packing.status}</TableCell>
                         <TableCell>{packing.packingDate ? new Date(packing.packingDate).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>
@@ -641,7 +645,7 @@ export const PackingListsPage = () => {
                     onChange={(e) => handleStoreChange(e.target.value)}
                   >
                     <option value="">Select store</option>
-                    {stores.map((store) => (
+                    {purchaserStores.map((store) => (
                       <option key={store._id || store.id} value={store._id || store.id}>
                         {store.name} ({store.code})
                       </option>
@@ -658,7 +662,7 @@ export const PackingListsPage = () => {
                     onChange={(e) => setFormState(prev => ({ ...prev, toStoreId: e.target.value }))}
                   >
                     <option value="">Select destination store</option>
-                    {stores
+                    {billerStores
                       .filter(store => (store._id || store.id) !== formState.storeId)
                       .map((store) => (
                         <option key={store._id || store.id} value={store._id || store.id}>
@@ -676,17 +680,6 @@ export const PackingListsPage = () => {
                     onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="Enter box number"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="location" className="text-sm font-medium">Location *</Label>
-                  <Input
-                    id="location"
-                    value={formState.location}
-                    onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
-                    className="h-10 focus-visible:ring-primary/20"
-                    placeholder="Enter location"
                   />
                 </div>
 
@@ -731,11 +724,8 @@ export const PackingListsPage = () => {
                     value={formState.status}
                     onChange={(e) => setFormState(prev => ({ ...prev, status: e.target.value as any }))}
                   >
-                    <option value="pending">Pending</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="approved">Approved</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="india">India</option>
+                    <option value="uae">UAE</option>
                   </select>
                 </div>
 
@@ -967,37 +957,7 @@ export const PackingListsPage = () => {
                   </div>
                 </div>
 
-                {/* Image 2 Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="image2" className="text-sm font-medium">Image 2</Label>
-                  <div className="space-y-2">
-                    <input
-                      type="file"
-                      id="image2"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(2, e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    />
-                    {(formState.image2 || imagePreviews.image2) && (
-                      <div className="mt-2">
-                        <img
-                          src={formState.image2 || imagePreviews.image2}
-                          alt="Preview 2"
-                          className="max-w-full h-32 object-contain rounded border"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleImageUpload(2, null)}
-                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          Remove Image
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                
               </div>
 
               {/* Notes Section */}
@@ -1032,7 +992,6 @@ export const PackingListsPage = () => {
               disabled={
                 (!editingId && !formState.storeId) ||
                 !formState.boxNumber ||
-                !formState.location ||
                 formState.items.length === 0 ||
                 (!editingId && formState.items.some(item => item.productId && item.quantity > item.availableQuantity && formState.storeId))
               }
