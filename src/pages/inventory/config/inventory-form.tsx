@@ -51,6 +51,7 @@ import { Textarea } from '@/components/ui/textarea';
 // Import our new services
 import { getItemConfigurations, getCategories as getCategoriesService } from '@/services/itemService';
 import { inventoryService } from '@/services/inventoryService';
+import { supplierService } from '@/services/supplierService';
 
 // Interfaces for types
 interface ITemsConfig {
@@ -133,6 +134,9 @@ const baseInventoryFormSchema = z.object({
     .min(1, 'Description is required'),
   quantity: z.number().min(0, 'Quantity cannot be negative'), // NEW FIELD
   selling_price: z.number().min(0, 'Selling price cannot be negative').nullable(),
+  vendorId: z.string().optional(), // NEW FIELD - Vendor/Supplier selection
+  paidAmount: z.number().min(0, 'Paid amount cannot be negative').optional(), // NEW FIELD
+  returnAmount: z.number().min(0, 'Return amount cannot be negative').optional(), // NEW FIELD
   image_1: z
     .any()
     .optional()
@@ -276,6 +280,7 @@ const InventoryForm = () => {
   const [collections, setCollections] = useState<Record<string, CollectionItem[]>>({});
   const [units, setUnits] = useState<IUnit[]>([]);
   const [categories, setCategories] = useState<ICategoryMaster[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]); // NEW: Suppliers state
   const [formSchema, setFormSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
   const [configuratorsLoaded, setConfiguratorsLoaded] = useState(false);
   const [image1Preview, setImage1Preview] = useState<string | null>(null);
@@ -316,7 +321,7 @@ const InventoryForm = () => {
       item_name: '',
       category_id: '',
       description: '',
-      quantity:0,
+      quantity: 0,
       reorder_level: null,
       max_level: null,
       selling_price: null,
@@ -382,7 +387,7 @@ const InventoryForm = () => {
       item_name: '',
       category_id: '',
       description: '',
-      quantity:0,
+      quantity: 0,
       reorder_level: null,
       max_level: null,
       selling_price: null,
@@ -458,7 +463,7 @@ const InventoryForm = () => {
         console.error('Error fetching collections:', err);
         toast.error('Failed to load some collection data.');
       }
-      
+
       // Dummy implementation to avoid syntax errors
       setCollections({});
     };
@@ -495,120 +500,122 @@ const InventoryForm = () => {
 
     setIsLoading(true);
     const fetchItem = async () => {
-        try {
-          // Use our new backend API service instead of Supabase
-          const response = await inventoryService.getItem(id);
-          const itemData = response.data || response;
+      try {
+        // Use our new backend API service instead of Supabase
+        const response = await inventoryService.getItem(id);
+        const itemData = response.data || response;
 
-          // Handle category ID - could be id or _id
-          const rawCategory = itemData.category as { id?: string; _id?: string } | string | undefined;
-          const itemCategoryId =
-            (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
-          setValue('category_id', itemCategoryId || '');
+        // Handle category ID - could be id or _id
+        const rawCategory = itemData.category as { id?: string; _id?: string } | string | undefined;
+        const itemCategoryId =
+          (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
+        setValue('category_id', itemCategoryId || '');
 
-          // Sequentially fetch categories to ensure they are loaded before the form is reset.
-          // This prevents the category from appearing as "not found".
-          if (companyId) {
-            setCategoriesLoading(true);
-            try {
-              // Use our new backend API service for categories
-              const categoriesResponse = await getCategoriesService();
-              setCategories(categoriesResponse);
-            } finally {
-              setCategoriesLoading(false);
-            }
+        // Sequentially fetch categories to ensure they are loaded before the form is reset.
+        // This prevents the category from appearing as "not found".
+        if (companyId) {
+          setCategoriesLoading(true);
+          try {
+            // Use our new backend API service for categories
+            const categoriesResponse = await getCategoriesService();
+            setCategories(categoriesResponse);
+          } finally {
+            setCategoriesLoading(false);
           }
-
-          // Handle category ID - could be id or _id
-          const categoryId =
-            (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
-          
-          const formValues: InventoryFormValues = {
-            item_id: itemData.code || '',
-            item_name: itemData.name || '',
-            category_id: categoryId,
-            description: itemData.description || '',
-            quantity: itemData.quantity || 0,
-            reorder_level: itemData.reorderLevel ?? null,
-            max_level: itemData.maxLevel ?? null,
-            selling_price: itemData.unitPrice ?? null,
-            image_1: null,
-            image_2: null,
-            video: null,
-            youtube_link: null,
-            // Note: Additional attributes would need to be handled based on backend response
-          };
-
-          // Set current category ID - this will trigger category refetch
-          if (formValues.category_id) {
-            setCurrentCategoryId(String(formValues.category_id));
-            console.log('Setting currentCategoryId:', String(formValues.category_id));
-          }
-
-          const additionalAttrs = (itemData as any).additionalAttributes || {};
-          
-          configurators.forEach((config) => {
-            const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-            
-            // Try to get the field value from additionalAttributes first, then direct fields
-            const fieldValue = additionalAttrs[fieldName] || additionalAttrs[config.name] || 
-                              (itemData as any)[fieldName] || (itemData as any)[config.name];
-            
-            if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
-              if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-                formValues[fieldName] = String(fieldValue);
-              } else {
-                formValues[fieldName] = String(fieldValue);
-              }
-            } else if (config.is_mandatory) {
-              // Set default for mandatory fields
-              if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-                formValues[fieldName] = '0';
-              } else {
-                formValues[fieldName] = '';
-              }
-            }
-            
-            // Validate dropdown values
-            if (config.control_type === 'Dropdown' && config.collection_id && formValues[fieldName]) {
-              const collectionItems = collections[config.collection_id] || [];
-              const isValidOption = collectionItems.some((item) => item.id === formValues[fieldName]);
-              if (!isValidOption && collectionItems.length > 0) {
-                console.warn(
-                  `Invalid value for ${fieldName}: ${formValues[fieldName]}. Not found in collection ${config.collection_id}`
-                );
-                // Don't clear if collection is empty (might not be loaded yet)
-              }
-            }
-          });
-
-          // Set images - for now we'll skip this as it requires file handling
-          // This would need to be implemented with proper backend file endpoints
-          console.log('Skipping image/video handling - needs backend implementation');
-
-          // Set video or YouTube link - for now we'll skip this as it requires file handling
-          const youtubeLinkFromApi = (itemData as any).youtubeLink ?? null;
-          const inferredVideoType = (itemData as any).videoType === 'youtube' || youtubeLinkFromApi ? 'youtube' : 'upload';
-          formValues.youtube_link = youtubeLinkFromApi;
-          formValues.video = null;
-          setVideoType(inferredVideoType);
-          // setYoutubeUrl(youtubeLinkFromApi || '');
-          // setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
-
-          // Alternative items - for now we'll skip this as it requires additional endpoints
-          setSelectedAlternativesWithNames([]);
-          setInitialAlternatives([]);
-
-          setInitialFormValues(formValues);
-          reset(formValues);
-          setIsLoading(false);
-        } catch (err: any) {
-          console.error('Error fetching item:', err);
-          toast.error('Failed to load item data.');
-          setIsLoading(false);
         }
-      };
-      fetchItem();
+
+        // Handle category ID - could be id or _id
+        const categoryId =
+          (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
+
+        const formValues: InventoryFormValues = {
+          item_id: itemData.code || '',
+          item_name: itemData.name || '',
+          category_id: categoryId,
+          description: itemData.description || '',
+          quantity: itemData.quantity || 0,
+          reorder_level: itemData.reorderLevel ?? null,
+          max_level: itemData.maxLevel ?? null,
+          selling_price: itemData.unitPrice ?? null,
+          vendorId: (itemData as any).vendor?._id || (itemData as any).vendor?.id || (itemData as any).vendor || '',
+          paidAmount: (itemData as any).paidAmount,
+          returnAmount: (itemData as any).returnAmount,
+          image_1: null,
+          image_2: null,
+          video: null,
+          youtube_link: null,
+        };
+
+        // Set current category ID - this will trigger category refetch
+        if (formValues.category_id) {
+          setCurrentCategoryId(String(formValues.category_id));
+          console.log('Setting currentCategoryId:', String(formValues.category_id));
+        }
+
+        const additionalAttrs = (itemData as any).additionalAttributes || {};
+
+        configurators.forEach((config) => {
+          const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
+
+          // Try to get the field value from additionalAttributes first, then direct fields
+          const fieldValue = additionalAttrs[fieldName] || additionalAttrs[config.name] ||
+            (itemData as any)[fieldName] || (itemData as any)[config.name];
+
+          if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
+            if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
+              formValues[fieldName] = String(fieldValue);
+            } else {
+              formValues[fieldName] = String(fieldValue);
+            }
+          } else if (config.is_mandatory) {
+            // Set default for mandatory fields
+            if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
+              formValues[fieldName] = '0';
+            } else {
+              formValues[fieldName] = '';
+            }
+          }
+
+          // Validate dropdown values
+          if (config.control_type === 'Dropdown' && config.collection_id && formValues[fieldName]) {
+            const collectionItems = collections[config.collection_id] || [];
+            const isValidOption = collectionItems.some((item) => item.id === formValues[fieldName]);
+            if (!isValidOption && collectionItems.length > 0) {
+              console.warn(
+                `Invalid value for ${fieldName}: ${formValues[fieldName]}. Not found in collection ${config.collection_id}`
+              );
+              // Don't clear if collection is empty (might not be loaded yet)
+            }
+          }
+        });
+
+        // Set images - for now we'll skip this as it requires file handling
+        // This would need to be implemented with proper backend file endpoints
+        console.log('Skipping image/video handling - needs backend implementation');
+
+        // Set video or YouTube link - for now we'll skip this as it requires file handling
+        const youtubeLinkFromApi = (itemData as any).youtubeLink ?? null;
+        const inferredVideoType = (itemData as any).videoType === 'youtube' || youtubeLinkFromApi ? 'youtube' : 'upload';
+        formValues.youtube_link = youtubeLinkFromApi;
+        formValues.video = null;
+        setVideoType(inferredVideoType);
+        // setYoutubeUrl(youtubeLinkFromApi || '');
+        // setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
+
+        // Alternative items - for now we'll skip this as it requires additional endpoints
+        setSelectedAlternativesWithNames([]);
+        setInitialAlternatives([]);
+
+        setInitialFormValues(formValues);
+        reset(formValues);
+        setIsLoading(false);
+      } catch (err: any) {
+        console.error('Error fetching item:', err);
+        toast.error('Failed to load item data.');
+        setIsLoading(false);
+      }
+    };
+    fetchItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditing, isViewing, companyId, configuratorsLoaded]);
 
@@ -635,6 +642,25 @@ const InventoryForm = () => {
     fetchCategories();
   }, [companyId, isEditing, isViewing]);
 
+  // Fetch suppliers (runs in all modes)
+  useEffect(() => {
+    if (!companyId) return;
+
+    const fetchSuppliers = async () => {
+      try {
+        // Fetch suppliers for the vendor dropdown
+        const suppliersResponse = await supplierService.listSuppliers({ limit: 1000, status: 'approved' });
+        const suppliersData = suppliersResponse.data || [];
+        setSuppliers(suppliersData.map((s: any) => ({ id: s._id, name: s.name })));
+      } catch (err: any) {
+        console.error('Error fetching suppliers:', err);
+        toast.error('Failed to load suppliers.');
+      }
+    };
+
+    fetchSuppliers();
+  }, [companyId]);
+
   console.log("Current Category Id =>", currentCategoryId);
   console.log("Watched Category Id =>", watchedFields.category_id);
   console.log("All Categories =>", categories);
@@ -642,12 +668,12 @@ const InventoryForm = () => {
   // Force fetch missing category if needed
   useEffect(() => {
     if (!companyId || !watchedFields.category_id || categoriesLoading) return;
-    
+
     const selectedId = String(watchedFields.category_id);
     const categoryExists = categories.some(cat => cat.id === selectedId);
     if (!categoryExists && selectedId) {
       console.log('Force fetching missing category:', selectedId);
-      
+
       // For now, we'll skip this as it requires a specific endpoint
       // This would need to be implemented in the backend API
       console.log('Skipping force fetch missing category - needs backend implementation');
@@ -801,15 +827,18 @@ const InventoryForm = () => {
         reorderLevel: data.reorder_level ?? null,
         maxLevel: data.max_level ?? null,
         unitPrice: data.selling_price ?? null,
+        vendorId: data.vendorId || undefined, // NEW: Vendor field
+        paidAmount: data.paidAmount ?? undefined, // NEW: Paid amount field
+        returnAmount: data.returnAmount ?? undefined, // NEW: Return amount field
       };
 
       // Collect all dynamic fields from configurators into additionalAttributes
       const additionalAttributes: Record<string, any> = {};
-      
+
       configurators.forEach((config) => {
         const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
         const fieldValue = data[fieldName];
-        
+
         if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
           // For number/unit fields, ensure they're numbers
           if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
@@ -819,7 +848,7 @@ const InventoryForm = () => {
           }
         }
       });
-      
+
       // Add additionalAttributes to payload if there are any
       if (Object.keys(additionalAttributes).length > 0) {
         payload.additionalAttributes = additionalAttributes;
@@ -829,7 +858,7 @@ const InventoryForm = () => {
       const normalizedYoutubeLink =
         typeof data.youtube_link === 'string' ? data.youtube_link.trim() : '';
       payload.youtubeLink = videoType === 'youtube' ? (normalizedYoutubeLink || null) : null;
-      
+
       // Remove null/undefined values to avoid validation issues
       const nullableFields = new Set(['youtubeLink', 'videoUrl']);
       Object.keys(payload).forEach(key => {
@@ -1178,8 +1207,8 @@ const InventoryForm = () => {
                       <SelectValue
                         placeholder={categoriesLoading ? 'Getting categories...' : categories.length === 0 ? 'No categories available' : 'Select item category'}
                       >
-                        {watchedFields.category_id && !categoriesLoading && !categories.some(cat => cat.id === String(watchedFields.category_id)) 
-                          ? `Category ID: ${String(watchedFields.category_id)}` 
+                        {watchedFields.category_id && !categoriesLoading && !categories.some(cat => cat.id === String(watchedFields.category_id))
+                          ? `Category ID: ${String(watchedFields.category_id)}`
                           : undefined
                         }
                       </SelectValue>
@@ -1232,8 +1261,8 @@ const InventoryForm = () => {
                     className={`
                       pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 resize-vertical min-h-[100px] w-full text-sm
                       ${errors.description
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
                       ${watchedFields.description && !isViewing ? 'border-blue-300' : ''}
                       ${isViewing ? 'text-gray-400' : 'text-black'}
                     `}
@@ -1262,7 +1291,7 @@ const InventoryForm = () => {
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex-1 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   
+
 
                     {!isViewing && (
                       <div className="flex-1 space-y-4">
@@ -1428,37 +1457,34 @@ const InventoryForm = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2 group">
-    <Label
-      htmlFor="quantity"
-      className={`${
-        errors.quantity ? 'text-red-500' : 'text-gray-700'
-      } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-    >
-      <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
-    </Label>
-    <Input
-      id="quantity"
-      type="number"
-      min="0"
-      step="1"
-      placeholder="Enter quantity (e.g., 100)"
-      {...register('quantity', { valueAsNumber: true })}
-      disabled={isViewing}
-      className={`${
-        errors.quantity
-          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
-        watchedFields.quantity !== null && watchedFields.quantity !== undefined && !isViewing ? 'border-blue-300' : ''
-      }`}
-    />
-    {errors.quantity?.message && (
-      <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-        <AlertCircle className="h-3 w-3" />
-        {errors.quantity.message}
-      </p>
-    )}
-  </div>
+                      <Label
+                        htmlFor="quantity"
+                        className={`${errors.quantity ? 'text-red-500' : 'text-gray-700'
+                          } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                      >
+                        <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="Enter quantity (e.g., 100)"
+                        {...register('quantity', { valueAsNumber: true })}
+                        disabled={isViewing}
+                        className={`${errors.quantity
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.quantity !== null && watchedFields.quantity !== undefined && !isViewing ? 'border-blue-300' : ''
+                          }`}
+                      />
+                      {errors.quantity?.message && (
+                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.quantity.message}
+                        </p>
+                      )}
+                    </div>
 
                     <div className="space-y-2 group">
                       <Label
@@ -1485,6 +1511,82 @@ const InventoryForm = () => {
                           {errors.selling_price.message}
                         </p>
                       )}
+                    </div>
+                  </div>
+
+                  {/* NEW FIELDS: Vendor, Paid Amount, Return Amount */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    {/* Vendor/Supplier Dropdown */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="vendorId"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <Package className="h-4 w-4" /> Vendor/Supplier
+                      </Label>
+                      <Select
+                        onValueChange={(value) => setValue('vendorId', value, { shouldValidate: true, shouldDirty: true })}
+                        value={watchedFields.vendorId as string | undefined}
+                        disabled={isViewing}
+                      >
+                        <SelectTrigger
+                          id="vendorId"
+                          className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                        >
+                          <SelectValue placeholder="Select vendor/supplier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.length > 0 ? (
+                            suppliers.map((supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-gray-500 text-sm">No suppliers available</div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Paid Amount */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="paidAmount"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <DollarSign className="h-4 w-4" /> Paid Amount
+                      </Label>
+                      <Input
+                        id="paidAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...register('paidAmount', { valueAsNumber: true })}
+                        disabled={isViewing}
+                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                      />
+                    </div>
+
+                    {/* Return Amount */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="returnAmount"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <DollarSign className="h-4 w-4" /> Return Amount
+                      </Label>
+                      <Input
+                        id="returnAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...register('returnAmount', { valueAsNumber: true })}
+                        disabled={isViewing}
+                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                      />
                     </div>
                   </div>
 
