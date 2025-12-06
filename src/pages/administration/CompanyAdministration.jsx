@@ -79,7 +79,8 @@ const createReportState = (seed = {}) => ({
 
 const CompanyAdministration = () => {
   const user = useSelector(selectUser);
-  const companyId = useMemo(() => user?.company_id || user?.companyId || null, [user]);
+  // Removed companyId since we're removing company context
+  const companyId = null; // Always null since we're removing company context
 
   const [expandedSections, setExpandedSections] = useState(() => new Set(['information']));
   const [expandedReportSections, setExpandedReportSections] = useState(() => new Set(['purchase_order']));
@@ -94,11 +95,7 @@ const CompanyAdministration = () => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const fetchCompanyData = useCallback(async () => {
-    if (!companyId) {
-      setIsLoading(false);
-      return;
-    }
-
+    // Since we're removing company context, we'll always fetch the default company
     setIsLoading(true);
     try {
       const response = await companyService.getCompany();
@@ -107,7 +104,7 @@ const CompanyAdministration = () => {
       if (company) {
         // Map backend fields to frontend format
         const mappedCompany = {
-          id: company._id || company.id || companyId,
+          id: company._id || company.id || '',
           name: company.name || '',
           description: company.description || '',
           address: company.address || '',
@@ -160,7 +157,7 @@ const CompanyAdministration = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId]);
+  }, []);
 
   useEffect(() => {
     fetchCompanyData();
@@ -220,10 +217,7 @@ const CompanyAdministration = () => {
       return;
     }
 
-    if (!companyId) {
-      toast.error('Company context missing');
-      return;
-    }
+    // Removed company context check since we're removing company context
 
     setIsLoading(true);
     try {
@@ -281,17 +275,7 @@ const CompanyAdministration = () => {
         setCompanyEmail(updatedCompany.email || null);
 
         // Update userData in localStorage if needed
-        if (user?.id) {
-          const persisted = {
-            ...JSON.parse(localStorage.getItem('userData') || '{}'),
-            company_data: {
-              ...(JSON.parse(localStorage.getItem('userData') || '{}').company_data || {}),
-              currency: updatedCompany.currency || companyInfo.currency,
-              name: updatedCompany.name || companyInfo.name,
-            },
-          };
-          localStorage.setItem('userData', JSON.stringify(persisted));
-        }
+        // Note: We're not updating company-specific data since we're removing company context
 
         toast.success('Company administration settings saved successfully.');
       }
@@ -351,21 +335,8 @@ const CompanyAdministration = () => {
     }));
   };
 
-  if (!companyId) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="h-8 w-8 text-red-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">No Company Context</h2>
-            <p className="text-gray-500">Please ensure you are logged in with a valid company association to manage administration settings.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Removed company context check since we're removing company context
+  // Always render the component
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -496,7 +467,7 @@ const CompanyAdministration = () => {
                               <SelectItem value="€">€ (EUR)</SelectItem>
                               <SelectItem value="£">£ (GBP)</SelectItem>
                               <SelectItem value="₹">₹ (INR)</SelectItem>
-                              <SelectItem value="¥">¥ (JPY)</SelectItem>
+                              <SelectItem value="AED">AED</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -512,8 +483,8 @@ const CompanyAdministration = () => {
                           min="0"
                           max="100"
                           step="0.01"
-                          value={companyInfo.tax_percentage ?? ''}
-                          onChange={(event) => setCompanyInfo({ ...companyInfo, tax_percentage: event.target.value ? parseFloat(event.target.value) : null })}
+                          value={companyInfo.tax_percentage || ''}
+                          onChange={(event) => setCompanyInfo({ ...companyInfo, tax_percentage: parseFloat(event.target.value) || null })}
                           className="mt-1"
                           placeholder="Enter tax percentage (0-100)"
                         />
@@ -606,18 +577,16 @@ const CompanyAdministration = () => {
                         </div>
                         <div>
                           <Label htmlFor="bank_account_number" className="text-sm font-medium text-gray-700">
-                            Bank Account Number
+                            Account Number
                           </Label>
                           <Input
                             id="bank_account_number"
                             value={companyInfo.bank_account_number || ''}
                             onChange={(event) => setCompanyInfo({ ...companyInfo, bank_account_number: event.target.value })}
                             className={`mt-1 ${errors.bank_account_number ? 'border-red-500' : ''}`}
-                            placeholder="Account number"
+                            placeholder="Bank account number"
                           />
-                          {errors.bank_account_number && (
-                            <p className="text-red-500 text-xs mt-1">{errors.bank_account_number}</p>
-                          )}
+                          {errors.bank_account_number && <p className="text-red-500 text-xs mt-1">{errors.bank_account_number}</p>}
                         </div>
                       </div>
 
@@ -654,186 +623,102 @@ const CompanyAdministration = () => {
             )}
           </Card>
 
-          {/* System Settings Section - Hidden but not removed */}
-          {/* <Card className="shadow-sm border-gray-200">
-            <CardHeader
-              className="cursor-pointer hover:bg-gray-50 transition-colors duration-200"
-              onClick={() => toggleSection('settings')}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Settings className="h-6 w-6 text-green-600" />
-                  <CardTitle className="text-xl text-gray-900">System Settings</CardTitle>
-                </div>
-                {expandedSections.has('settings') ? (
-                  <ChevronDown className="h-5 w-5 text-gray-500" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-gray-500" />
-                )}
-              </div>
-            </CardHeader>
-            {expandedSections.has('settings') && (
-              <CardContent className="pt-0">
-                <div className="space-y-6">
-                  <div className="form-field">
-                    <Label htmlFor="company_email" className="text-sm font-medium text-gray-700">
-                      Email <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="company_email"
-                      value={companyEmail ?? ''}
-                      className={`mt-1 ${errors.email_url ? 'border-red-500' : ''}`}
-                      placeholder="Enter email"
-                      readOnly
-                    />
-                    {errors.email_url && <p className="text-red-500 text-xs mt-1">{errors.email_url}</p>}
-                  </div>
-
-                  <div>
-                    {isEmailAuthenticated && emailRefreshToken ? (
-                      <p className="text-green-600 flex text-sm items-center">
-                        <ShieldCheck className="h-5 w-5 mr-1" /> Email is verified & authenticated.
-                      </p>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          onClick={authenticateEmail}
-                          disabled={isAuthenticating}
-                          className="text-white bg-blue-600 hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg me-2"
-                        >
-                          {isAuthenticating ? (
-                            <span className="flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" /> Authenticating...
-                            </span>
-                          ) : (
-                            <span className="flex items-center">Authenticate Email</span>
-                          )}
-                        </Button>
-                        <p className="text-gray-600 flex text-xs mt-2 items-center">
-                          <Info className="h-4 w-4 mr-1" /> Emails can only be sent from authenticated addresses.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            )}
-          </Card> */}
-
           <Card className="shadow-sm border-gray-200">
             <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors duration-200"
-              onClick={() => toggleSection('customization')}
+              onClick={() => toggleReportSection('reports')}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-6 w-6 text-purple-600" />
+                  <FileText className="h-6 w-6 text-blue-600" />
                   <CardTitle className="text-xl text-gray-900">Report Customization</CardTitle>
                 </div>
-                {expandedSections.has('customization') ? (
+                {expandedReportSections.has('reports') ? (
                   <ChevronDown className="h-5 w-5 text-gray-500" />
                 ) : (
                   <ChevronRight className="h-5 w-5 text-gray-500" />
                 )}
               </div>
             </CardHeader>
-            {expandedSections.has('customization') && (
+            {expandedReportSections.has('reports') && (
               <CardContent className="pt-0">
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {[
-                    {
-                      key: 'purchase_order',
-                      title: 'Purchase Order Report',
-                      color: 'bg-blue-500',
-                      stateKey: 'purchaseOrderReport',
-                    },
-                    {
-                      key: 'sales',
-                      title: 'Sales Report',
-                      color: 'bg-green-500',
-                      stateKey: 'salesReport',
-                    },
-                    {
-                      key: 'stock',
-                      title: 'Stock Report',
-                      color: 'bg-purple-500',
-                      stateKey: 'stockReport',
-                    },
-                  ].map(({ key, title, color, stateKey }) => (
-                    <div key={key} className="border border-gray-200 rounded-lg">
+                    { key: 'purchase_order', title: 'Purchase Order Report', stateKey: 'purchaseOrderReport' },
+                    { key: 'sales_invoice', title: 'Sales Invoice Report', stateKey: 'salesReport' },
+                    { key: 'stock', title: 'Stock Report', stateKey: 'stockReport' },
+                  ].map(({ key, title, stateKey }) => (
+                    <div key={key} className="border rounded-lg">
                       <div
-                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
                         onClick={() => toggleReportSection(key)}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 ${color} rounded-full`} />
-                          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-                        </div>
+                        <h3 className="font-medium text-gray-800">{title}</h3>
                         {expandedReportSections.has(key) ? (
                           <ChevronDown className="h-5 w-5 text-gray-500" />
                         ) : (
                           <ChevronRight className="h-5 w-5 text-gray-500" />
                         )}
                       </div>
-
                       {expandedReportSections.has(key) && (
-                        <div className="px-4 pb-4 space-y-4">
-                          <div className="form-field">
-                            <Label className="text-sm font-medium text-gray-700">Payment Details</Label>
-                            <Textarea
-                              value={reportConfig[stateKey].payment_details || ''}
-                              onChange={(event) =>
-                                setReportConfig((prev) => ({
-                                  ...prev,
-                                  [stateKey]: {
-                                    ...prev[stateKey],
-                                    payment_details: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="mt-1"
-                              placeholder="Enter payment details template"
-                              rows={3}
-                            />
-                          </div>
+                        <div className="p-4 pt-0 border-t">
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700">Payment Details</Label>
+                              <Textarea
+                                value={reportConfig[stateKey].payment_details || ''}
+                                onChange={(event) =>
+                                  setReportConfig((prev) => ({
+                                    ...prev,
+                                    [stateKey]: {
+                                      ...prev[stateKey],
+                                      payment_details: event.target.value,
+                                    },
+                                  }))
+                                }
+                                className="mt-1"
+                                placeholder="Enter payment details template"
+                                rows={2}
+                              />
+                            </div>
 
-                          <div className="form-field">
-                            <Label className="text-sm font-medium text-gray-700">Remarks</Label>
-                            <Textarea
-                              value={reportConfig[stateKey].remarks || ''}
-                              onChange={(event) =>
-                                setReportConfig((prev) => ({
-                                  ...prev,
-                                  [stateKey]: {
-                                    ...prev[stateKey],
-                                    remarks: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="mt-1"
-                              placeholder="Enter remarks template"
-                              rows={3}
-                            />
-                          </div>
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700">Remarks</Label>
+                              <Textarea
+                                value={reportConfig[stateKey].remarks || ''}
+                                onChange={(event) =>
+                                  setReportConfig((prev) => ({
+                                    ...prev,
+                                    [stateKey]: {
+                                      ...prev[stateKey],
+                                      remarks: event.target.value,
+                                    },
+                                  }))
+                                }
+                                className="mt-1"
+                                placeholder="Enter remarks template"
+                                rows={2}
+                              />
+                            </div>
 
-                          <div className="form-field">
-                            <Label className="text-sm font-medium text-gray-700">Report Footer</Label>
-                            <Textarea
-                              value={reportConfig[stateKey].report_footer || ''}
-                              onChange={(event) =>
-                                setReportConfig((prev) => ({
-                                  ...prev,
-                                  [stateKey]: {
-                                    ...prev[stateKey],
-                                    report_footer: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="mt-1"
-                              placeholder="Enter report footer template"
-                              rows={3}
-                            />
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700">Report Footer</Label>
+                              <Textarea
+                                value={reportConfig[stateKey].report_footer || ''}
+                                onChange={(event) =>
+                                  setReportConfig((prev) => ({
+                                    ...prev,
+                                    [stateKey]: {
+                                      ...prev[stateKey],
+                                      report_footer: event.target.value,
+                                    },
+                                  }))
+                                }
+                                className="mt-1"
+                                placeholder="Enter report footer template"
+                                rows={3}
+                              />
+                            </div>
                           </div>
                         </div>
                       )}

@@ -28,7 +28,7 @@ interface UserData {
   status?: string | null;
   is_active?: boolean;
   company_data?: CompanyData | null;
-  company_id?: string | null;
+  // Removed company_id since we're removing company context
   full_name?: string | null;
   role_name?: string | null;
 }
@@ -57,6 +57,7 @@ const userSlice = createSlice({
     setUser: (state, action: PayloadAction<UserData>) => {
       state.userData = action.payload;
       state.isAuthenticated = true;
+      state.isLoading = false;
       state.error = null;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -64,10 +65,12 @@ const userSlice = createSlice({
     },
     setError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
+      state.isLoading = false;
     },
     clearUser: (state) => {
       state.userData = null;
       state.isAuthenticated = false;
+      state.isLoading = false;
       state.error = null;
     },
   },
@@ -75,9 +78,9 @@ const userSlice = createSlice({
 
 export const { setUser, setLoading, setError, clearUser } = userSlice.actions;
 
-export const selectUser = (state: { user: UserState }) => state.user.userData;
-export const selectIsAuthenticated = (state: { user: UserState }) => state.user.isAuthenticated;
-export const selectIsLoading = (state: { user: UserState }) => state.user.isLoading;
-export const selectError = (state: { user: UserState }) => state.user.error;
+export const selectUser = (state: { user: UserState }): UserData | null => state.user.userData;
+export const selectIsAuthenticated = (state: { user: UserState }): boolean => state.user.isAuthenticated;
+export const selectIsLoading = (state: { user: UserState }): boolean => state.user.isLoading;
+export const selectError = (state: { user: UserState }): string | null => state.user.error;
 
 export default userSlice.reducer;

@@ -151,12 +151,12 @@ export const DashboardLayout = () => {
       icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'biller']
     },
-    {
-      path: '/dashboard/itemConfigurator',
-      label: 'Item Configurator',
-      icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
-    },
+    // {
+    //   path: '/dashboard/itemConfigurator',
+    //   label: 'Item Configurator',
+    //   icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'admin']
+    // },
     {
       path: '/dashboard/item-master',
       label: 'Item Master',
