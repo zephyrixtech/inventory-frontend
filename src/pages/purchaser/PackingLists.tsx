@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Plus, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,36 +8,48 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { packingListService } from '@/services/packingListService';
-import { inventoryService } from '@/services/inventoryService';
+import { packingListService, type PackingList } from '@/services/packingListService';
+import { storeStockService } from '@/services/storeStockService';
+import { storeService, type Store } from '@/services/storeService';
 import toast from 'react-hot-toast';
-import type { Item, PaginationMeta } from '@/types/backend';
+import type { PaginationMeta, StoreStock } from '@/types/backend';
 
 interface PackingListFormState {
+  storeId: string;
+  toStoreId: string;
   location: string;
   boxNumber: string;
   shipmentDate?: string;
   packingDate?: string;
-  image?: string;
+  image1?: string;
+  image2?: string;
   notes?: string;
-  items: { productId: string; quantity: number }[];
-}
-
-type SortOrder = 'asc' | 'desc' | null;
-
-interface SortConfig {
-  field: string | null;
-  order: SortOrder;
+  items: {
+    productId: string;
+    quantity: number;
+    availableQuantity: number;
+    productName?: string;
+    productCode?: string;
+  }[];
+  currency: 'INR' | 'AED';
+  exchangeRate?: number;
+  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
 }
 
 const DEFAULT_FORM: PackingListFormState = {
+  storeId: '',
+  toStoreId: '',
   location: '',
   boxNumber: '',
   shipmentDate: '',
   packingDate: '',
-  image: '',
+  image1: '',
+  image2: '',
   notes: '',
-  items: []
+  items: [],
+  currency: 'INR',
+  exchangeRate: undefined,
+  status: 'pending'
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -49,15 +62,23 @@ const DEFAULT_PAGINATION: PaginationMeta = {
 };
 
 export const PackingListsPage = () => {
-  const [packingLists, setPackingLists] = useState<any[]>([]);
+  const navigate = useNavigate();
+  const [packingLists, setPackingLists] = useState<PackingList[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: null, order: null });
+  const [sortConfig, setSortConfig] = useState<{ field: string | null; order: 'asc' | 'desc' | null }>({ field: null, order: null });
   const [showDialog, setShowDialog] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formState, setFormState] = useState<PackingListFormState>(DEFAULT_FORM);
-  const [items, setItems] = useState<Item[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storeStock, setStoreStock] = useState<StoreStock[]>([]);
+  const [loadingStoreStock, setLoadingStoreStock] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [packingListToDelete, setPackingListToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<{image1?: string; image2?: string}>({image1: '', image2: ''});
 
   const loadPackingLists = useCallback(async (page?: number) => {
     setLoading(true);
@@ -80,22 +101,52 @@ export const PackingListsPage = () => {
     }
   }, [pagination.page, pagination.limit, searchQuery, statusFilter]);
 
-  const loadItems = useCallback(async () => {
+  const loadStores = useCallback(async () => {
     try {
-      const response = await inventoryService.getItems({ status: 'store_pending', limit: 100 });
-      setItems(response.data);
+      const response = await storeService.listStores({ type: 'all' });
+      setStores(response.data || []);
     } catch (error) {
-      console.error('Failed to load items for packing', error);
+      console.error('Failed to load stores', error);
+      toast.error('Unable to load stores');
+    }
+  }, []);
+
+  const loadStoreStock = useCallback(async (storeId: string) => {
+    if (!storeId) {
+      setStoreStock([]);
+      return;
+    }
+    setLoadingStoreStock(true);
+    try {
+      const response = await storeStockService.list({ storeId, limit: 1000 });
+      setStoreStock(response.data || []);
+    } catch (error) {
+      console.error('Failed to load store stock', error);
+      toast.error('Unable to load store stock');
+      setStoreStock([]);
+    } finally {
+      setLoadingStoreStock(false);
     }
   }, []);
 
   useEffect(() => {
     loadPackingLists(1);
-    loadItems();
-  }, [loadPackingLists, loadItems]);
+    loadStores();
+  }, [loadPackingLists, loadStores]);
+
+  useEffect(() => {
+    if (formState.storeId) {
+      loadStoreStock(formState.storeId);
+      if (!editingId) {
+        setFormState((prev) => ({ ...prev, items: [] }));
+      }
+    } else {
+      setStoreStock([]);
+    }
+  }, [formState.storeId, loadStoreStock, editingId]);
 
   const handleSort = (field: string) => {
-    setSortConfig((prev) => {
+    setSortConfig((prev: { field: string | null; order: 'asc' | 'desc' | null }) => {
       if (prev.field === field) {
         const nextOrder = prev.order === 'asc' ? 'desc' : prev.order === 'desc' ? null : 'asc';
         return { field: nextOrder ? field : null, order: nextOrder };
@@ -127,36 +178,272 @@ export const PackingListsPage = () => {
   const handleAddItemToForm = () => {
     setFormState((prev) => ({
       ...prev,
-      items: [...prev.items, { productId: '', quantity: 1 }]
+      items: [...prev.items, { productId: '', quantity: 1, availableQuantity: 0 }]
     }));
   };
 
   const handleUpdateItem = (index: number, key: 'productId' | 'quantity', value: string | number) => {
     setFormState((prev) => {
       const updated = [...prev.items];
-      updated[index] = { ...updated[index], [key]: value };
+      const stockItem = storeStock.find((s) => {
+        const productId = (s.product as any)?._id || (s.product as any)?.id || s.product;
+        return productId === value && key === 'productId';
+      });
+
+      if (key === 'productId' && stockItem) {
+        updated[index] = {
+          productId: value as string,
+          quantity: 1,
+          availableQuantity: stockItem.quantity || 0
+        };
+      } else {
+        updated[index] = { ...updated[index], [key]: value };
+      }
       return { ...prev, items: updated };
     });
   };
 
-  const handleCreatePackingList = async () => {
+  const handleStoreChange = (storeId: string) => {
+    setFormState((prev) => ({ ...prev, storeId, items: [] }));
+  };
+
+  const handleView = (id: string) => {
+    navigate(`/dashboard/purchaser/packing-lists/view/${id}`);
+  };
+
+  const handleEdit = async (id: string) => {
     try {
-      await packingListService.create({
-        location: formState.location,
-        boxNumber: formState.boxNumber,
-        shipmentDate: formState.shipmentDate || undefined,
-        packingDate: formState.packingDate || undefined,
-        image: formState.image || undefined,
-        notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
-        items: formState.items.filter((item) => item.productId && item.quantity > 0)
-      });
-      toast.success('Packing list created');
+      const response = await packingListService.get(id);
+      const packingList = response.data;
+
+      const productIds = packingList.items?.map((item: any) => {
+        const productId = (item.product as any)?._id || (item.product as any)?.id || item.product;
+        return typeof productId === 'string' ? productId : productId?.toString();
+      }).filter(Boolean) || [];
+
+      let foundStoreId = '';
+      if (productIds.length > 0) {
+        for (const store of stores) {
+          const storeId = store._id || store.id;
+          if (!storeId) continue;
+
+          try {
+            const stockResponse = await storeStockService.list({ storeId, limit: 1000 });
+            const stockItems = stockResponse.data || [];
+
+            const hasAllProducts = productIds.every((pid: string) =>
+              stockItems.some((stock: StoreStock) => {
+                const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
+                return stockProductId?.toString() === pid;
+              })
+            );
+
+            if (hasAllProducts) {
+              foundStoreId = storeId;
+              break;
+            }
+          } catch (err) {
+            continue;
+          }
+        }
+      }
+
+      const itemsWithProductInfo = packingList.items?.map((item: any) => {
+        const product = item.product;
+        const productId = product?._id || product?.id || product;
+        const productIdStr = typeof productId === 'string' ? productId : productId?.toString();
+        const productName = product?.name || '';
+        const productCode = product?.code || '';
+
+        return {
+          productId: productIdStr || '',
+          quantity: item.quantity,
+          availableQuantity: 0,
+          productName,
+          productCode
+        };
+      }) || [];
+
+      const formData: PackingListFormState = {
+        storeId: foundStoreId,
+        toStoreId: (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || packingList.toStore || '',
+        location: packingList.location,
+        boxNumber: packingList.boxNumber,
+        shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
+        packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
+        image1: (packingList as any).image1 || '',
+        image2: (packingList as any).image2 || '',
+        notes: (packingList as any).notes || '',
+        items: itemsWithProductInfo,
+        currency: packingList.currency || 'INR',
+        exchangeRate: packingList.exchangeRate,
+        status: packingList.status || 'pending'
+      };
+
+      setFormState(formData);
+      setImagePreviews({image1: formData.image1, image2: formData.image2});
+      setEditingId(id);
+      setShowDialog(true);
+
+      if (foundStoreId) {
+        try {
+          const stockResponse = await storeStockService.list({ storeId: foundStoreId, limit: 1000 });
+          const stockData = stockResponse.data || [];
+          setStoreStock(stockData);
+
+          setFormState((prev) => ({
+            ...prev,
+            items: prev.items.map((item) => {
+              const stockItem = stockData.find((s: StoreStock) => {
+                const productId = (s.product as any)?._id || (s.product as any)?.id || s.product;
+                return productId?.toString() === item.productId;
+              });
+              return {
+                ...item,
+                availableQuantity: stockItem?.quantity || item.availableQuantity || 0
+              };
+            })
+          }));
+        } catch (err) {
+          console.error('Failed to load store stock for edit', err);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load packing list for edit', error);
+      toast.error('Unable to load packing list');
+    }
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setPackingListToDelete(id);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!packingListToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await packingListService.delete(packingListToDelete);
+      toast.success('Packing list deleted successfully');
+      setShowDeleteDialog(false);
+      setPackingListToDelete(null);
+      loadPackingLists(pagination.page);
+    } catch (error: any) {
+      console.error('Failed to delete packing list', error);
+      const errorMessage = error?.message || 'Unable to delete packing list';
+      toast.error(errorMessage);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const convertImageToDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (index: number, file: File | null) => {
+    if (!file) {
+      if (index === 1) {
+        setFormState(prev => ({ ...prev, image1: '' }));
+        setImagePreviews(prev => ({ ...prev, image1: '' }));
+      } else {
+        setFormState(prev => ({ ...prev, image2: '' }));
+        setImagePreviews(prev => ({ ...prev, image2: '' }));
+      }
+      return;
+    }
+
+    try {
+      const dataURL = await convertImageToDataURL(file);
+      if (index === 1) {
+        setFormState(prev => ({ ...prev, image1: dataURL }));
+        setImagePreviews(prev => ({ ...prev, image1: dataURL }));
+      } else {
+        setFormState(prev => ({ ...prev, image2: dataURL }));
+        setImagePreviews(prev => ({ ...prev, image2: dataURL }));
+      }
+    } catch (error) {
+      toast.error('Failed to process image');
+      console.error('Image processing error:', error);
+    }
+  };
+
+  const handleSavePackingList = async () => {
+    if (!editingId && !formState.storeId) {
+      toast.error('Please select a store');
+      return;
+    }
+
+    if (formState.storeId) {
+      const invalidItems = formState.items.filter(
+        (item) => item.productId && item.quantity > item.availableQuantity
+      );
+      if (invalidItems.length > 0) {
+        toast.error('Some items exceed available stock quantity');
+        return;
+      }
+    }
+
+    const validItems = formState.items.filter((item) => item.productId && item.quantity > 0);
+    if (validItems.length === 0) {
+      toast.error('Please add at least one item');
+      return;
+    }
+
+    try {
+      if (editingId) {
+        await packingListService.update(editingId, {
+          location: formState.location,
+          boxNumber: formState.boxNumber,
+          shipmentDate: formState.shipmentDate || undefined,
+          packingDate: formState.packingDate || undefined,
+          image1: formState.image1 || undefined,
+          image2: formState.image2 || undefined,
+          notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
+          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          storeId: formState.storeId,
+          toStoreId: formState.toStoreId || undefined,
+          currency: formState.currency,
+          exchangeRate: formState.exchangeRate,
+          status: formState.status
+        });
+        toast.success('Packing list updated successfully');
+      } else {
+        await packingListService.create({
+          storeId: formState.storeId,
+          location: formState.location,
+          boxNumber: formState.boxNumber,
+          shipmentDate: formState.shipmentDate || undefined,
+          packingDate: formState.packingDate || undefined,
+          image1: formState.image1 || undefined,
+          image2: formState.image2 || undefined,
+          notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
+          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          toStoreId: formState.toStoreId || undefined,
+          currency: formState.currency,
+          exchangeRate: formState.exchangeRate,
+          status: formState.status
+        });
+        toast.success('Packing list created and stock updated');
+        if (formState.storeId) {
+          loadStoreStock(formState.storeId);
+        }
+      }
       setShowDialog(false);
       setFormState(DEFAULT_FORM);
-      loadPackingLists(pagination.page);
-    } catch (error) {
-      console.error('Failed to create packing list', error);
-      toast.error('Unable to create packing list');
+      setImagePreviews({image1: '', image2: ''});
+      setEditingId(null);
+      await loadPackingLists(pagination.page);
+    } catch (error: any) {
+      console.error(`Failed to ${editingId ? 'update' : 'create'} packing list`, error);
+      const errorMessage = error?.message || `Unable to ${editingId ? 'update' : 'create'} packing list`;
+      toast.error(errorMessage);
     }
   };
 
@@ -224,18 +511,19 @@ export const PackingListsPage = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Packing Date</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Loading packing lists...
                     </TableCell>
                   </TableRow>
                 ) : sortedLists.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No packing lists found.
                     </TableCell>
                   </TableRow>
@@ -263,6 +551,35 @@ export const PackingListsPage = () => {
                             );
                           })}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleView(packingId)}
+                              title="View"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(packingId)}
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(packingId)}
+                              title="Delete"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -287,117 +604,465 @@ export const PackingListsPage = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setFormState(DEFAULT_FORM); }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Create Packing List</DialogTitle>
-            <DialogDescription>Bundle approved inventory into shipment-ready boxes.</DialogDescription>
+      {/* Add/Edit Dialog */}
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) {
+          setFormState(DEFAULT_FORM);
+          setStoreStock([]);
+          setEditingId(null);
+        }
+      }}>
+        <DialogContent className="!max-w-[95vw] !w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-4 border-b mb-6">
+            <DialogTitle className="text-2xl font-semibold">{editingId ? 'Edit Packing List' : 'Create Packing List'}</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              {editingId ? 'Update packing list information.' : 'Bundle approved inventory into shipment-ready boxes.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="boxNumber">Box Number</Label>
-                <Input
-                  id="boxNumber"
-                  value={formState.boxNumber}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, boxNumber: event.target.value }))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={formState.location}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, location: event.target.value }))}
-                />
-              </div>
-            </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="packingDate">Packing Date</Label>
-                <Input
-                  id="packingDate"
-                  type="date"
-                  value={formState.packingDate}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, packingDate: event.target.value }))}
-                />
+          <div className="space-y-8 py-4">
+            {/* Section 1: Packing Details */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Box className="h-4 w-4 text-primary" />
+                <h3 className="text-base font-semibold">Packing Details</h3>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="shipmentDate">Shipment Date</Label>
-                <Input
-                  id="shipmentDate"
-                  type="date"
-                  value={formState.shipmentDate}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, shipmentDate: event.target.value }))}
-                />
-              </div>
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="image">Reference Image URL (optional)</Label>
-              <Input
-                id="image"
-                value={formState.image}
-                onChange={(event) => setFormState((prev) => ({ ...prev, image: event.target.value }))}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="storeId" className="text-sm font-medium">
+                    {!editingId ? 'From Store *' : 'From Store'}
+                  </Label>
+                  <select
+                    id="storeId"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.storeId}
+                    onChange={(e) => handleStoreChange(e.target.value)}
+                  >
+                    <option value="">Select store</option>
+                    {stores.map((store) => (
+                      <option key={store._id || store.id} value={store._id || store.id}>
+                        {store.name} ({store.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Items</Label>
-                <Button variant="outline" size="sm" onClick={handleAddItemToForm}>
-                  Add Item
-                </Button>
-              </div>
-              {formState.items.length === 0 && (
-                <p className="text-sm text-muted-foreground">Select products ready for packing.</p>
-              )}
-              {formState.items.map((item, index) => (
-                <div key={index} className="grid md:grid-cols-2 gap-3 border rounded-md p-3">
-                  <div className="grid gap-2">
-                    <Label>Product</Label>
-                    <select
-                      className="border rounded-md px-3 py-2 text-sm bg-background"
-                      value={item.productId}
-                      onChange={(event) => handleUpdateItem(index, 'productId', event.target.value)}
-                    >
-                      <option value="">Select</option>
-                      {items.map((inv) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.name} ({inv.code})
+                <div className="space-y-2">
+                  <Label htmlFor="toStoreId" className="text-sm font-medium">To Store</Label>
+                  <select
+                    id="toStoreId"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.toStoreId}
+                    onChange={(e) => setFormState(prev => ({ ...prev, toStoreId: e.target.value }))}
+                  >
+                    <option value="">Select destination store</option>
+                    {stores
+                      .filter(store => (store._id || store.id) !== formState.storeId)
+                      .map((store) => (
+                        <option key={store._id || store.id} value={store._id || store.id}>
+                          {store.name} ({store.code})
                         </option>
                       ))}
-                    </select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Quantity</Label>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="boxNumber" className="text-sm font-medium">Box Number *</Label>
+                  <Input
+                    id="boxNumber"
+                    value={formState.boxNumber}
+                    onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter box number"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-sm font-medium">Location *</Label>
+                  <Input
+                    id="location"
+                    value={formState.location}
+                    onChange={(e) => setFormState(prev => ({ ...prev, location: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter location"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="packingDate" className="text-sm font-medium">Packing Date</Label>
+                  <Input
+                    id="packingDate"
+                    type="date"
+                    value={formState.packingDate}
+                    onChange={(e) => setFormState(prev => ({ ...prev, packingDate: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="shipmentDate" className="text-sm font-medium">Shipment Date</Label>
+                  <Input
+                    id="shipmentDate"
+                    type="date"
+                    value={formState.shipmentDate}
+                    onChange={(e) => setFormState(prev => ({ ...prev, shipmentDate: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                  />
+                </div>
+
+                {/* <div className="space-y-2">
+                  <Label htmlFor="image" className="text-sm font-medium">Reference Image URL</Label>
+                  <Input
+                    id="image"
+                    value={formState.image1}
+                    onChange={(e) => setFormState(prev => ({ ...prev, image1: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div> */}
+
+                <div className="space-y-2">
+                  <Label htmlFor="status" className="text-sm font-medium">Status</Label>
+                  <select
+                    id="status"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.status}
+                    onChange={(e) => setFormState(prev => ({ ...prev, status: e.target.value as any }))}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_transit">In Transit</option>
+                    <option value="approved">Approved</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
+                  <select
+                    id="currency"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.currency}
+                    onChange={(e) => setFormState(prev => ({ ...prev, currency: e.target.value as 'INR' | 'AED' }))}
+                  >
+                    <option value="INR">INR</option>
+                    <option value="AED">AED</option>
+                  </select>
+                </div>
+
+                {formState.currency === 'AED' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="exchangeRate" className="text-sm font-medium">Exchange Rate (to INR)</Label>
                     <Input
+                      id="exchangeRate"
                       type="number"
-                      min={1}
-                      value={item.quantity}
-                      onChange={(event) => handleUpdateItem(index, 'quantity', Number(event.target.value))}
+                      step="0.01"
+                      value={formState.exchangeRate || ''}
+                      onChange={(e) => setFormState(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) }))}
+                      className="h-10 focus-visible:ring-primary/20"
+                      placeholder="e.g. 22.5"
                     />
                   </div>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                rows={3}
-                value={formState.notes}
-                onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
-                placeholder="Add packing instructions or handling notes."
-              />
+            {/* Section 2: Items */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-2">
+                  <Box className="h-4 w-4 text-primary" />
+                  <h3 className="text-base font-semibold">Items *</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddItemToForm}
+                  disabled={!formState.storeId && !editingId}
+                  className="h-9"
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Add Item
+                </Button>
+              </div>
+
+              {!formState.storeId && !editingId && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <p className="text-sm text-yellow-800">Please select a store first to view available items.</p>
+                </div>
+              )}
+              {formState.storeId && storeStock.length === 0 && !loadingStoreStock && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-sm text-blue-800">No items available in this store.</p>
+                </div>
+              )}
+              {loadingStoreStock && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading store stock...</span>
+                </div>
+              )}
+
+              {formState.items.length > 0 && (
+                <div className="border rounded-lg overflow-hidden bg-white">
+                  <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
+                    <div className="font-semibold text-sm">Product</div>
+                    <div className="font-semibold text-sm text-center">Available Stock</div>
+                    <div className="font-semibold text-sm text-center">Quantity</div>
+                    <div className="font-semibold text-sm text-center">Action</div>
+                  </div>
+
+                  <div className="divide-y max-h-[400px] overflow-y-auto">
+                    {formState.items.map((item, index) => {
+                      const stockItem = storeStock.find(s => {
+                        const productId = (s.product as any)?._id || (s.product as any)?.id || s.product;
+                        return productId?.toString() === item.productId;
+                      });
+                      const availableQty = stockItem?.quantity || item.availableQuantity || 0;
+                      const exceedsStock = !editingId && item.quantity > availableQty && formState.storeId;
+                      const selectedProduct = stockItem?.product as any;
+                      const productName = selectedProduct?.name || item.productName || '';
+                      const productCode = selectedProduct?.code || item.productCode || '';
+
+                      return (
+                        <div
+                          key={index}
+                          className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors border-b last:border-0"
+                        >
+                          <div className="min-w-0">
+                            {editingId && !formState.storeId ? (
+                              <div className="space-y-1">
+                                <Input
+                                  value={productName || item.productId || 'Product'}
+                                  disabled
+                                  className="bg-muted h-10 text-sm"
+                                />
+                                {productCode && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    Code: {productCode}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <select
+                                className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
+                                value={item.productId}
+                                onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
+                              >
+                                <option value="">Select Product</option>
+                                {storeStock.map((stock) => {
+                                  const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
+                                  const prodName = (stock.product as any)?.name || 'Unknown';
+                                  const prodCode = (stock.product as any)?.code || '';
+                                  return (
+                                    <option key={productId} value={productId}>
+                                      {prodName} {prodCode && `(${prodCode})`}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            )}
+                          </div>
+
+                          <div className="flex justify-center">
+                            <Input
+                              type="number"
+                              value={item.productId && formState.storeId ? availableQty : (editingId && !formState.storeId ? '' : '')}
+                              disabled
+                              className="bg-muted text-center font-medium w-28 h-10 text-sm"
+                              readOnly
+                              placeholder={editingId && !formState.storeId ? 'N/A' : '-'}
+                            />
+                          </div>
+
+                          <div className="flex justify-center">
+                            <div className="space-y-1 w-28">
+                              <Input
+                                type="number"
+                                min={1}
+                                max={formState.storeId ? availableQty : undefined}
+                                value={item.quantity || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                  handleUpdateItem(index, 'quantity', val);
+                                }}
+                                className={`w-full h-10 text-sm text-center ${exceedsStock ? 'border-red-500 focus:border-red-500' : ''}`}
+                                placeholder="0"
+                                disabled={!item.productId}
+                              />
+                              {exceedsStock && (
+                                <p className="text-xs text-red-500 text-center">Exceeds stock</p>
+                              )}
+                              {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
+                                <p className="text-xs text-muted-foreground text-center">
+                                  {availableQty - item.quantity} remaining
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setFormState(prev => ({
+                                  ...prev,
+                                  items: prev.items.filter((_, i) => i !== index)
+                                }));
+                              }}
+                              className="h-10 w-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Remove item"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Images and Notes */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Box className="h-4 w-4 text-primary" />
+                <h3 className="text-base font-semibold">Images and Notes</h3>
+              </div>
+
+              {/* Image Upload Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Image 1 Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image1" className="text-sm font-medium">Image 1</Label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      id="image1"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(1, e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {(formState.image1 || imagePreviews.image1) && (
+                      <div className="mt-2">
+                        <img
+                          src={formState.image1 || imagePreviews.image1}
+                          alt="Preview 1"
+                          className="max-w-full h-32 object-contain rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleImageUpload(1, null)}
+                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Image 2 Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image2" className="text-sm font-medium">Image 2</Label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      id="image2"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(2, e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {(formState.image2 || imagePreviews.image2) && (
+                      <div className="mt-2">
+                        <img
+                          src={formState.image2 || imagePreviews.image2}
+                          alt="Preview 2"
+                          className="max-w-full h-32 object-contain rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleImageUpload(2, null)}
+                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section */}
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-sm font-medium">Notes</Label>
+                <Textarea
+                  id="notes"
+                  rows={4}
+                  value={formState.notes}
+                  onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Add packing instructions or handling notes."
+                  className="text-sm resize-none"
+                />
+              </div>
             </div>
           </div>
+
+          <DialogFooter className="border-t pt-6 mt-8 flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDialog(false);
+                setFormState(DEFAULT_FORM);
+                setEditingId(null);
+              }}
+              className="min-w-[100px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSavePackingList}
+              disabled={
+                (!editingId && !formState.storeId) ||
+                !formState.boxNumber ||
+                !formState.location ||
+                formState.items.length === 0 ||
+                (!editingId && formState.items.some(item => item.productId && item.quantity > item.availableQuantity && formState.storeId))
+              }
+              className="min-w-[160px]"
+            >
+              {editingId ? 'Update Packing List' : 'Create Packing List'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Packing List</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this packing list? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreatePackingList} disabled={!formState.boxNumber || !formState.location || formState.items.length === 0}>
-              Save Packing List
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -405,4 +1070,3 @@ export const PackingListsPage = () => {
     </div>
   );
 };
-

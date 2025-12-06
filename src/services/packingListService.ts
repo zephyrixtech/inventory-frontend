@@ -9,12 +9,64 @@ export interface PackingListItemInput {
 export interface PackingListInput {
   location: string;
   boxNumber: string;
+  storeId: string;
+  toStoreId?: string;
+  currency?: 'INR' | 'AED';
+  exchangeRate?: number;
   items: PackingListItemInput[];
   shipmentDate?: string;
   packingDate?: string;
-  image?: string;
+  image1?: string;
+  image2?: string;
   notes?: string;
-  status?: 'pending' | 'approved' | 'shipped' | 'rejected';
+  status?: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+}
+
+export interface PackingList {
+  _id: string;
+  id?: string;
+  company: string;
+  location: string;
+  boxNumber: string;
+  items: Array<{
+    product: {
+      _id: string;
+      name: string;
+      code: string;
+    };
+    quantity: number;
+  }>;
+  totalQuantity: number;
+  image1?: string;
+  image2?: string;
+  shipmentDate?: string;
+  packingDate?: string;
+  store?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  toStore?: {
+    _id: string;
+    name: string;
+    code: string;
+  } | string;
+  currency?: 'INR' | 'AED';
+  exchangeRate?: number;
+  status: 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  createdBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  };
+  approvedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  };
+  approvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const packingListService = {
@@ -26,15 +78,22 @@ export const packingListService = {
     if (params.search) query.append('search', params.search);
 
     const path = `/packing-lists${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<ApiListResponse<any>>(path);
+    return apiClient.get<ApiListResponse<PackingList>>(path);
+  },
+
+  async get(id: string) {
+    return apiClient.get<ApiResponse<PackingList>>(`/packing-lists/${id}`);
   },
 
   async create(payload: PackingListInput) {
-    return apiClient.post<ApiResponse<any>>('/packing-lists', payload);
+    return apiClient.post<ApiResponse<PackingList>>('/packing-lists', payload);
   },
 
   async update(id: string, payload: Partial<PackingListInput>) {
-    return apiClient.put<ApiResponse<any>>(`/packing-lists/${id}`, payload);
+    return apiClient.put<ApiResponse<PackingList>>(`/packing-lists/${id}`, payload);
+  },
+
+  async delete(id: string) {
+    return apiClient.delete<ApiResponse<{ success: boolean }>>(`/packing-lists/${id}`);
   }
 };
-
