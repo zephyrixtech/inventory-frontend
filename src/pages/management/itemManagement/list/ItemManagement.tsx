@@ -19,6 +19,10 @@ interface Item {
     sellingPrice: number;
     minStockLevel: number;
     maxStockLevel: number;
+    quantity?: number; // NEW: Quantity field
+    vendor?: { name: string }; // NEW: Vendor/Supplier
+    paidAmount?: number; // NEW: Paid amount
+    returnAmount?: number; // NEW: Return amount
 }
 
 const ItemManagement = () => {
@@ -106,7 +110,7 @@ const ItemManagement = () => {
             minStockLevel: newItem.minStockLevel,
             maxStockLevel: newItem.maxStockLevel
         };
-        
+
         // Implement add item logic here
         console.log('Adding new item:', item);
         setIsAddDialogOpen(false);
@@ -128,7 +132,7 @@ const ItemManagement = () => {
             minStockLevel: updatedItem.minStockLevel,
             maxStockLevel: updatedItem.maxStockLevel
         };
-        
+
         // Implement edit item logic here
         console.log('Updating item:', item);
         setIsEditDialogOpen(false);
@@ -223,7 +227,7 @@ const ItemManagement = () => {
                             <Package className="h-4 w-4" />
                             <span>Filters</span>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                             <div className="relative">
                                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -234,7 +238,7 @@ const ItemManagement = () => {
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
                                 />
                             </div>
-                        
+
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedCategory}
@@ -245,7 +249,7 @@ const ItemManagement = () => {
                                     <option key={category.id} value={category.name}>{category.name}</option>
                                 ))}
                             </select>
-                        
+
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedManufacturer}
@@ -256,7 +260,7 @@ const ItemManagement = () => {
                                     <option key={manufacturer.id} value={manufacturer.name}>{manufacturer.name}</option>
                                 ))}
                             </select>
-                        
+
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedModel}
@@ -267,7 +271,7 @@ const ItemManagement = () => {
                                     <option key={model} value={model}>{model}</option>
                                 ))}
                             </select>
-                        
+
                             <div className="flex gap-2 items-center">
                                 <Input
                                     type="number"
@@ -285,7 +289,7 @@ const ItemManagement = () => {
                                     className="w-full"
                                 />
                             </div>
-                        
+
                             <div className="flex gap-2 items-center">
                                 <Input
                                     type="number"
@@ -305,7 +309,7 @@ const ItemManagement = () => {
                             </div>
                         </div>
                     </div>
-                
+
                     {/* Table Section */}
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                         {loading ? (
@@ -317,10 +321,12 @@ const ItemManagement = () => {
                                         <TableHead className="font-semibold text-blue-700">Item ID</TableHead>
                                         <TableHead className="font-semibold text-blue-700">Name</TableHead>
                                         <TableHead className="font-semibold text-blue-700">Category</TableHead>
-                                        <TableHead className="font-semibold text-blue-700">Manufacturer</TableHead>
-                                        <TableHead className="font-semibold text-blue-700">Model</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Quantity</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Vendor Name</TableHead>
                                         <TableHead className="font-semibold text-blue-700">Unit Price</TableHead>
-                                        <TableHead className="font-semibold text-blue-700">Selling Price</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Total Amount</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Paid Amount</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Return Amount</TableHead>
                                         <TableHead className="font-semibold text-blue-700">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -330,10 +336,12 @@ const ItemManagement = () => {
                                             <TableCell className="font-medium">{item.id}</TableCell>
                                             <TableCell>{item.name}</TableCell>
                                             <TableCell>{item.category}</TableCell>
-                                            <TableCell>{item.manufacturer}</TableCell>
-                                            <TableCell>{item.model}</TableCell>
-                                            <TableCell>₹{item.unitPrice.toFixed(2)}</TableCell>
-                                            <TableCell>₹{item.sellingPrice.toFixed(2)}</TableCell>
+                                            <TableCell>{item.quantity ?? 0}</TableCell>
+                                            <TableCell>{item.vendor?.name || 'N/A'}</TableCell>
+                                            <TableCell>₹{item.unitPrice?.toFixed(2) || '0.00'}</TableCell>
+                                            <TableCell>₹{((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}</TableCell>
+                                            <TableCell>₹{item.paidAmount?.toFixed(2) || '0.00'}</TableCell>
+                                            <TableCell>₹{item.returnAmount?.toFixed(2) || '0.00'}</TableCell>
                                             <TableCell>
                                                 <Button
                                                     variant="ghost"
@@ -353,7 +361,7 @@ const ItemManagement = () => {
                             </Table>
                         )}
                     </div>
-                
+
                     {/* Pagination */}
                     <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
                         <div className="flex flex-1 justify-between sm:hidden">
@@ -391,7 +399,7 @@ const ItemManagement = () => {
                                 >
                                     Previous
                                 </Button>
-                            
+
                                 <div className="flex gap-1">
                                     {getVisiblePages().map((page, index) => (
                                         typeof page === 'number' ? (
@@ -400,9 +408,8 @@ const ItemManagement = () => {
                                                 variant={currentPage === page ? "default" : "outline"}
                                                 size="sm"
                                                 onClick={() => handlePageChange(page)}
-                                                className={`rounded-md px-3 py-2 text-sm font-medium ${
-                                                    currentPage === page ? 'bg-blue-600 text-white' : ''
-                                                }`}
+                                                className={`rounded-md px-3 py-2 text-sm font-medium ${currentPage === page ? 'bg-blue-600 text-white' : ''
+                                                    }`}
                                             >
                                                 {page}
                                             </Button>
@@ -411,7 +418,7 @@ const ItemManagement = () => {
                                         )
                                     ))}
                                 </div>
-                            
+
                                 <Button
                                     variant="outline"
                                     size="sm"
