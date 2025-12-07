@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useForm, SubmitHandler, FieldError } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -21,11 +21,7 @@ import {
   Package,
   Target,
   DollarSign,
-  // Youtube,
-  // Video,
-  ChevronUp,
-  ChevronDown,
-  X,
+
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -36,7 +32,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import toast from 'react-hot-toast';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -46,48 +41,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatCurrency } from '@/Utils/formatters';
-import { Textarea } from '@/components/ui/textarea';
+
 
 // Import our new services
-import { getItemConfigurations, getCategories as getCategoriesService } from '@/services/itemService';
+import { getCategories as getCategoriesService } from '@/services/itemService';
 import { inventoryService } from '@/services/inventoryService';
 import { supplierService } from '@/services/supplierService';
 
 // Interfaces for types
-interface ITemsConfig {
-  id: string;
-  name: string;
-  control_type: 'Textbox' | 'Dropdown' | 'Textarea';
-  data_type?: 'string' | 'number' | 'unit';
-  is_mandatory: boolean;
-  max_length?: number;
-  collection_id?: string;
-  item_unit_id?: string;
-  sequence: number;
-}
-
-interface CollectionItem {
-  id: string;
-  display_name: string | null;
-}
-
-interface SelectOption {
-  value: string;
-  label: string;
-  description?: string;
-  price?: number;
-}
-
-interface SelectedAlternative {
-  id: string;
-  item_name: string;
-}
-
-interface IUnit {
-  id: string;
-  name: string;
-}
-
 interface ICategoryMaster {
   id: string;
   name: string;
@@ -97,33 +58,18 @@ interface IUser {
   id: string;
   first_name: string | null;
   last_name: string | null;
-  company_id: string | null;
 }
 
-// Debounce hook
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
 
 // Base schema for static fields
 const baseInventoryFormSchema = z.object({
   item_id: z
     .string()
-    .min(1, 'Item ID is required')
     .max(50, 'Item ID must be less than 50 characters')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Item ID must be alphanumeric with underscores or hyphens'),
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Item ID must be alphanumeric with underscores or hyphens')
+    .optional()
+    .or(z.literal('')), // Allow empty string as well
   item_name: z
     .string()
     .min(1, 'Item Name is required')
@@ -133,34 +79,35 @@ const baseInventoryFormSchema = z.object({
     .string()
     .min(1, 'Description is required'),
   quantity: z.number().min(0, 'Quantity cannot be negative'), // NEW FIELD
-  selling_price: z.number().min(0, 'Selling price cannot be negative').nullable(),
+  selling_price: z.number().min(0, 'Unit price cannot be negative').nullable(),
   vendorId: z.string().optional(), // NEW FIELD - Vendor/Supplier selection
   paidAmount: z.number().min(0, 'Paid amount cannot be negative').optional(), // NEW FIELD
   returnAmount: z.number().min(0, 'Return amount cannot be negative').optional(), // NEW FIELD
+  balanceAmount: z.number().min(0, 'Balance amount cannot be negative').optional(), // NEW FIELD
   image_1: z
     .any()
     .optional()
     .refine(
-      (file) => !file || (file instanceof File && ['image/jpeg', 'image/png'].includes(file.type)),
+      (file: File) => !file || (file instanceof File && ['image/jpeg', 'image/png'].includes(file.type)),
       'Image 1 must be a JPG or PNG file'
     )
-    .refine((file) => !file || file.size <= 5 * 1024 * 1024, 'Image 1 must be less than 5MB'),
+    .refine((file: File) => !file || file.size <= 5 * 1024 * 1024, 'Image 1 must be less than 5MB'),
   image_2: z
     .any()
     .optional()
     .refine(
-      (file) => !file || (file instanceof File && ['image/jpeg', 'image/png'].includes(file.type)),
+      (file: File) => !file || (file instanceof File && ['image/jpeg', 'image/png'].includes(file.type)),
       'Image 2 must be a JPG or PNG file'
     )
-    .refine((file) => !file || file.size <= 5 * 1024 * 1024, 'Image 2 must be less than 5MB'),
+    .refine((file: File) => !file || file.size <= 5 * 1024 * 1024, 'Image 2 must be less than 5MB'),
   video: z
     .any()
     .optional()
     .refine(
-      (file) => !file || (file instanceof File && file.type === 'video/mp4'),
+      (file: File) => !file || (file instanceof File && file.type === 'video/mp4'),
       'Video must be an MP4 file'
     )
-    .refine((file) => !file || file.size <= 50 * 1024 * 1024, 'Video must be less than 50MB'),
+    .refine((file: File) => !file || file.size <= 50 * 1024 * 1024, 'Video must be less than 50MB'),
   youtube_link: z
     .string()
     .nullable()
@@ -186,69 +133,21 @@ const baseInventoryFormSchema = z.object({
     }, 'Must be a valid YouTube link'),
 });
 
-// Type for dynamic fields
-type DynamicFields = Record<string, string | number | File | null | undefined>;
-
-// Create dynamic schema
-const createDynamicSchema = (configurators: ITemsConfig[]) => {
-  const dynamicFields: Record<string, z.ZodTypeAny> = {};
-
-  configurators.forEach((config) => {
-    const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-    let fieldSchema: z.ZodTypeAny;
-
-    if (config.control_type === 'Textbox') {
-      if (config.data_type === 'number' || config.data_type === 'unit') {
-        fieldSchema = z
-          .union([
-            z.string().regex(/^\d*\.?\d*$/, `${config.name} must be a valid number`).optional(),
-            z.number().optional(),
-          ])
-          .transform((val) => (typeof val === 'string' && val !== '' ? Number(val) : val))
-          .refine(
-            (val) => {
-              if (config.is_mandatory && (val === undefined || val === null || (typeof val === 'string' && val === ''))) {
-                return false;
-              }
-              return true;
-            },
-            { message: `${config.name} is required` }
-          )
-          .refine(
-            (val) => val === undefined || val === null || (typeof val === 'number' && !isNaN(val) && val >= 0),
-            `${config.name} must be a valid number and cannot be negative`
-          );
-      } else {
-        fieldSchema = config.is_mandatory
-          ? z
-            .string()
-            .min(1, `${config.name} is required`)
-            .max(config.max_length || 255, `${config.name} must be less than ${config.max_length || 255} characters`)
-          : z
-            .string()
-            .max(config.max_length || 255, `${config.name} must be less than ${config.max_length || 255} characters`)
-            .optional();
-      }
-    } else if (config.control_type === 'Dropdown') {
-      fieldSchema = config.is_mandatory
-        ? z.string().min(1, `${config.name} is required`)
-        : z.string().optional();
-    } else if (config.control_type === 'Textarea') {
-      fieldSchema = config.is_mandatory
-        ? z.string().min(1, `${config.name} is required`)
-        : z.string().optional();
-    } else {
-      fieldSchema = z.any();
-    }
-
-    dynamicFields[fieldName] = fieldSchema;
-  });
-
-  return baseInventoryFormSchema.extend(dynamicFields);
-};
-
 // Form values type
-type InventoryFormValues = z.infer<typeof baseInventoryFormSchema> & DynamicFields;
+type InventoryFormValues = z.infer<typeof baseInventoryFormSchema>;
+
+// Helper function to generate item ID based on current date with sequential numbering
+const generateItemID = () => {
+  const now = new Date();
+  const year = now.getFullYear().toString();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  
+  // Format: ITMYYYYMMDDNNN (e.g., ITM20251207001)
+  // Note: The actual sequence number will be determined by the backend
+  // This is just a placeholder format for display purposes
+  return `ITM${year}${month}${day}___`;
+};
 
 const InventoryForm = () => {
   // NOTE: This form has been refactored to use the backend API instead of Supabase.
@@ -268,37 +167,24 @@ const InventoryForm = () => {
   const isViewing = Boolean(id) && location.pathname.includes('view');
   const [isLoading, setIsLoading] = useState(false);
   const [_, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
-  const [selectedAlternativesWithNames, setSelectedAlternativesWithNames] = useState<SelectedAlternative[]>([]);
-  const [alternativeSearch, setAlternativeSearch] = useState('');
-  const [alternativeItems, setAlternativeItems] = useState<SelectOption[]>([]);
-  const [isFetchingAlternatives, setIsFetchingAlternatives] = useState(false);
-  const [showAlternativesDropdown, setShowAlternativesDropdown] = useState(false);
-  const [tempSelectedAlternatives, setTempSelectedAlternatives] = useState<string[]>([]);
-  const [isSelectedAlternativesExpanded, setIsSelectedAlternativesExpanded] = useState(true);
-  const debouncedSearch = useDebounce(alternativeSearch, 300);
-  const [configurators, setConfigurators] = useState<ITemsConfig[]>([]);
-  const [collections, setCollections] = useState<Record<string, CollectionItem[]>>({});
-  const [units, setUnits] = useState<IUnit[]>([]);
   const [categories, setCategories] = useState<ICategoryMaster[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]); // NEW: Suppliers state
+  const [suppliersLoading, setSuppliersLoading] = useState(false); // NEW: Suppliers loading state
   const [formSchema, setFormSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
-  const [configuratorsLoaded, setConfiguratorsLoaded] = useState(false);
   const [image1Preview, setImage1Preview] = useState<string | null>(null);
   const [image2Preview, setImage2Preview] = useState<string | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [initialVideoPreview, setInitialVideoPreview] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [initialAlternatives, setInitialAlternatives] = useState<SelectedAlternative[]>([]);
+  
   const [initialFormValues, setInitialFormValues] = useState<InventoryFormValues | null>(null);
   const [initialImage1Preview, setInitialImage1Preview] = useState<string | null>(null);
   const [initialImage2Preview, setInitialImage2Preview] = useState<string | null>(null);
-  const [, setExistingAdditionalAttributes] = useState<Record<string, any>>({});
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   // const [categoryRetryCount, setCategoryRetryCount] = useState(0);
   const user = localStorage.getItem("userData");
   const userData: IUser | null = user ? JSON.parse(user) : null;
-  const companyId = userData?.company_id || null;
   const [videoType, setVideoType] = useState('upload'); // 'upload' or 'youtube'
   // const [youtubeUrl, setYoutubeUrl] = useState('');
   // const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
@@ -322,9 +208,11 @@ const InventoryForm = () => {
       category_id: '',
       description: '',
       quantity: 0,
-      reorder_level: null,
-      max_level: null,
       selling_price: null,
+      vendorId: undefined,
+      paidAmount: undefined,
+      returnAmount: undefined,
+      balanceAmount: undefined,
       image_1: null,
       image_2: null,
       video: null,
@@ -333,6 +221,28 @@ const InventoryForm = () => {
   });
 
   const watchedFields = watch();
+  console.log('Watched fields:', watchedFields);
+  
+  // Watch item_id specifically to ensure it updates properly
+  const itemIdValue = watch('item_id');
+
+  // Watch paidAmount and returnAmount to calculate balanceAmount
+  const paidAmount = watch('paidAmount');
+  const returnAmount = watch('returnAmount');
+
+  useEffect(() => {
+    if (typeof paidAmount === 'number' && typeof returnAmount === 'number') {
+      const balance = paidAmount - returnAmount;
+      setValue('balanceAmount', balance >= 0 ? balance : 0);
+    }
+  }, [paidAmount, returnAmount, setValue]);
+
+  // Monitor category_id changes
+  const categoryIdValue = watch('category_id');
+  useEffect(() => {
+    console.log('Category ID changed to:', categoryIdValue);
+    console.log('Category ID type:', typeof categoryIdValue);
+  }, [categoryIdValue]);
 
   // const extractVideoId = (url: string) => {
   //   try {
@@ -380,16 +290,19 @@ const InventoryForm = () => {
 
   useEffect(() => {
     // Do not reset defaults while editing or viewing an existing item
-    if (isEditing || isViewing || configurators.length === 0) return;
+    if (isEditing || isViewing) return;
 
+    // Generate and set the item ID for new items
+    const newItemId = generateItemID();
+    setValue('item_id', newItemId, { shouldValidate: false });
+    
+    // Set other default values
     const defaultValues: InventoryFormValues = {
-      item_id: '',
+      item_id: newItemId,
       item_name: '',
       category_id: '',
       description: '',
       quantity: 0,
-      reorder_level: null,
-      max_level: null,
       selling_price: null,
       // image_1: null,
       // image_2: null,
@@ -397,17 +310,8 @@ const InventoryForm = () => {
       youtube_link: null,
     };
 
-    configurators.forEach((config) => {
-      const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-      if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-        defaultValues[fieldName] = config.is_mandatory ? '' : '0';
-      } else {
-        defaultValues[fieldName] = '';
-      }
-    });
-
     reset(defaultValues);
-  }, [configurators.length, isEditing, isViewing]);
+  }, [isEditing, isViewing, reset, setValue]);
 
   // Handle media change (images and video)
   // const handleMediaChange = (
@@ -431,70 +335,10 @@ const InventoryForm = () => {
   //   }
   // };
 
-  // Fetch data
-  useEffect(() => {
-    if (!companyId) return;
-
-    const fetchConfigurators = async () => {
-      try {
-        // Use our new backend API service instead of Supabase
-        const response = await getItemConfigurations(1, 100, {});
-        const configs = response.data as ITemsConfig[];
-        setConfigurators(configs);
-        setFormSchema(createDynamicSchema(configs));
-        return configs;
-      } catch (err: any) {
-        console.error('Error fetching configurators:', err);
-        toast.error('Failed to load additional attributes.');
-        return [];
-      } finally {
-        setConfiguratorsLoaded(true);
-      }
-    };
-
-    const fetchCollections = async () => {
-      try {
-        // For now, we'll skip collections fetching as it requires additional backend endpoints
-        // This would need to be implemented in the backend API
-        setCollections({});
-        console.log('Skipping collections fetch - needs backend implementation');
-        return;
-      } catch (err: any) {
-        console.error('Error fetching collections:', err);
-        toast.error('Failed to load some collection data.');
-      }
-
-      // Dummy implementation to avoid syntax errors
-      setCollections({});
-    };
-
-    const fetchUnits = async () => {
-      try {
-        // For now, we'll skip units fetching as it requires additional backend endpoints
-        // This would need to be implemented in the backend API
-        setUnits([]);
-        console.log('Skipping units fetch - needs backend implementation');
-      } catch (err: any) {
-        console.error('Error fetching units:', err);
-        toast.error('Failed to load units.');
-      }
-    };
-
-    const initFetch = async () => {
-      setConfiguratorsLoaded(false);
-      await fetchConfigurators();
-      await Promise.all([fetchCollections(), fetchUnits()]);
-    };
-    initFetch();
-  }, [companyId]);
 
   // Fetch item details for editing or viewing
   useEffect(() => {
     if (!((isEditing || isViewing) && id)) {
-      return;
-    }
-
-    if (!configuratorsLoaded) {
       return;
     }
 
@@ -513,15 +357,13 @@ const InventoryForm = () => {
 
         // Sequentially fetch categories to ensure they are loaded before the form is reset.
         // This prevents the category from appearing as "not found".
-        if (companyId) {
-          setCategoriesLoading(true);
-          try {
-            // Use our new backend API service for categories
-            const categoriesResponse = await getCategoriesService();
-            setCategories(categoriesResponse);
-          } finally {
-            setCategoriesLoading(false);
-          }
+        setCategoriesLoading(true);
+        try {
+          // Use our new backend API service for categories
+          const categoriesResponse = await getCategoriesService();
+          setCategories(categoriesResponse);
+        } finally {
+          setCategoriesLoading(false);
         }
 
         // Handle category ID - could be id or _id
@@ -534,12 +376,12 @@ const InventoryForm = () => {
           category_id: categoryId,
           description: itemData.description || '',
           quantity: itemData.quantity || 0,
-          reorder_level: itemData.reorderLevel ?? null,
-          max_level: itemData.maxLevel ?? null,
+
           selling_price: itemData.unitPrice ?? null,
           vendorId: (itemData as any).vendor?._id || (itemData as any).vendor?.id || (itemData as any).vendor || '',
           paidAmount: (itemData as any).paidAmount,
           returnAmount: (itemData as any).returnAmount,
+          balanceAmount: (itemData as any).balanceAmount, // Added balanceAmount
           image_1: null,
           image_2: null,
           video: null,
@@ -552,42 +394,7 @@ const InventoryForm = () => {
           console.log('Setting currentCategoryId:', String(formValues.category_id));
         }
 
-        const additionalAttrs = (itemData as any).additionalAttributes || {};
 
-        configurators.forEach((config) => {
-          const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-
-          // Try to get the field value from additionalAttributes first, then direct fields
-          const fieldValue = additionalAttrs[fieldName] || additionalAttrs[config.name] ||
-            (itemData as any)[fieldName] || (itemData as any)[config.name];
-
-          if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
-            if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-              formValues[fieldName] = String(fieldValue);
-            } else {
-              formValues[fieldName] = String(fieldValue);
-            }
-          } else if (config.is_mandatory) {
-            // Set default for mandatory fields
-            if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-              formValues[fieldName] = '0';
-            } else {
-              formValues[fieldName] = '';
-            }
-          }
-
-          // Validate dropdown values
-          if (config.control_type === 'Dropdown' && config.collection_id && formValues[fieldName]) {
-            const collectionItems = collections[config.collection_id] || [];
-            const isValidOption = collectionItems.some((item) => item.id === formValues[fieldName]);
-            if (!isValidOption && collectionItems.length > 0) {
-              console.warn(
-                `Invalid value for ${fieldName}: ${formValues[fieldName]}. Not found in collection ${config.collection_id}`
-              );
-              // Don't clear if collection is empty (might not be loaded yet)
-            }
-          }
-        });
 
         // Set images - for now we'll skip this as it requires file handling
         // This would need to be implemented with proper backend file endpoints
@@ -602,9 +409,7 @@ const InventoryForm = () => {
         // setYoutubeUrl(youtubeLinkFromApi || '');
         // setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
 
-        // Alternative items - for now we'll skip this as it requires additional endpoints
-        setSelectedAlternativesWithNames([]);
-        setInitialAlternatives([]);
+        // Alternative items functionality has been completely removed as per user request
 
         setInitialFormValues(formValues);
         reset(formValues);
@@ -617,20 +422,26 @@ const InventoryForm = () => {
     };
     fetchItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isEditing, isViewing, companyId, configuratorsLoaded]);
-
+  }, [id, isEditing, isViewing]);
   // Fetch categories
   useEffect(() => {
     // This effect now only runs for the "Create New Item" page.
     // Edit/View mode category fetching is handled sequentially within the item fetch effect.
-    if (!companyId || isEditing || isViewing) return;
+    if (isEditing || isViewing) return;
 
     const fetchCategories = async () => {
       setCategoriesLoading(true);
       try {
         // Use our new backend API service instead of Supabase
         const categoriesResponse = await getCategoriesService();
-        setCategories(categoriesResponse);
+        console.log('Raw categories response:', categoriesResponse);
+        // Map the response to match the expected format
+        const mappedCategories = categoriesResponse.map((cat: any) => ({
+          id: cat.id || cat._id,
+          name: cat.name
+        }));
+        console.log('Mapped categories:', mappedCategories);
+        setCategories(mappedCategories);
       } catch (err: any) {
         console.error('Error fetching categories:', err);
         toast.error('Failed to load categories.');
@@ -640,26 +451,53 @@ const InventoryForm = () => {
     };
 
     fetchCategories();
-  }, [companyId, isEditing, isViewing]);
+  }, [isEditing, isViewing]);
 
   // Fetch suppliers (runs in all modes)
   useEffect(() => {
-    if (!companyId) return;
-
     const fetchSuppliers = async () => {
+      console.log('🔄 Starting supplier fetch...');
+      setSuppliersLoading(true);
       try {
-        // Fetch suppliers for the vendor dropdown
-        const suppliersResponse = await supplierService.listSuppliers({ limit: 1000, status: 'approved' });
+        // Fetch suppliers for the vendor dropdown - fetch all suppliers (not just approved)
+        const suppliersResponse = await supplierService.listSuppliers({ limit: 1000 });
+        console.log('📦 Raw API Response:', suppliersResponse);
+
+        // The API returns { data: [...], meta: {...} }, so we need to access response.data
         const suppliersData = suppliersResponse.data || [];
-        setSuppliers(suppliersData.map((s: any) => ({ id: s._id, name: s.name })));
+        console.log('📋 Suppliers Data Array:', suppliersData);
+        console.log('📊 Suppliers Count:', suppliersData.length);
+
+        if (suppliersData.length > 0) {
+          console.log('✅ First Supplier Sample:', suppliersData[0]);
+        } else {
+          console.warn('⚠️ No suppliers found in API response');
+        }
+
+        const mappedSuppliers = suppliersData.map((s: any) => ({
+          id: s._id || s.id,
+          name: s.name
+        }));
+        console.log('🔄 Mapped Suppliers:', mappedSuppliers);
+
+        setSuppliers(mappedSuppliers);
+        console.log('✅ Suppliers state updated successfully');
       } catch (err: any) {
-        console.error('Error fetching suppliers:', err);
+        console.error('❌ Error fetching suppliers:', err);
+        console.error('Error details:', {
+          message: err.message,
+          response: err.response,
+          stack: err.stack
+        });
         toast.error('Failed to load suppliers.');
+      } finally {
+        setSuppliersLoading(false);
+        console.log('🏁 Supplier fetch completed');
       }
     };
 
     fetchSuppliers();
-  }, [companyId]);
+  }, []);
 
   console.log("Current Category Id =>", currentCategoryId);
   console.log("Watched Category Id =>", watchedFields.category_id);
@@ -667,7 +505,7 @@ const InventoryForm = () => {
 
   // Force fetch missing category if needed
   useEffect(() => {
-    if (!companyId || !watchedFields.category_id || categoriesLoading) return;
+    if (!watchedFields.category_id || categoriesLoading) return;
 
     const selectedId = String(watchedFields.category_id);
     const categoryExists = categories.some(cat => cat.id === selectedId);
@@ -678,7 +516,7 @@ const InventoryForm = () => {
       // This would need to be implemented in the backend API
       console.log('Skipping force fetch missing category - needs backend implementation');
     }
-  }, [watchedFields.category_id, categories, companyId, categoriesLoading]);
+  }, [watchedFields.category_id, categories, categoriesLoading]);
 
   // Ensure category_id stays set once currentCategoryId is known (prevents intermittent blank state)
   useEffect(() => {
@@ -687,102 +525,12 @@ const InventoryForm = () => {
     }
   }, [currentCategoryId, watchedFields.category_id, isEditing, isViewing, setValue]);
 
-  // Fetch alternative items
-  useEffect(() => {
-    if (isViewing) return; // Skip fetching alternatives in view mode
-    const fetchAlternativeItems = async () => {
-      if (!debouncedSearch.trim() || debouncedSearch.trim().length < 3) {
-        setAlternativeItems([]);
-        setIsFetchingAlternatives(false);
-        setShowAlternativesDropdown(false);
-        return;
-      }
-
-      setIsFetchingAlternatives(true);
-      try {
-        // Use our new backend API service instead of Supabase
-        // This would require implementing a search endpoint in the backend
-        console.log('Skipping alternative items fetch - needs backend implementation');
-        setAlternativeItems([]);
-        setShowAlternativesDropdown(false);
-      } catch (err: any) {
-        console.error('Error fetching alternative items:', err);
-        toast.error('Failed to load alternative items.');
-        setAlternativeItems([]);
-        setShowAlternativesDropdown(false);
-      } finally {
-        setIsFetchingAlternatives(false);
-      }
-    };
-
-    fetchAlternativeItems();
-  }, [debouncedSearch, id, isViewing]);
-
-  // Handle alternative toggle
-  const handleAlternativeToggle = (alternative: SelectOption, e: React.MouseEvent) => {
-    if (isViewing) return; // Prevent changes in view mode
-    e.stopPropagation();
-    const isSelected = tempSelectedAlternatives.includes(alternative.value);
-    if (isSelected) {
-      setTempSelectedAlternatives(tempSelectedAlternatives.filter((id) => id !== alternative.value));
-    } else {
-      setTempSelectedAlternatives([...tempSelectedAlternatives, alternative.value]);
-    }
-  };
-
-  const fetchAlternativeItemsData = async (tempAlternativeIDs: string[]) => {
-    if (!companyId) return;
-    try {
-      const idsToFetch = tempAlternativeIDs.filter(
-        id => !selectedAlternativesWithNames.some(existing => existing.id === id)
-      );
-
-      if (idsToFetch.length === 0) return [];
-
-      // Use our new backend API service instead of Supabase
-      // This would require implementing a bulk fetch endpoint in the backend
-      console.log('Skipping alternative items data fetch - needs backend implementation');
-      return [];
-    } catch (err) {
-      console.error('Unexpected error:', err);
-      toast.error('Unexpected error occurred while fetching alternative items.');
-      return [];
-    }
-  };
-
-  // Confirm alternatives
-  const handleConfirmAlternatives = async () => {
-    if (isViewing) return; // Prevent changes in view mode
-    const newSelectedAlternativesIDs = [...new Set([...tempSelectedAlternatives, ...selectedAlternativesWithNames.map(s => s.id)])];
-    const newlyFetchedAlternatives = await fetchAlternativeItemsData(tempSelectedAlternatives) || [];
-
-    const newSelectedAlternatives = [
-      ...selectedAlternativesWithNames.filter(alt =>
-        newSelectedAlternativesIDs.includes(alt.id)
-      ),
-      ...newlyFetchedAlternatives,
-    ];
-
-    setSelectedAlternativesWithNames(newSelectedAlternatives);
-    setAlternativeSearch('');
-    setShowAlternativesDropdown(false);
-    setTempSelectedAlternatives([]);
-  };
-
-  // Remove alternative
-  const handleAlternativeRemove = (alternativeId: string) => {
-    if (isViewing) return; // Prevent changes in view mode
-    setSelectedAlternativesWithNames((prev) => prev.filter((alt) => alt.id !== alternativeId));
-  };
+  // Alternative items functionality has been completely removed as per user request
 
   // Check for unsaved changes
   const hasUnsavedChanges = (): boolean => {
     if (isViewing) return false; // No unsaved changes in view mode
     if (isDirty) return true;
-
-    const currentAlternativesJson = JSON.stringify(selectedAlternativesWithNames.map((alt) => alt.id).sort());
-    const initialAlternativesJson = JSON.stringify(initialAlternatives.map((alt) => alt.id).sort());
-    if (currentAlternativesJson !== initialAlternativesJson) return true;
 
     if (
       image1Preview !== initialImage1Preview ||
@@ -809,50 +557,42 @@ const InventoryForm = () => {
   // Form submission
   const onSubmit: SubmitHandler<InventoryFormValues> = async (data) => {
     if (isViewing) return; // Prevent submission in view mode
+    console.log('Form data being submitted:', data);
+    console.log('Selected category ID:', data.category_id);
+    console.log('Category ID type:', typeof data.category_id);
+    console.log('Available categories:', categories);
+    
+    // Check if selected category exists in our categories list
+    const selectedCategory = categories.find(cat => cat.id === data.category_id);
+    console.log('Selected category object:', selectedCategory);
+    
+    // Validate that category_id is not empty
+    if (!data.category_id || data.category_id.trim() === '') {
+      console.error('Category ID is empty or undefined');
+      toast.error('Please select a category');
+      return;
+    }
+    
     setFormStatus('submitting');
     setIsLoading(true);
 
     try {
-      if (!companyId) {
-        throw new Error('Company ID is not available. Please ensure you are logged in.');
-      }
-
       // Prepare the payload for the backend API
       const payload: any = {
-        code: data.item_id,
+        code: data.item_id || undefined, // Include item_id if provided
         name: data.item_name,
-        categoryId: data.category_id,
+        category: data.category_id, // Changed from categoryId to category to match backend expectation
         description: data.description,
         quantity: data.quantity,
-        reorderLevel: data.reorder_level ?? null,
-        maxLevel: data.max_level ?? null,
+
         unitPrice: data.selling_price ?? null,
         vendorId: data.vendorId || undefined, // NEW: Vendor field
         paidAmount: data.paidAmount ?? undefined, // NEW: Paid amount field
         returnAmount: data.returnAmount ?? undefined, // NEW: Return amount field
+        balanceAmount: data.balanceAmount ?? undefined, // NEW: Balance amount field
       };
 
-      // Collect all dynamic fields from configurators into additionalAttributes
-      const additionalAttributes: Record<string, any> = {};
-
-      configurators.forEach((config) => {
-        const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-        const fieldValue = data[fieldName];
-
-        if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
-          // For number/unit fields, ensure they're numbers
-          if (config.control_type === 'Textbox' && (config.data_type === 'number' || config.data_type === 'unit')) {
-            additionalAttributes[fieldName] = typeof fieldValue === 'string' ? parseFloat(fieldValue) || 0 : fieldValue;
-          } else {
-            additionalAttributes[fieldName] = fieldValue;
-          }
-        }
-      });
-
-      // Add additionalAttributes to payload if there are any
-      if (Object.keys(additionalAttributes).length > 0) {
-        payload.additionalAttributes = additionalAttributes;
-      }
+      console.log('Sending payload to backend:', payload);
 
       payload.videoType = videoType;
       const normalizedYoutubeLink =
@@ -860,14 +600,19 @@ const InventoryForm = () => {
       payload.youtubeLink = videoType === 'youtube' ? (normalizedYoutubeLink || null) : null;
 
       // Remove null/undefined values to avoid validation issues
-      const nullableFields = new Set(['youtubeLink', 'videoUrl']);
+      const nullableFields = new Set(['youtubeLink', 'videoUrl', 'code', 'vendorId']);
       Object.keys(payload).forEach(key => {
         if (payload[key] === undefined || payload[key] === '') {
-          delete payload[key];
+          // Only delete if it's not in the nullableFields set
+          if (!nullableFields.has(key)) {
+            delete payload[key];
+          }
         } else if (payload[key] === null && !nullableFields.has(key)) {
           delete payload[key];
         }
       });
+
+      console.log('Final payload after cleanup:', payload);
 
       // Use our new backend API service instead of Supabase
       if (isEditing && id) {
@@ -875,7 +620,7 @@ const InventoryForm = () => {
         await inventoryService.updateItem(id, payload);
       } else {
         // Create new item
-        if (!payload.name || !payload.categoryId || !payload.description) {
+        if (!payload.name || !payload.category || !payload.description) { // Changed from categoryId to category
           throw new Error('All mandatory fields are required');
         }
         await inventoryService.createItem(payload);
@@ -926,23 +671,20 @@ const InventoryForm = () => {
 
   // Clear form and navigate
   const clearFormAndNavigate = () => {
+    const newItemId = generateItemID(); // Generate new item ID when clearing form
     reset({
-      item_id: '',
+      item_id: newItemId,
       item_name: '',
       category_id: '',
       description: '',
-      reorder_level: null,
-      max_level: null,
       selling_price: null,
       image_1: null,
       image_2: null,
       video: null,
       youtube_link: null,
     });
+    setValue('item_id', newItemId, { shouldValidate: false });
     setInitialFormValues(null);
-    setSelectedAlternativesWithNames([]);
-    setInitialAlternatives([]);
-    setAlternativeSearch('');
     setImage1Preview(null);
     setImage2Preview(null);
     setVideoPreview(null);
@@ -953,7 +695,6 @@ const InventoryForm = () => {
     // setYoutubeVideoId(null);
     setVideoType('upload');
     setFormStatus('idle');
-    setExistingAdditionalAttributes({});
     navigate('/dashboard/item-master');
   };
 
@@ -966,131 +707,16 @@ const InventoryForm = () => {
   // Stay on form
   const stayOnForm = () => {
     setShowCancelDialog(false);
-  };
-
-  // Render dynamic field
-  const renderDynamicField = (config: ITemsConfig) => {
-    const fieldName = config.name.replace(/\s+/g, '_').toLowerCase();
-    const error = errors[fieldName as keyof InventoryFormValues] as FieldError | undefined;
-
-    if (config.control_type === 'Textbox') {
-      const inputType = config.data_type === 'number' || config.data_type === 'unit' ? 'number' : 'text';
-      return (
-        <div className="space-y-2 group">
-          <Label
-            htmlFor={fieldName}
-            className={`${error ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-          >
-            <Package className="h-4 w-4" /> {config.name}{' '}
-            {config.is_mandatory && <span className="text-red-500">*</span>}
-            {config.data_type === 'unit' && config.item_unit_id && (
-              <span>({units.find((unit) => unit.id === config.item_unit_id)?.name || ''})</span>
-            )}
-          </Label>
-          <Input
-            id={fieldName}
-            type={inputType}
-            placeholder={`Enter ${config.name}`}
-            {...register(fieldName, {
-              setValueAs: (value) =>
-                (config.data_type === 'number' || config.data_type === 'unit') && value !== ''
-                  ? String(value)
-                  : value,
-            })}
-            disabled={isViewing}
-            className={`${error
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-              } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields[fieldName] && !isViewing ? 'border-blue-300' : ''}`}
-          />
-          {error?.message && (
-            <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-              <AlertCircle className="h-3 w-3" />
-              {error.message}
-            </p>
-          )}
-        </div>
-      );
-    } else if (config.control_type === 'Dropdown' && config.collection_id) {
-      const collectionItems = collections[config.collection_id] || [];
-      return (
-        <div className="space-y-2 group">
-          <Label
-            htmlFor={fieldName}
-            className={`${error ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-          >
-            <Package className="h-4 w-4" /> {config.name}
-            {config.is_mandatory && <span className="text-red-500">*</span>}
-          </Label>
-          <Select
-            onValueChange={(value) => setValue(fieldName, value, { shouldValidate: true, shouldDirty: true })}
-            value={watchedFields[fieldName] as string | undefined}
-            disabled={isViewing || collectionItems.length === 0}
-          >
-            <SelectTrigger
-              id={fieldName}
-              className={`${error
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${watchedFields[fieldName] && collectionItems.length > 0 && !isViewing ? 'border-blue-300' : ''}`}
-            >
-              <SelectValue placeholder={collectionItems.length === 0 ? `No ${config.name} options available` : `Select ${config.name}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {collectionItems.length > 0 ? (
-                collectionItems.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.display_name || 'Unnamed'}
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="p-2 text-gray-500 text-sm">No options available</div>
-              )}
-            </SelectContent>
-          </Select>
-          {error?.message && (
-            <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-              <AlertCircle className="h-3 w-3" />
-              {error.message}
-            </p>
-          )}
-        </div>
-      );
-    } else if (config.control_type === 'Textarea') {
-      return (
-        <div className="space-y-2 group">
-          <Label
-            htmlFor={fieldName}
-            className={`${error ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-          >
-            <Package className="h-4 w-4" /> {config.name}{' '}
-            {config.is_mandatory && <span className="text-red-500">*</span>}
-          </Label>
-          <Textarea
-            id={fieldName}
-            placeholder={`Enter ${config.name}`}
-            {...register(fieldName)}
-            disabled={isViewing}
-            className={`${error
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-              } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 resize-y min-h-[80px] ${watchedFields[fieldName] && !isViewing ? 'border-blue-300' : ''}`}
-          />
-          {error?.message && (
-            <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-              <AlertCircle className="h-3 w-3" />
-              {error.message}
-            </p>
-          )}
-        </div>
-      );
+    // Regenerate item ID when staying on the form
+    if (!isEditing && !isViewing) {
+      const newItemId = generateItemID();
+      setValue('item_id', newItemId, { shouldValidate: false });
     }
-    return null;
   };
 
-  const filteredAlternatives = alternativeItems.filter(
-    (alt) => !selectedAlternativesWithNames.some((selected) => selected.id === alt.value)
-  );
+
+
+  // Alternative items functionality has been completely removed as per user request
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -1114,6 +740,7 @@ const InventoryForm = () => {
               </h1>
               <p className="text-gray-600">
                 {isViewing ? 'View inventory item details' : 'Customize your inventory items and stock details'}
+                {!isEditing && !isViewing && ' (Item ID format: ITMYYYYMMDDNNN)'}
               </p>
             </div>
           </div>
@@ -1127,26 +754,30 @@ const InventoryForm = () => {
               </CardTitle>
               <CardDescription className="text-blue-600">
                 Essential item details and identification
+                {!isEditing && !isViewing && ' (Item ID format: ITMYYYYMMDDNNN)'}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Item ID Field - Disabled for Editing/Viewing, Enabled for Creation */}
                 <div className="space-y-2 group">
                   <Label
                     htmlFor="item_id"
                     className={`${errors.item_id ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                   >
-                    <Package className="h-4 w-4" /> Item ID <span className="text-red-500">*</span>
+                    <Package className="h-4 w-4" /> Item ID {isEditing || isViewing ? '' : '(Auto-generated)'}
                   </Label>
                   <Input
                     id="item_id"
-                    placeholder="Enter unique item identifier"
+                    placeholder={isEditing || isViewing ? "Item ID" : "Auto-generated by system"}
                     {...register('item_id')}
-                    disabled={isViewing}
+                    value={itemIdValue || ''}
+                    disabled={isEditing || isViewing} // Disable for editing/viewing, enable for creation
                     className={`${errors.item_id
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                       : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.item_id && !isViewing ? 'border-blue-300' : ''}`}
+                      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${itemIdValue && !isViewing ? 'border-blue-300' : ''}`}
                   />
                   {errors.item_id?.message && (
                     <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
@@ -1190,7 +821,12 @@ const InventoryForm = () => {
                     <Package className="h-4 w-4" /> Item Category <span className="text-red-500">*</span>
                   </Label>
                   <Select
-                    onValueChange={(value) => setValue('category_id', value, { shouldValidate: true, shouldDirty: true })}
+                    onValueChange={(value) => {
+                      console.log('Category selected:', value);
+                      console.log('Category value type:', typeof value);
+                      setValue('category_id', value, { shouldValidate: true, shouldDirty: true });
+                      console.log('Form value after setting category_id:', watch('category_id'));
+                    }}
                     value={watchedFields.category_id ? String(watchedFields.category_id) : ''}
                     disabled={isViewing || categoriesLoading}
                   >
@@ -1293,166 +929,7 @@ const InventoryForm = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
 
-                    {!isViewing && (
-                      <div className="flex-1 space-y-4">
-                        <div className="space-y-1 group relative">
-                          <Label className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium">
-                            <Search className="h-4 w-4" /> Search Alternative Items
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="alternative_search"
-                              placeholder="Search for alternative items by name or description..."
-                              value={alternativeSearch}
-                              onChange={(e) => setAlternativeSearch(e.target.value)}
-                              onFocus={() => debouncedSearch.trim().length >= 3 && setShowAlternativesDropdown(true)}
-                              disabled={isViewing}
-                              className="pl-10 pr-4 py-2 rounded-lg shadow-sm border-blue-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-4 transition-colors duration-200"
-                            />
-                            {isFetchingAlternatives ? (
-                              <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400 animate-spin" />
-                            ) : (
-                              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400" />
-                            )}
-                          </div>
-                          {showAlternativesDropdown && filteredAlternatives.length > 0 && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-blue-200 rounded-lg shadow-xl flex flex-col max-h-80">
-                              <div className="bg-blue-50 px-4 py-3 border-b border-blue-200 flex-shrink-0">
-                                <div className="flex items-center gap-2">
-                                  <Package className="h-4 w-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-blue-800">
-                                    Available Alternatives ({filteredAlternatives.length})
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex-1 overflow-y-auto min-h-0">
-                                {filteredAlternatives.map((alternative, index) => (
-                                  <div
-                                    key={alternative.value}
-                                    className={`p-3 hover:bg-blue-50 transition-colors duration-200 ${index !== filteredAlternatives.length - 1 ? 'border-b border-blue-100' : ''}`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-3">
-                                          <Checkbox
-                                            checked={
-                                              tempSelectedAlternatives.includes(alternative.value) ||
-                                              selectedAlternativesWithNames.some((s) => s.id === alternative.value)
-                                            }
-                                            onCheckedChange={() => {
-                                              const syntheticEvent = { stopPropagation: () => { } } as React.MouseEvent;
-                                              handleAlternativeToggle(alternative, syntheticEvent);
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            disabled={isViewing}
-                                            className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                                          />
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <Package className="h-3 w-3 text-blue-400" />
-                                              <p className="font-medium text-blue-900 text-sm">{alternative.label}</p>
-                                            </div>
-                                            <p className="text-xs text-blue-500 ml-5">{alternative.description}</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="font-semibold text-blue-600 text-sm">{formatCurrency(alternative.price ?? 0)}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex justify-end gap-2 p-3 border-t border-blue-200 flex-shrink-0">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setTempSelectedAlternatives([]);
-                                    setAlternativeSearch('');
-                                    setShowAlternativesDropdown(false);
-                                  }}
-                                  disabled={isViewing}
-                                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={handleConfirmAlternatives}
-                                  disabled={isViewing || tempSelectedAlternatives.length === 0}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                                >
-                                  Confirm
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                          {showAlternativesDropdown && filteredAlternatives.length === 0 && !isFetchingAlternatives && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
-                              <p className="text-gray-500 text-sm">No alternative items found</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Selected alternatives list (overlay) */}
-                        {selectedAlternativesWithNames.length > 0 && (
-                          <div className="space-y-2 relative">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-gray-700 flex items-center gap-1 font-medium">
-                                <Package className="h-4 w-4" /> Selected Alternatives
-                              </Label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setIsSelectedAlternativesExpanded(!isSelectedAlternativesExpanded);
-                                }}
-                                disabled={isViewing}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                {isSelectedAlternativesExpanded ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-
-                            {isSelectedAlternativesExpanded && (
-                              <div className="absolute z-20 w-full mt-1 border border-blue-200 rounded-lg shadow-xl bg-blue-50">
-                                <div className="p-3 max-h-64 overflow-y-auto">
-                                  {selectedAlternativesWithNames.map((alternative) => (
-                                    <div
-                                      key={alternative.id}
-                                      className="flex items-center justify-between p-2 bg-white rounded-md mb-2 last:mb-0 shadow-sm"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <Package className="h-3 w-3 text-blue-400" />
-                                        <p className="text-sm text-blue-900">{alternative.item_name}</p>
-                                      </div>
-                                      {!isViewing && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleAlternativeRemove(alternative.id)}
-                                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {/* Alternative items functionality removed as per user request */}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1491,7 +968,7 @@ const InventoryForm = () => {
                         htmlFor="selling_price"
                         className={`${errors.selling_price ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                       >
-                        <DollarSign className="h-4 w-4" /> Selling Price
+                        <DollarSign className="h-4 w-4" /> Unit Price
                       </Label>
                       <Input
                         id="selling_price"
@@ -1527,16 +1004,24 @@ const InventoryForm = () => {
                       <Select
                         onValueChange={(value) => setValue('vendorId', value, { shouldValidate: true, shouldDirty: true })}
                         value={watchedFields.vendorId as string | undefined}
-                        disabled={isViewing}
+                        disabled={isViewing || suppliersLoading}
                       >
                         <SelectTrigger
                           id="vendorId"
-                          className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                          className={`pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full border-gray-200 focus:border-blue-500 focus:ring-blue-200 ${watchedFields.vendorId && !isViewing ? 'border-blue-300' : ''}`}
                         >
-                          <SelectValue placeholder="Select vendor/supplier" />
+                          {suppliersLoading && (
+                            <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400 animate-spin" />
+                          )}
+                          <SelectValue placeholder={suppliersLoading ? 'Loading suppliers...' : suppliers.length === 0 ? 'No suppliers available' : 'Select vendor/supplier'} />
                         </SelectTrigger>
                         <SelectContent>
-                          {suppliers.length > 0 ? (
+                          {suppliersLoading ? (
+                            <div className="p-2 text-gray-500 text-sm flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                              Loading suppliers...
+                            </div>
+                          ) : suppliers.length > 0 ? (
                             suppliers.map((supplier) => (
                               <SelectItem key={supplier.id} value={supplier.id}>
                                 {supplier.name}
@@ -1584,6 +1069,26 @@ const InventoryForm = () => {
                         min="0"
                         placeholder="0.00"
                         {...register('returnAmount', { valueAsNumber: true })}
+                        disabled={isViewing}
+                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                      />
+                    </div>
+
+                    {/* Balance Amount */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="balanceAmount"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <DollarSign className="h-4 w-4" /> Balance Amount
+                      </Label>
+                      <Input
+                        id="balanceAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...register('balanceAmount', { valueAsNumber: true })}
                         disabled={isViewing}
                         className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
                       />
@@ -1997,25 +1502,7 @@ const InventoryForm = () => {
             </CardContent>
           </Card>
 
-          {configurators.length > 0 && (
-            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
-              <CardHeader>
-                <CardTitle className="text-xl text-blue-800 flex items-center gap-2">
-                  <Package className="h-5 w-5" /> Additional Attributes
-                </CardTitle>
-                <CardDescription className="text-blue-600">
-                  Custom fields defined for this item
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {configurators.map((config) => (
-                    <div key={config.id}>{renderDynamicField(config)}</div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+
 
           {!isViewing && (
             <div className="flex justify-end gap-4 mt-6">

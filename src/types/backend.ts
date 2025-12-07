@@ -71,6 +71,9 @@ export interface Item {
   videoType?: 'upload' | 'youtube';
   youtubeLink?: string | null;
   videoUrl?: string | null;
+  paidAmount?: number;
+  returnAmount?: number;
+  balanceAmount?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

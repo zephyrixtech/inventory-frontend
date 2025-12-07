@@ -29,10 +29,7 @@ import InventoryItemForm from '@/pages/management/inventoryManagement/config/Inv
 import PurchaseOrderView from '@/pages/management/purchaseManagement/config/PurchaseOrderView';
 import Approvals from '@/pages/Approval/Approvals';
 import ApprovalsView from '@/pages/Approval/ApprovalsView';
-import ReturnRequest from '@/pages/ReturnRequest/list/ReturnRequest';
-import ReturnEligiblePOs from '@/pages/ReturnRequest/ReturnEligiblePOs';
 import PrintPreview from '@/pages/Reports/PrintPreview';
-import ReturnForm from '@/pages/ReturnRequest/config/ReturnForm';
 import CompanyAdministration from '@/pages/administration/CompanyAdministration';
 import NotificationForm from '@/pages/Notifications/config/NotificationForm';
 import { CategoryManagement } from '@/pages/category/list/CategoryManagement';
@@ -44,8 +41,6 @@ import CustomerView from '@/pages/customer/config/CustomerView';
 import NotFoundPage from '@/pages/alert/NotFoundPage';
 import { RoleManagement } from '@/pages/management/roleManagement/RoleManagement';
 import AuthRedirectPage from '@/pages/auth/authRedirect';
-import PurchaseReturnRequests from '@/pages/purchaseReturnRequest/PurchaseReturnRequests';
-import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView';
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 import QualityControlPage from '@/pages/purchaser/QC';
 import {PackingListsPage} from '@/pages/purchaser/PackingLists'
@@ -91,14 +86,7 @@ const protectedRoutes = [
   { path: 'inventory/add', element: <InventoryItemForm />, module: 'Inventory Management' },
   { path: 'inventory/edit/:id', element: <InventoryItemForm />, module: 'Inventory Management' },
   { path: 'purchase-order-approvals', element: <Approvals />, module: 'Purchase Order Approvals' },
-  { path: 'purchase-order-return-approvals', element: <PurchaseReturnRequests />, module: 'Purchase Order Approvals' },
   { path: 'purchase-order-approvals-view/:id', element: <ApprovalsView />, module: 'Purchase Order Approvals' },
-  { path: "purchase-return-view/:id", element: <PurchaseReturnView />, module: "Purchase Order Approvals" },
-  { path: 'return-request', element: <ReturnRequest />, module: 'Returns Management' },
-  { path: 'return-form/add', element: <ReturnForm />, module: 'Returns Management' },
-  { path: 'return-form/edit/:id', element: <ReturnForm />, module: 'Returns Management' },
-  { path: 'return-form/view/:id', element: <ReturnForm />, module: 'Item Master' },
-  { path: 'return-eligible-purchase-orders', element: <ReturnEligiblePOs />, module: 'Returns Eligible' },
   { path: 'administration', element: <CompanyAdministration />, module: 'Administration' },
   { path: 'administration/currency', element: <CurrencyRatesPage />, module: 'Administration' },
   { path: 'category-master', element: <CategoryManagement />, module: 'Category Master' },

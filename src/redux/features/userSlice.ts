@@ -27,7 +27,7 @@ interface UserData {
   role_id?: string | null;
   status?: string | null;
   is_active?: boolean;
-  company_data?: CompanyData | null;
+  // company_data?: CompanyData | null;
   // Removed company_id since we're removing company context
   full_name?: string | null;
   role_name?: string | null;
