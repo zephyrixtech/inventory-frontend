@@ -4,20 +4,18 @@ import type { ApiListResponse, ApiResponse } from '@/types/backend';
 export interface PackingListItemInput {
   productId: string;
   quantity: number;
+  description?: string;
+  unitOfMeasure?: string;
 }
 
 export interface PackingListInput {
   boxNumber: string;
   storeId: string;
   toStoreId?: string;
-  currency?: 'INR' | 'AED';
-  exchangeRate?: number;
   items: PackingListItemInput[];
   shipmentDate?: string;
   packingDate?: string;
   image1?: string;
-  image2?: string;
-  notes?: string;
   status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   // New fields
   cargoNumber?: string;
@@ -39,7 +37,6 @@ export interface PackingList {
   }>;
   totalQuantity: number;
   image1?: string;
-  image2?: string;
   shipmentDate?: string;
   packingDate?: string;
   store?: {
@@ -52,8 +49,6 @@ export interface PackingList {
     name: string;
     code: string;
   } | string;
-  currency?: 'INR' | 'AED';
-  exchangeRate?: number;
   status: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   createdBy?: {
     _id: string;

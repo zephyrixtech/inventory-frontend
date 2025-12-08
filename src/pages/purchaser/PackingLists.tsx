@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { packingListService, type PackingList } from '@/services/packingListService';
 import { storeStockService } from '@/services/storeStockService';
 import { storeService, type Store } from '@/services/storeService';
@@ -17,21 +16,21 @@ import type { PaginationMeta, StoreStock } from '@/types/backend';
 interface PackingListFormState {
   storeId: string;
   toStoreId: string;
+  boxOrBora: 'box' | 'bora'; // New field to select box or bora
   boxNumber: string;
+  boraNumber: string; // New field for bora number
   shipmentDate?: string;
   packingDate?: string;
   image1?: string;
-  image2?: string;
-  notes?: string;
   items: {
     productId: string;
     quantity: number;
     availableQuantity: number;
     productName?: string;
     productCode?: string;
+    description?: string;
+    unitOfMeasure?: string;
   }[];
-  currency: 'INR' | 'AED';
-  exchangeRate?: number;
   status: 'india' | 'uae';
   // New fields
   cargoNumber?: string;
@@ -41,15 +40,13 @@ interface PackingListFormState {
 const DEFAULT_FORM: PackingListFormState = {
   storeId: '',
   toStoreId: '',
+  boxOrBora: 'box', // Default to box
   boxNumber: '',
+  boraNumber: '',
   shipmentDate: '',
   packingDate: '',
   image1: '',
-  image2: '',
-  notes: '',
   items: [],
-  currency: 'INR',
-  exchangeRate: undefined,
   status: 'india',
   // New fields
   cargoNumber: '',
@@ -84,7 +81,7 @@ export const PackingListsPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [packingListToDelete, setPackingListToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<{image1?: string; image2?: string}>({image1: '', image2: ''});
+  const [imagePreviews, setImagePreviews] = useState<{image1?: string}>({image1: ''});
 
   const loadPackingLists = useCallback(async (page?: number) => {
     setLoading(true);
@@ -194,7 +191,7 @@ export const PackingListsPage = () => {
   const handleAddItemToForm = () => {
     setFormState((prev) => ({
       ...prev,
-      items: [...prev.items, { productId: '', quantity: 1, availableQuantity: 0 }]
+      items: [...prev.items, { productId: '', quantity: 1, availableQuantity: 0, description: '', unitOfMeasure: '' }]
     }));
   };
 
@@ -210,7 +207,9 @@ export const PackingListsPage = () => {
         updated[index] = {
           productId: value as string,
           quantity: 1,
-          availableQuantity: stockItem.quantity || 0
+          availableQuantity: stockItem.quantity || 0,
+          description: stockItem.product.description || '',
+          unitOfMeasure: stockItem.product.unitOfMeasure || ''
         };
       } else {
         updated[index] = { ...updated[index], [key]: value };
@@ -270,29 +269,48 @@ export const PackingListsPage = () => {
         const productIdStr = typeof productId === 'string' ? productId : productId?.toString();
         const productName = product?.name || '';
         const productCode = product?.code || '';
+        const description = product?.description || '';
+        const unitOfMeasure = product?.unitOfMeasure || '';
 
         return {
           productId: productIdStr || '',
           quantity: item.quantity,
           availableQuantity: 0,
           productName,
-          productCode
+          productCode,
+          description,
+          unitOfMeasure
         };
       }) || [];
+
+      // Determine if the boxNumber is for a box or bora
+      let boxOrBora: 'box' | 'bora' = 'box';
+      let boxNumber = '';
+      let boraNumber = '';
+      
+      if (packingList.boxNumber) {
+        if (packingList.boxNumber.startsWith('BOX-')) {
+          boxOrBora = 'box';
+          boxNumber = packingList.boxNumber.replace('BOX-', '');
+        } else if (packingList.boxNumber.startsWith('BORA-')) {
+          boxOrBora = 'bora';
+          boraNumber = packingList.boxNumber.replace('BORA-', '');
+        } else {
+          // Fallback for existing data that doesn't follow the pattern
+          boxNumber = packingList.boxNumber;
+        }
+      }
 
       const formData: PackingListFormState = {
         storeId: foundStoreId,
         toStoreId: (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || packingList.toStore || '',
-
-        boxNumber: packingList.boxNumber,
+        boxOrBora, // New field
+        boxNumber, // Box number without prefix
+        boraNumber, // Bora number without prefix
         shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
         packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
         image1: (packingList as any).image1 || '',
-        image2: (packingList as any).image2 || '',
-        notes: (packingList as any).notes || '',
         items: itemsWithProductInfo,
-        currency: packingList.currency || 'INR',
-        exchangeRate: packingList.exchangeRate,
         status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae',
         // New fields
         cargoNumber: (packingList as any).cargoNumber || '',
@@ -300,7 +318,7 @@ export const PackingListsPage = () => {
       };
 
       setFormState(formData);
-      setImagePreviews({image1: formData.image1, image2: formData.image2});
+      setImagePreviews({image1: formData.image1});
       setEditingId(id);
       setShowDialog(true);
 
@@ -319,7 +337,9 @@ export const PackingListsPage = () => {
               });
               return {
                 ...item,
-                availableQuantity: stockItem?.quantity || item.availableQuantity || 0
+                availableQuantity: stockItem?.quantity || item.availableQuantity || 0,
+                description: stockItem?.product?.description || item.description || '',
+                unitOfMeasure: stockItem?.product?.unitOfMeasure || item.unitOfMeasure || ''
               };
             })
           }));
@@ -366,27 +386,17 @@ export const PackingListsPage = () => {
     });
   };
 
-  const handleImageUpload = async (index: number, file: File | null) => {
+  const handleImageUpload = async (file: File | null) => {
     if (!file) {
-      if (index === 1) {
-        setFormState(prev => ({ ...prev, image1: '' }));
-        setImagePreviews(prev => ({ ...prev, image1: '' }));
-      } else {
-        setFormState(prev => ({ ...prev, image2: '' }));
-        setImagePreviews(prev => ({ ...prev, image2: '' }));
-      }
+      setFormState(prev => ({ ...prev, image1: '' }));
+      setImagePreviews(prev => ({ ...prev, image1: '' }));
       return;
     }
 
     try {
       const dataURL = await convertImageToDataURL(file);
-      if (index === 1) {
-        setFormState(prev => ({ ...prev, image1: dataURL }));
-        setImagePreviews(prev => ({ ...prev, image1: dataURL }));
-      } else {
-        setFormState(prev => ({ ...prev, image2: dataURL }));
-        setImagePreviews(prev => ({ ...prev, image2: dataURL }));
-      }
+      setFormState(prev => ({ ...prev, image1: dataURL }));
+      setImagePreviews(prev => ({ ...prev, image1: dataURL }));
     } catch (error) {
       toast.error('Failed to process image');
       console.error('Image processing error:', error);
@@ -415,20 +425,37 @@ export const PackingListsPage = () => {
       return;
     }
 
+    // Validate that either box or bora number is provided
+    if (formState.boxOrBora === 'box' && !formState.boxNumber) {
+      toast.error('Please enter a box number');
+      return;
+    }
+    
+    if (formState.boxOrBora === 'bora' && !formState.boraNumber) {
+      toast.error('Please enter a bora number');
+      return;
+    }
+
     try {
+      // Determine the boxNumber based on selection
+      const boxNumber = formState.boxOrBora === 'box' 
+        ? `BOX-${formState.boxNumber}` 
+        : `BORA-${formState.boraNumber}`;
+
       if (editingId) {
         await packingListService.update(editingId, {
-          boxNumber: formState.boxNumber,
+          boxNumber, // Send the formatted boxNumber
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
-          image2: formState.image2 || undefined,
-          notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
-          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          items: validItems.map((item) => ({ 
+            productId: item.productId, 
+            quantity: item.quantity,
+            description: item.description || undefined,
+            unitOfMeasure: item.unitOfMeasure || undefined
+          })),
           storeId: formState.storeId,
           toStoreId: formState.toStoreId || undefined,
-          currency: formState.currency,
-          exchangeRate: formState.exchangeRate,
           status: formState.status,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
@@ -438,16 +465,17 @@ export const PackingListsPage = () => {
       } else {
         await packingListService.create({
           storeId: formState.storeId,
-          boxNumber: formState.boxNumber,
+          boxNumber, // Send the formatted boxNumber
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
-          image2: formState.image2 || undefined,
-          notes: formState.notes?.trim() ? formState.notes.trim() : undefined,
-          items: validItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          items: validItems.map((item) => ({ 
+            productId: item.productId, 
+            quantity: item.quantity,
+            description: item.description || undefined,
+            unitOfMeasure: item.unitOfMeasure || undefined
+          })),
           toStoreId: formState.toStoreId || undefined,
-          currency: formState.currency,
-          exchangeRate: formState.exchangeRate,
           status: formState.status,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
@@ -460,7 +488,7 @@ export const PackingListsPage = () => {
       }
       setShowDialog(false);
       setFormState(DEFAULT_FORM);
-      setImagePreviews({image1: '', image2: ''});
+      setImagePreviews({image1: ''});
       setEditingId(null);
       await loadPackingLists(pagination.page);
     } catch (error: any) {
@@ -687,15 +715,34 @@ export const PackingListsPage = () => {
                   </select>
                 </div>
 
+                {/* Box/Bora Selection and Number Fields */}
                 <div className="space-y-2">
-                  <Label htmlFor="boxNumber" className="text-sm font-medium">Box / Bora *</Label>
-                  <Input
-                    id="boxNumber"
-                    value={formState.boxNumber}
-                    onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
-                    className="h-10 focus-visible:ring-primary/20"
-                    placeholder="Enter box number"
-                  />
+                  <Label className="text-sm font-medium">Box / Bora *</Label>
+                  <div className="flex gap-2">
+                    <select
+                      className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                      value={formState.boxOrBora}
+                      onChange={(e) => setFormState(prev => ({ ...prev, boxOrBora: e.target.value as 'box' | 'bora' }))}
+                    >
+                      <option value="box">Box</option>
+                      <option value="bora">Bora</option>
+                    </select>
+                    {formState.boxOrBora === 'box' ? (
+                      <Input
+                        value={formState.boxNumber}
+                        onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
+                        className="h-10 focus-visible:ring-primary/20"
+                        placeholder="Enter box number"
+                      />
+                    ) : (
+                      <Input
+                        value={formState.boraNumber}
+                        onChange={(e) => setFormState(prev => ({ ...prev, boraNumber: e.target.value }))}
+                        className="h-10 focus-visible:ring-primary/20"
+                        placeholder="Enter bora number"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* New Cargo Number Field */}
@@ -756,34 +803,6 @@ export const PackingListsPage = () => {
                     <option value="uae">UAE</option>
                   </select>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
-                  <select
-                    id="currency"
-                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
-                    value={formState.currency}
-                    onChange={(e) => setFormState(prev => ({ ...prev, currency: e.target.value as 'INR' | 'AED' }))}
-                  >
-                    <option value="INR">INR</option>
-                    <option value="AED">AED</option>
-                  </select>
-                </div>
-
-                {formState.currency === 'AED' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="exchangeRate" className="text-sm font-medium">Exchange Rate (to INR)</Label>
-                    <Input
-                      id="exchangeRate"
-                      type="number"
-                      step="0.01"
-                      value={formState.exchangeRate || ''}
-                      onChange={(e) => setFormState(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) }))}
-                      className="h-10 focus-visible:ring-primary/20"
-                      placeholder="e.g. 22.5"
-                    />
-                  </div>
-                )}
               </div>
             </div>
 
@@ -842,100 +861,145 @@ export const PackingListsPage = () => {
                       const selectedProduct = stockItem?.product as any;
                       const productName = selectedProduct?.name || item.productName || '';
                       const productCode = selectedProduct?.code || item.productCode || '';
+                      const description = selectedProduct?.description || item.description || '';
+                      const unitOfMeasure = selectedProduct?.unitOfMeasure || item.unitOfMeasure || '';
 
                       return (
-                        <div
-                          key={index}
-                          className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors border-b last:border-0"
-                        >
-                          <div className="min-w-0">
-                            {editingId && !formState.storeId ? (
-                              <div className="space-y-1">
+                        <div key={index} className="border-b last:border-0">
+                          <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
+                            <div className="min-w-0">
+                              {editingId && !formState.storeId ? (
+                                <div className="space-y-1">
+                                  <div className="font-medium">{productName || item.productId || 'Product'}</div>
+                                  <div className="text-xs space-y-1">
+                                    {productCode && (
+                                      <div className="text-muted-foreground">
+                                        Code: <span className="font-medium">{productCode}</span>
+                                      </div>
+                                    )}
+                                    {description && (
+                                      <div className="text-muted-foreground">
+                                        Description: <span className="font-medium">{description}</span>
+                                      </div>
+                                    )}
+                                    {unitOfMeasure && (
+                                      <div className="text-muted-foreground">
+                                        Size: <span className="font-medium">{unitOfMeasure}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <select
+                                  className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
+                                  value={item.productId}
+                                  onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
+                                >
+                                  <option value="">Select Product</option>
+                                  {storeStock.map((stock) => {
+                                    const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
+                                    const prodName = (stock.product as any)?.name || 'Unknown';
+                                    const prodCode = (stock.product as any)?.code || '';
+                                    const prodDesc = (stock.product as any)?.description || '';
+                                    const prodSize = (stock.product as any)?.unitOfMeasure || '';
+                                    return (
+                                      <option key={productId} value={productId}>
+                                        {prodName} {prodCode && `(${prodCode})`} {prodDesc && `- ${prodDesc}`} {prodSize && `[${prodSize}]`}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              )}
+                            </div>
+
+                            <div className="flex justify-center">
+                              <Input
+                                type="number"
+                                value={item.productId && formState.storeId ? availableQty : (editingId && !formState.storeId ? '' : '')}
+                                disabled
+                                className="bg-muted text-center font-medium w-28 h-10 text-sm"
+                                readOnly
+                                placeholder={editingId && !formState.storeId ? 'N/A' : '-'}
+                              />
+                            </div>
+
+                            <div className="flex justify-center">
+                              <div className="space-y-1 w-28">
                                 <Input
-                                  value={productName || item.productId || 'Product'}
-                                  disabled
-                                  className="bg-muted h-10 text-sm"
+                                  type="number"
+                                  min={1}
+                                  max={formState.storeId ? availableQty : undefined}
+                                  value={item.quantity || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                    handleUpdateItem(index, 'quantity', val);
+                                  }}
+                                  className={`w-full h-10 text-sm text-center ${exceedsStock ? 'border-red-500 focus:border-red-500' : ''}`}
+                                  placeholder="0"
+                                  disabled={!item.productId}
                                 />
-                                {productCode && (
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    Code: {productCode}
+                                {exceedsStock && (
+                                  <p className="text-xs text-red-500 text-center">Exceeds stock</p>
+                                )}
+                                {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
+                                  <p className="text-xs text-muted-foreground text-center">
+                                    {availableQty - item.quantity} remaining
                                   </p>
                                 )}
                               </div>
-                            ) : (
-                              <select
-                                className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
-                                value={item.productId}
-                                onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
-                              >
-                                <option value="">Select Product</option>
-                                {storeStock.map((stock) => {
-                                  const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
-                                  const prodName = (stock.product as any)?.name || 'Unknown';
-                                  const prodCode = (stock.product as any)?.code || '';
-                                  return (
-                                    <option key={productId} value={productId}>
-                                      {prodName} {prodCode && `(${prodCode})`}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            )}
-                          </div>
+                            </div>
 
-                          <div className="flex justify-center">
-                            <Input
-                              type="number"
-                              value={item.productId && formState.storeId ? availableQty : (editingId && !formState.storeId ? '' : '')}
-                              disabled
-                              className="bg-muted text-center font-medium w-28 h-10 text-sm"
-                              readOnly
-                              placeholder={editingId && !formState.storeId ? 'N/A' : '-'}
-                            />
-                          </div>
-
-                          <div className="flex justify-center">
-                            <div className="space-y-1 w-28">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={formState.storeId ? availableQty : undefined}
-                                value={item.quantity || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value === '' ? 0 : Number(e.target.value);
-                                  handleUpdateItem(index, 'quantity', val);
+                            <div className="flex justify-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setFormState(prev => ({
+                                    ...prev,
+                                    items: prev.items.filter((_, i) => i !== index)
+                                  }));
                                 }}
-                                className={`w-full h-10 text-sm text-center ${exceedsStock ? 'border-red-500 focus:border-red-500' : ''}`}
-                                placeholder="0"
-                                disabled={!item.productId}
-                              />
-                              {exceedsStock && (
-                                <p className="text-xs text-red-500 text-center">Exceeds stock</p>
-                              )}
-                              {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
-                                <p className="text-xs text-muted-foreground text-center">
-                                  {availableQty - item.quantity} remaining
-                                </p>
-                              )}
+                                className="h-10 w-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Remove item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-
-                          <div className="flex justify-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setFormState(prev => ({
-                                  ...prev,
-                                  items: prev.items.filter((_, i) => i !== index)
-                                }));
-                              }}
-                              className="h-10 w-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Remove item"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          
+                          {/* Description and Size fields outside the grid row */}
+                          {item.productId && (
+                            <div className="px-6 pb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor={`description-${index}`} className="text-sm font-medium">Description</Label>
+                                <Input
+                                  id={`description-${index}`}
+                                  value={item.description || ''}
+                                  onChange={(e) => setFormState(prev => {
+                                    const updated = [...prev.items];
+                                    updated[index] = { ...updated[index], description: e.target.value };
+                                    return { ...prev, items: updated };
+                                  })}
+                                  className="mt-1 h-10 text-sm"
+                                  placeholder="Enter description"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`size-${index}`} className="text-sm font-medium">Size</Label>
+                                <Input
+                                  id={`size-${index}`}
+                                  value={item.unitOfMeasure || ''}
+                                  onChange={(e) => setFormState(prev => {
+                                    const updated = [...prev.items];
+                                    updated[index] = { ...updated[index], unitOfMeasure: e.target.value };
+                                    return { ...prev, items: updated };
+                                  })}
+                                  className="mt-1 h-10 text-sm"
+                                  placeholder="Enter size"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -944,91 +1008,43 @@ export const PackingListsPage = () => {
               )}
             </div>
 
-            {/* Section 3: Images and Notes */}
+            {/* Section 3: Images */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
                 <Box className="h-4 w-4 text-primary" />
-                <h3 className="text-base font-semibold">Images and Notes</h3>
+                <h3 className="text-base font-semibold">Image</h3>
               </div>
 
-              {/* Image Upload Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Image 1 Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="image1" className="text-sm font-medium">Image 1</Label>
-                  <div className="space-y-2">
-                    <input
-                      type="file"
-                      id="image1"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(1, e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    />
-                    {(formState.image1 || imagePreviews.image1) && (
-                      <div className="mt-2">
-                        <img
-                          src={formState.image1 || imagePreviews.image1}
-                          alt="Preview 1"
-                          className="max-w-full h-32 object-contain rounded border"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleImageUpload(1, null)}
-                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          Remove Image
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Image 2 Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="image2" className="text-sm font-medium">Image 2</Label>
-                  <div className="space-y-2">
-                    <input
-                      type="file"
-                      id="image2"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(2, e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    />
-                    {(formState.image2 || imagePreviews.image2) && (
-                      <div className="mt-2">
-                        <img
-                          src={formState.image2 || imagePreviews.image2}
-                          alt="Preview 2"
-                          className="max-w-full h-32 object-contain rounded border"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleImageUpload(2, null)}
-                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          Remove Image
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes Section */}
+              {/* Single Image Upload Section */}
               <div className="space-y-2">
-                <Label htmlFor="notes" className="text-sm font-medium">Notes</Label>
-                <Textarea
-                  id="notes"
-                  rows={4}
-                  value={formState.notes}
-                  onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Add packing instructions or handling notes."
-                  className="text-sm resize-none"
-                />
+                <Label htmlFor="image1" className="text-sm font-medium">Image</Label>
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    id="image1"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                  />
+                  {(formState.image1 || imagePreviews.image1) && (
+                    <div className="mt-2">
+                      <img
+                        src={formState.image1 || imagePreviews.image1}
+                        alt="Preview"
+                        className="max-w-full h-32 object-contain rounded border"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleImageUpload(null)}
+                        className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        Remove Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1049,13 +1065,12 @@ export const PackingListsPage = () => {
               onClick={handleSavePackingList}
               disabled={
                 (!editingId && !formState.storeId) ||
-                !formState.boxNumber ||
+                (formState.boxOrBora === 'box' ? !formState.boxNumber : !formState.boraNumber) ||
                 formState.items.length === 0 ||
                 (!editingId && formState.items.some(item => item.productId && item.quantity > item.availableQuantity && formState.storeId))
               }
               className="min-w-[160px]"
-            >
-              {editingId ? 'Update Packing List' : 'Create Packing List'}
+            >              {editingId ? 'Update Packing List' : 'Create Packing List'}
             </Button>
           </DialogFooter>
         </DialogContent>

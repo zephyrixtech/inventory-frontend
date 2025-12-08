@@ -199,27 +199,6 @@ export const PackingListView = () => {
               </div>
             </div>
           )}
-
-          {packingList.currency && (
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" />
-                Currency Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Currency</p>
-                  <p className="font-medium">{packingList.currency}</p>
-                </div>
-                {packingList.exchangeRate && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Exchange Rate</p>
-                    <p className="font-medium">1 {packingList.currency} = {packingList.exchangeRate} INR</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -238,9 +217,11 @@ export const PackingListView = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <h3 className="font-medium">{item.product?.name || 'Unknown Product'}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Code: {item.product?.code || 'N/A'}
-                    </p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>Code: {item.product?.code || 'N/A'}</p>
+                      {item.description && <p>Description: {item.description}</p>}
+                      {item.unitOfMeasure && <p>Size: {item.unitOfMeasure}</p>}
+                    </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
@@ -271,28 +252,17 @@ export const PackingListView = () => {
       )}
 
       {/* Images Section */}
-      {((packingList as any).image1 || (packingList as any).image2) && (
+      {(packingList as any).image1 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-primary" />
-              Images
+              Image
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(packingList as any).image1 && (
-                <div>
-                  <h3 className="font-medium mb-2">Image 1</h3>
-                  {renderImage((packingList as any).image1, "Packing list image 1")}
-                </div>
-              )}
-              {(packingList as any).image2 && (
-                <div>
-                  <h3 className="font-medium mb-2">Image 2</h3>
-                  {renderImage((packingList as any).image2, "Packing list image 2")}
-                </div>
-              )}
+            <div>
+              {renderImage((packingList as any).image1, "Packing list image")}
             </div>
           </CardContent>
         </Card>
