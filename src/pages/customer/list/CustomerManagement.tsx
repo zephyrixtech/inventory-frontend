@@ -52,6 +52,7 @@ import {
   Phone,
   Mail,
   MapPin,
+  DollarSign,
 } from 'lucide-react';
 // Removed supabase import
 import toast from 'react-hot-toast';
@@ -83,7 +84,7 @@ const STATUS_OPTIONS: Array<{ value: 'Active' | 'Inactive'; label: string }> = [
 //   is_active: boolean; // true = not deleted, false = deleted
 // }
 
-type SortField = 'customerId' | 'name' | 'phone' | 'email' | 'billingAddress' | 'status' | 'createdAt';
+type SortField = 'customerId' | 'name' | 'phone' | 'email' | 'billingAddress' | 'status' | 'createdAt' | 'creditLimit';
 type SortOrder = 'asc' | 'desc';
 
 interface SortConfig {
@@ -163,7 +164,7 @@ export const CustomerManagement: React.FC = () => {
       }
 
       const response = await customerService.listCustomers(params);
-      
+
       // Map backend response to frontend format
       const mappedCustomers = response.data.map(customer => ({
         ...customer,
@@ -173,7 +174,8 @@ export const CustomerManagement: React.FC = () => {
         address: customer.billingAddress,
         created_at: customer.createdAt || '',
         modified_at: customer.updatedAt || '',
-        is_active: customer.isActive
+        is_active: customer.isActive,
+        creditLimit: customer.creditLimit || 0
       }));
 
       setCustomers(mappedCustomers);
@@ -259,7 +261,7 @@ export const CustomerManagement: React.FC = () => {
     if (!customerToDelete || !customerToDelete._id) return;
     try {
       await customerService.deleteCustomer(customerToDelete._id);
-      
+
       toast.success("Customer deleted successfully!");
       fetchCustomers(currentPage);
       setIsDeleteDialogOpen(false);
@@ -313,9 +315,16 @@ export const CustomerManagement: React.FC = () => {
   };
 
   const getStatusBadgeColor = (status: string) => {
-    return status === 'Active' 
+    return status === 'Active'
       ? 'bg-green-100 text-green-800 border-green-300'
       : 'bg-red-100 text-red-800 border-red-300';
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(value);
   };
 
   const formatDate = (dateString: string): string => {
@@ -474,6 +483,16 @@ export const CustomerManagement: React.FC = () => {
                       </TableHead>
                       <TableHead className="font-semibold">
                         <button
+                          onClick={() => handleSort('creditLimit')}
+                          className={`h-8 flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600 w-full justify-start`}
+                        >
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          Credit Limit
+                          <SortIndicator column="creditLimit" sortConfig={sortConfig} />
+                        </button>
+                      </TableHead>
+                      <TableHead className="font-semibold">
+                        <button
                           onClick={() => handleSort('createdAt')}
                           className={`h-8 flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600 w-full justify-start`}
                         >
@@ -533,6 +552,9 @@ export const CustomerManagement: React.FC = () => {
                             >
                               {customer.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-left font-medium">
+                            {formatCurrency(customer.creditLimit || 0)}
                           </TableCell>
                           <TableCell className="text-left text-sm">
                             {formatDate(customer.createdAt || '')}

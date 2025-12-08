@@ -15,6 +15,7 @@ export interface Customer {
   taxNumber?: string;
   billingAddress?: string;
   shippingAddress?: string;
+  creditLimit?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -40,6 +41,7 @@ export interface CreateCustomerPayload {
   taxNumber?: string;
   billingAddress?: string;
   shippingAddress?: string;
+  creditLimit?: number;
 }
 
 export interface UpdateCustomerPayload extends Partial<CreateCustomerPayload> {

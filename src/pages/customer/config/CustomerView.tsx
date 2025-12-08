@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Loader2,
   Building,
+  DollarSign,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { customerService } from '@/services/customerService'; // Added customerService import
@@ -32,13 +33,13 @@ interface InfoFieldProps {
 }
 
 // Custom Badge Component
-const CustomBadge: React.FC<{ 
-  children: React.ReactNode; 
+const CustomBadge: React.FC<{
+  children: React.ReactNode;
   variant?: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
   className?: string;
 }> = ({ children, variant = 'default', className = '' }) => {
   const baseClasses = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium";
-  
+
   const variantClasses = {
     default: "bg-gray-100 text-gray-800",
     secondary: "bg-blue-100 text-blue-800",
@@ -46,7 +47,7 @@ const CustomBadge: React.FC<{
     warning: "bg-yellow-100 text-yellow-800",
     destructive: "bg-red-100 text-red-800",
   };
-  
+
   return (
     <span className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
       {children}
@@ -54,11 +55,20 @@ const CustomBadge: React.FC<{
   );
 };
 
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value);
+};
+
+
+
 // Info Field Component
 const InfoField: React.FC<InfoFieldProps> = ({ label, value, icon: Icon, type = 'text', variant = 'default' }) => {
   // Handle undefined values by converting them to null
   const displayValue = value === undefined ? null : value;
-  
+
   if (displayValue === null || displayValue === '') {
     return (
       <div className="py-3">
@@ -72,7 +82,7 @@ const InfoField: React.FC<InfoFieldProps> = ({ label, value, icon: Icon, type = 
   }
 
   let renderedValue: React.ReactNode = String(displayValue);
-  
+
   switch (type) {
     case 'email':
       renderedValue = (
@@ -238,79 +248,85 @@ export default function CustomerView() {
         <Card className="border-none shadow-lg">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InfoField 
-                label="Customer ID" 
-                value={customer.customerId} 
-                icon={User} 
+              <InfoField
+                label="Customer ID"
+                value={customer.customerId}
+                icon={User}
               />
-              
-              <InfoField 
-                label="Name" 
-                value={customer.name} 
-                icon={User} 
+
+              <InfoField
+                label="Name"
+                value={customer.name}
+                icon={User}
               />
-              
-              <InfoField 
-                label="Phone" 
-                value={customer.phone} 
-                icon={Phone} 
+
+              <InfoField
+                label="Phone"
+                value={customer.phone}
+                icon={Phone}
                 type="phone"
               />
-              
-              <InfoField 
-                label="Email" 
-                value={customer.email} 
-                icon={Mail} 
+
+              <InfoField
+                label="Email"
+                value={customer.email}
+                icon={Mail}
                 type="email"
               />
-              
-              <InfoField 
-                label="Contact Person" 
-                value={customer.contactPerson} 
-                icon={User} 
+
+              <InfoField
+                label="Contact Person"
+                value={customer.contactPerson}
+                icon={User}
               />
-              
-              <InfoField 
-                label="Status" 
-                value={customer.status} 
-                icon={CheckCircle} 
+
+              <InfoField
+                label="Status"
+                value={customer.status}
+                icon={CheckCircle}
                 type="badge"
                 variant={customer.status === 'Active' ? 'success' : 'destructive'}
               />
-              
-              <InfoField 
-                label="Tax Number" 
-                value={customer.taxNumber} 
-                icon={Building} 
+
+              <InfoField
+                label="Tax Number"
+                value={customer.taxNumber}
+                icon={Building}
               />
-              
-              <InfoField 
-                label="Billing Address" 
-                value={customer.billingAddress} 
-                icon={MapPin} 
+
+              <InfoField
+                label="Credit Limit"
+                value={customer.creditLimit ? formatCurrency(customer.creditLimit) : '$0.00'}
+                icon={DollarSign}
+              />
+
+              <InfoField
+                label="Billing Address"
+                value={customer.billingAddress}
+                icon={MapPin}
                 type="textarea"
               />
-              
-              <InfoField 
-                label="Shipping Address" 
-                value={customer.shippingAddress} 
-                icon={MapPin} 
+
+              <InfoField
+                label="Shipping Address"
+                value={customer.shippingAddress}
+                icon={MapPin}
                 type="textarea"
               />
-              
-              <InfoField 
-                label="Created At" 
-                value={customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : null} 
-                icon={Calendar} 
+
+              <InfoField
+                label="Created At"
+                value={customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : null}
+                icon={Calendar}
               />
-              
-              <InfoField 
-                label="Updated At" 
-                value={customer.updatedAt ? new Date(customer.updatedAt).toLocaleDateString() : null} 
-                icon={Calendar} 
+
+              <InfoField
+                label="Updated At"
+                value={customer.updatedAt ? new Date(customer.updatedAt).toLocaleDateString() : null}
+                icon={Calendar}
               />
             </div>
-            
+
             <div className="pt-6 border-t flex justify-end gap-3">
               <Button
                 variant="outline"

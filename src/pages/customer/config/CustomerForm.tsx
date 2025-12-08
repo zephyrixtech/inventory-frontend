@@ -34,6 +34,7 @@ import {
   Loader2,
   Save,
   UserPlus,
+  DollarSign,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 // Removed supabase import
@@ -46,7 +47,7 @@ import { customerService, type CreateCustomerPayload, type UpdateCustomerPayload
 interface FormFieldConfig {
   name: keyof CustomerFormValues;
   label: string;
-  type: 'text' | 'email' | 'tel' | 'select' | 'textarea' | 'checkbox';
+  type: 'text' | 'email' | 'tel' | 'select' | 'textarea' | 'checkbox' | 'number';
   placeholder?: string;
   required?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
@@ -84,8 +85,8 @@ const formFieldsConfig: FormFieldConfig[] = [
     placeholder: 'example@example.com',
     icon: Mail,
     validation: z.string().email('Invalid email format').optional().or(z.literal('')).refine((val) => val === val!.toLowerCase(), {
-    message: "Email must not contain uppercase letters"
-  }),
+      message: "Email must not contain uppercase letters"
+    }),
     gridCols: 2,
   },
   {
@@ -139,18 +140,27 @@ const formFieldsConfig: FormFieldConfig[] = [
     validation: z.string().max(50, 'Tax number must be less than 50 characters').optional().or(z.literal('')),
     gridCols: 2,
   },
+  {
+    name: 'creditLimit',
+    label: 'Credit Limit',
+    type: 'number',
+    placeholder: '0.00',
+    icon: DollarSign,
+    validation: z.coerce.number().min(0, 'Credit limit must be a positive number').optional().or(z.literal('')),
+    gridCols: 2,
+  },
 ];
 
 // Dynamic schema generation
 const createFormSchema = () => {
   const schemaFields: Record<string, z.ZodTypeAny> = {};
-  
+
   formFieldsConfig.forEach(field => {
     if (field.validation) {
       schemaFields[field.name] = field.validation;
     }
   });
-  
+
   return z.object(schemaFields);
 };
 
@@ -180,15 +190,13 @@ const FormFieldRenderer: React.FC<{
   const fieldError = errors[field.name];
   const fieldValue = watch(field.name);
 
-  const baseInputClasses = `${
-    fieldError 
-      ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+  const baseInputClasses = `${fieldError
+      ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
       : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-  } transition-all duration-200`;
+    } transition-all duration-200`;
 
-  const labelClasses = `${
-    fieldError ? 'text-red-500' : 'text-gray-700'
-  } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`;
+  const labelClasses = `${fieldError ? 'text-red-500' : 'text-gray-700'
+    } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`;
 
   const renderField = () => {
     switch (field.type) {
@@ -210,10 +218,28 @@ const FormFieldRenderer: React.FC<{
           />
         );
 
+      case 'number':
+        return (
+          <Input
+            id={field.name}
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder={field.placeholder}
+            {...register(field.name)}
+            onChange={() => {
+              if (fieldError) {
+                clearValidationErrors();
+              }
+            }}
+            className={`${baseInputClasses} pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200`}
+          />
+        );
+
       case 'select':
         return (
-          <Select 
-            value={fieldValue} 
+          <Select
+            value={fieldValue}
             onValueChange={(value) => {
               setValue(field.name, value);
               if (fieldError) {
@@ -274,7 +300,7 @@ const FormFieldRenderer: React.FC<{
   return (
     <div className={`space-y-2 group ${field.gridCols === 1 ? 'md:col-span-2' : ''}`}>
       <Label htmlFor={field.name} className={labelClasses}>
-        {IconComponent && <IconComponent className="h-4 w-4" />} 
+        {IconComponent && <IconComponent className="h-4 w-4" />}
         {field.label} {field.required && <span className="text-red-500">*</span>}
       </Label>
       {renderField()}
@@ -306,6 +332,8 @@ export default function CustomerForm() {
         defaults[field.name] = false;
       } else if (field.name === 'status') {
         defaults[field.name] = 'Active';
+      } else if (field.name === 'creditLimit') {
+        defaults[field.name] = 0;
       } else {
         defaults[field.name] = '';
       }
@@ -333,19 +361,19 @@ export default function CustomerForm() {
     const fetchAndSetNextCustomerId = async () => {
       if (isEditing) return;
       if (!companyId) return;
-      
+
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, '0');
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       const yy = String(now.getFullYear()).slice(-2);
       const todayPrefix = `CUST-${dd}${mm}${yy}-`;
-      
+
       try {
         // Fetch customers with today's prefix to determine next serial number
         const response = await customerService.listCustomers({
           search: todayPrefix
         });
-        
+
         let nextSerial = 1;
         if (response.data && response.data.length > 0) {
           // Find the highest serial number
@@ -356,12 +384,12 @@ export default function CustomerForm() {
               const match = id.match(/-(\d{4})$/);
               return match ? parseInt(match[1], 10) : 0;
             });
-          
+
           if (serials.length > 0) {
             nextSerial = Math.max(...serials) + 1;
           }
         }
-        
+
         // Store the generated ID for later use
         localStorage.setItem('nextCustomerId', generateCustomerId(nextSerial));
       } catch (err) {
@@ -370,7 +398,7 @@ export default function CustomerForm() {
         localStorage.setItem('nextCustomerId', generateCustomerId());
       }
     };
-    
+
     fetchAndSetNextCustomerId();
   }, [isEditing, companyId]);
 
@@ -413,6 +441,9 @@ export default function CustomerForm() {
               case 'taxNumber':
                 formData[field.name] = customer.taxNumber || '';
                 break;
+              case 'creditLimit':
+                formData[field.name] = customer.creditLimit || 0;
+                break;
               default:
                 formData[field.name] = '';
             }
@@ -438,18 +469,18 @@ export default function CustomerForm() {
   // Function to handle form submission with proper validation
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Clear any existing validation errors
     clearValidationErrors();
-    
+
     // Trigger validation for all fields
     const isValid = await trigger();
-    
+
     if (!isValid) {
       setError('Please fix the validation errors before submitting.');
       return;
     }
-    
+
     // If validation passes, submit the form
     handleSubmit(onSubmit)(e);
   };
@@ -457,7 +488,7 @@ export default function CustomerForm() {
   const onSubmit: SubmitHandler<CustomerFormValues> = async (data) => {
     console.log('Form submitted with data:', data);
     setError('');
-    
+
     try {
       setIsLoading(true);
 
@@ -470,36 +501,37 @@ export default function CustomerForm() {
         shippingAddress: data.shippingAddress || '',
         contactPerson: data.contactPerson || '',
         taxNumber: data.taxNumber || '',
-        status: data.status
+        status: data.status,
+        creditLimit: data.creditLimit || 0
       };
 
       if (isEditing && id) {
         const updatePayload: UpdateCustomerPayload = {
           ...customerPayload
         };
-        
+
         const response = await customerService.updateCustomer(id, updatePayload);
-        
+
         if (!response.data) throw new Error('Customer update failed');
-        
+
         toast.success('Customer updated successfully!');
       } else {
         const nextCustomerId = localStorage.getItem('nextCustomerId') || generateCustomerId();
-        
+
         const createPayload: CreateCustomerPayload = {
           ...customerPayload,
           customerId: nextCustomerId,
-          name: data.name, 
-          status: data.status 
+          name: data.name,
+          status: data.status
         };
-        
+
         const response = await customerService.createCustomer(createPayload);
-        
+
         if (!response.data) throw new Error('Customer creation failed');
-        
+
         // Clear the stored customer ID
         localStorage.removeItem('nextCustomerId');
-        
+
         toast.success('Customer created successfully!');
       }
 
@@ -586,7 +618,7 @@ export default function CustomerForm() {
                   <Button
                     type="submit"
                     disabled={isSubmitting || isLoading}
-                    className= "text-white transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50"
+                    className="text-white transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50"
                   >
                     {(isSubmitting || isLoading) ? (
                       <span className="flex items-center gap-2">
