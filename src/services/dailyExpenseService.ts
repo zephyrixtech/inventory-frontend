@@ -3,15 +3,16 @@ import type { ApiListResponse, ApiResponse } from '@/types/backend';
 
 export interface DailyExpense {
   id: string;
-  product: {
+  supplier?: {
     id: string;
     name: string;
-    code: string;
   };
   description: string;
   amount: number;
   date: string;
-  type: 'purchase' | 'petty' | 'sale';
+  type: 'purchase' | 'petty';
+  paymentType?: 'cash' | 'card' | 'upi';
+  transactionId?: string;
   createdBy: {
     id: string;
     firstName?: string;
@@ -20,19 +21,27 @@ export interface DailyExpense {
 }
 
 export const dailyExpenseService = {
-  async list(params: { page?: number; limit?: number; from?: string; to?: string; productId?: string } = {}) {
+  async list(params: { page?: number; limit?: number; from?: string; to?: string; supplierId?: string } = {}) {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.from) query.append('from', params.from);
     if (params.to) query.append('to', params.to);
-    if (params.productId) query.append('productId', params.productId);
+    if (params.supplierId) query.append('supplierId', params.supplierId);
 
     const path = `/expenses${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
   },
 
-  async create(payload: { productId: string; description: string; amount: number; date?: string; type: 'purchase' | 'petty' | 'sale' }) {
+  async create(payload: { 
+    supplierId?: string; 
+    description: string; 
+    amount: number; 
+    date?: string; 
+    type: 'purchase' | 'petty';
+    paymentType?: 'cash' | 'card' | 'upi';
+    transactionId?: string;
+  }) {
     return apiClient.post<ApiResponse<DailyExpense>>('/expenses', payload);
   },
 
@@ -40,4 +49,3 @@ export const dailyExpenseService = {
     return apiClient.delete<ApiResponse<{ success: boolean }>>(`/expenses/${id}`);
   }
 };
-

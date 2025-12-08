@@ -8,20 +8,26 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { dailyExpenseService } from '@/services/dailyExpenseService';
 import { inventoryService } from '@/services/inventoryService';
+import { supplierService } from '@/services/supplierService';
 import toast from 'react-hot-toast';
-import type { Item } from '@/types/backend';
+import type { Item, Supplier } from '@/types/backend';
 
 export const DailyExpensesPage = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [transactionId, setTransactionId] = useState('');
+  
   const [formState, setFormState] = useState({
-    productId: '',
+    supplierId: '',
     description: '',
     amount: '',
     date: new Date().toISOString().substring(0, 10),
-    type: 'purchase' as 'purchase' | 'petty' | 'sale'
+    type: 'purchase' as 'purchase' | 'petty',
+    paymentType: 'cash' as 'cash' | 'card' | 'upi'
   });
 
   const fetchExpenses = useCallback(async () => {
@@ -47,29 +53,63 @@ export const DailyExpensesPage = () => {
     }
   }, []);
 
+  const fetchSuppliers = useCallback(async () => {
+    try {
+      const response = await supplierService.listSuppliers({ limit: 100, status: 'approved' });
+      setSuppliers(response.data);
+    } catch (error) {
+      console.error('Failed to load suppliers', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchExpenses();
     fetchItems();
-  }, [fetchExpenses, fetchItems]);
+    fetchSuppliers();
+  }, [fetchExpenses, fetchItems, fetchSuppliers]);
+
+  const handleSupplierChange = (supplierId: string) => {
+    const supplier = suppliers.find(s => s._id === supplierId) || null;
+    setSelectedSupplier(supplier);
+    setFormState(prev => ({ ...prev, supplierId }));
+  };
 
   const handleCreateExpense = async () => {
+    // Validate transaction ID for card and upi payments
+    if ((formState.paymentType === 'card' || formState.paymentType === 'upi') && !transactionId) {
+      toast.error('Transaction ID is required for card and UPI payments');
+      return;
+    }
+
     try {
-      await dailyExpenseService.create({
-        productId: formState.productId,
+      // Prepare the expense data
+      const expenseData: any = {
         description: formState.description,
         amount: Number(formState.amount),
         date: formState.date,
-        type: formState.type
-      });
+        type: formState.type,
+        paymentType: formState.paymentType,
+        transactionId: transactionId
+      };
+
+      // Only include supplierId for purchase expenses when a supplier is selected
+      if (formState.type === 'purchase' && formState.supplierId) {
+        expenseData.supplierId = formState.supplierId;
+      }
+
+      await dailyExpenseService.create(expenseData);
       toast.success('Expense recorded');
       setShowDialog(false);
       setFormState({
-        productId: '',
+        supplierId: '',
         description: '',
         amount: '',
         date: new Date().toISOString().substring(0, 10),
-        type: 'purchase'
+        type: 'purchase',
+        paymentType: 'cash'
       });
+      setTransactionId('');
+      setSelectedSupplier(null);
       fetchExpenses();
     } catch (error) {
       console.error('Failed to save expense', error);
@@ -130,7 +170,7 @@ export const DailyExpensesPage = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>Supplier</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
@@ -140,13 +180,13 @@ export const DailyExpensesPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Loading expenses...
                     </TableCell>
                   </TableRow>
                 ) : expenses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No expense entries recorded yet.
                     </TableCell>
                   </TableRow>
@@ -156,7 +196,7 @@ export const DailyExpensesPage = () => {
                     return (
                       <TableRow key={expenseId ?? `expense-${expense.date}`}>
                         <TableCell>{expense.date ? new Date(expense.date).toLocaleDateString() : '-'}</TableCell>
-                        <TableCell>{expense.product?.name ?? 'Unassigned'}</TableCell>
+                        <TableCell>{expense.supplier?.name ?? 'Unassigned'}</TableCell>
                         <TableCell>{expense.type ? expense.type.charAt(0).toUpperCase() + expense.type.slice(1) + ' Expense' : '-'}</TableCell>
                         <TableCell>{expense.description}</TableCell>
                         <TableCell>₹{expense.amount?.toFixed(2)}</TableCell>
@@ -182,49 +222,108 @@ export const DailyExpensesPage = () => {
       </Card>
 
       <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) fetchExpenses(); }}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Log Daily Expense</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="expenseDate">Date</Label>
-              <Input
-                id="expenseDate"
-                type="date"
-                value={formState.date}
-                onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="expenseDate">Date</Label>
+                <Input
+                  id="expenseDate"
+                  type="date"
+                  value={formState.date}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="expenseType">Type</Label>
+                <select
+                  id="expenseType"
+                  className="border rounded-md px-3 py-2 text-sm bg-background"
+                  value={formState.type}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value as 'purchase' | 'petty' }))}
+                >
+                  <option value="purchase">Purchase Expense</option>
+                  <option value="petty">Petty Expense</option>
+                </select>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="expenseType">Type</Label>
-              <select
-                id="expenseType"
-                className="border rounded-md px-3 py-2 text-sm bg-background"
-                value={formState.type}
-                onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value as 'purchase' | 'petty' | 'sale' }))}
-              >
-                <option value="purchase">Purchase Expense</option>
-                <option value="petty">Petty Expense</option>
-                <option value="sale">Sale Expense</option>
-              </select>
+            
+            {formState.type === 'purchase' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="supplierId">Supplier</Label>
+                  <select
+                    id="supplierId"
+                    className="border rounded-md px-3 py-2 text-sm bg-background"
+                    value={formState.supplierId}
+                    onChange={(event) => handleSupplierChange(event.target.value)}
+                  >
+                    <option value="">Select supplier</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier._id} value={supplier._id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {selectedSupplier && (
+                  <div className="grid gap-2 p-3 bg-gray-50 rounded-md">
+                    <h4 className="font-medium">Supplier Financial Details</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Bank:</span>
+                        <div>{selectedSupplier.bankName || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Account:</span>
+                        <div>{selectedSupplier.bank_account_number || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">IFSC:</span>
+                        <div>{selectedSupplier.ifscCode || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Payment Terms:</span>
+                        <div className="capitalize">{selectedSupplier.paymentTerms || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="paymentType">Payment Type</Label>
+                <select
+                  id="paymentType"
+                  className="border rounded-md px-3 py-2 text-sm bg-background"
+                  value={formState.paymentType}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, paymentType: event.target.value as 'cash' | 'card' | 'upi' }))}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+              
+              {(formState.paymentType === 'card' || formState.paymentType === 'upi') && (
+                <div className="grid gap-2">
+                  <Label htmlFor="transactionId">Transaction ID *</Label>
+                  <Input
+                    id="transactionId"
+                    value={transactionId}
+                    onChange={(event) => setTransactionId(event.target.value)}
+                    placeholder="Enter transaction ID"
+                  />
+                </div>
+              )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="productId">Product</Label>
-              <select
-                id="productId"
-                className="border rounded-md px-3 py-2 text-sm bg-background"
-                value={formState.productId}
-                onChange={(event) => setFormState((prev) => ({ ...prev, productId: event.target.value }))}
-              >
-                <option value="">Select product</option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({item.code})
-                  </option>
-                ))}
-              </select>
-            </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <Input
@@ -234,21 +333,32 @@ export const DailyExpensesPage = () => {
                 placeholder="Loading charges, warehousing, etc."
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="amount">Amount</Label>
-              <Input
-                id="amount"
-                type="number"
-                min={0}
-                step={0.01}
-                value={formState.amount}
-                onChange={(event) => setFormState((prev) => ({ ...prev, amount: event.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={formState.amount}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, amount: event.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateExpense} disabled={!formState.productId || !formState.description || !formState.amount || !formState.type}>
+            <Button 
+              onClick={handleCreateExpense} 
+              disabled={
+                !formState.description || 
+                !formState.amount || 
+                !formState.type ||
+                (formState.type === 'purchase' && !formState.supplierId) ||
+                ((formState.paymentType === 'card' || formState.paymentType === 'upi') && !transactionId)
+              }
+            >
               Save Expense
             </Button>
           </DialogFooter>
@@ -257,4 +367,3 @@ export const DailyExpensesPage = () => {
     </div>
   );
 };
-

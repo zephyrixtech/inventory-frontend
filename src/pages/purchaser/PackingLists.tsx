@@ -33,6 +33,9 @@ interface PackingListFormState {
   currency: 'INR' | 'AED';
   exchangeRate?: number;
   status: 'india' | 'uae';
+  // New fields
+  cargoNumber?: string;
+  fabricDetails?: string;
 }
 
 const DEFAULT_FORM: PackingListFormState = {
@@ -47,7 +50,10 @@ const DEFAULT_FORM: PackingListFormState = {
   items: [],
   currency: 'INR',
   exchangeRate: undefined,
-  status: 'india'
+  status: 'india',
+  // New fields
+  cargoNumber: '',
+  fabricDetails: ''
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -287,7 +293,10 @@ export const PackingListsPage = () => {
         items: itemsWithProductInfo,
         currency: packingList.currency || 'INR',
         exchangeRate: packingList.exchangeRate,
-        status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae'
+        status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae',
+        // New fields
+        cargoNumber: (packingList as any).cargoNumber || '',
+        fabricDetails: (packingList as any).fabricDetails || ''
       };
 
       setFormState(formData);
@@ -420,7 +429,10 @@ export const PackingListsPage = () => {
           toStoreId: formState.toStoreId || undefined,
           currency: formState.currency,
           exchangeRate: formState.exchangeRate,
-          status: formState.status
+          status: formState.status,
+          // New fields
+          cargoNumber: formState.cargoNumber || undefined,
+          fabricDetails: formState.fabricDetails || undefined
         });
         toast.success('Packing list updated successfully');
       } else {
@@ -436,7 +448,10 @@ export const PackingListsPage = () => {
           toStoreId: formState.toStoreId || undefined,
           currency: formState.currency,
           exchangeRate: formState.exchangeRate,
-          status: formState.status
+          status: formState.status,
+          // New fields
+          cargoNumber: formState.cargoNumber || undefined,
+          fabricDetails: formState.fabricDetails || undefined
         });
         toast.success('Packing list created and stock updated');
         if (formState.storeId) {
@@ -673,13 +688,37 @@ export const PackingListsPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="boxNumber" className="text-sm font-medium">Box Number *</Label>
+                  <Label htmlFor="boxNumber" className="text-sm font-medium">Box / Bora *</Label>
                   <Input
                     id="boxNumber"
                     value={formState.boxNumber}
                     onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="Enter box number"
+                  />
+                </div>
+
+                {/* New Cargo Number Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="cargoNumber" className="text-sm font-medium">Cargo Number</Label>
+                  <Input
+                    id="cargoNumber"
+                    value={formState.cargoNumber || ''}
+                    onChange={(e) => setFormState(prev => ({ ...prev, cargoNumber: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter cargo number"
+                  />
+                </div>
+
+                {/* New Fabric Details Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="fabricDetails" className="text-sm font-medium">Fabric Details</Label>
+                  <Input
+                    id="fabricDetails"
+                    value={formState.fabricDetails || ''}
+                    onChange={(e) => setFormState(prev => ({ ...prev, fabricDetails: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter fabric details"
                   />
                 </div>
 
@@ -704,17 +743,6 @@ export const PackingListsPage = () => {
                     className="h-10 focus-visible:ring-primary/20"
                   />
                 </div>
-
-                {/* <div className="space-y-2">
-                  <Label htmlFor="image" className="text-sm font-medium">Reference Image URL</Label>
-                  <Input
-                    id="image"
-                    value={formState.image1}
-                    onChange={(e) => setFormState(prev => ({ ...prev, image1: e.target.value }))}
-                    className="h-10 focus-visible:ring-primary/20"
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div> */}
 
                 <div className="space-y-2">
                   <Label htmlFor="status" className="text-sm font-medium">Status</Label>
@@ -956,8 +984,38 @@ export const PackingListsPage = () => {
                     )}
                   </div>
                 </div>
-
                 
+                {/* Image 2 Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image2" className="text-sm font-medium">Image 2</Label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      id="image2"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(2, e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                    {(formState.image2 || imagePreviews.image2) && (
+                      <div className="mt-2">
+                        <img
+                          src={formState.image2 || imagePreviews.image2}
+                          alt="Preview 2"
+                          className="max-w-full h-32 object-contain rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleImageUpload(2, null)}
+                          className="mt-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Notes Section */}

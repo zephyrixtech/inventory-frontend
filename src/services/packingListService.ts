@@ -19,6 +19,9 @@ export interface PackingListInput {
   image2?: string;
   notes?: string;
   status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  // New fields
+  cargoNumber?: string;
+  fabricDetails?: string;
 }
 
 export interface PackingList {
@@ -65,6 +68,9 @@ export interface PackingList {
   approvedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // New fields
+  cargoNumber?: string;
+  fabricDetails?: string;
 }
 
 export const packingListService = {
