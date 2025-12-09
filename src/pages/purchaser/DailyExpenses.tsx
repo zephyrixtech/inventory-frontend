@@ -286,10 +286,6 @@ export const DailyExpensesPage = () => {
                         <span className="text-muted-foreground">IFSC:</span>
                         <div>{selectedSupplier.ifscCode || 'N/A'}</div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Payment Terms:</span>
-                        <div className="capitalize">{selectedSupplier.paymentTerms || 'N/A'}</div>
-                      </div>
                     </div>
                   </div>
                 )}
