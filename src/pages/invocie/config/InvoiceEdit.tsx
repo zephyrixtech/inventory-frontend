@@ -208,8 +208,8 @@ export default function InvoiceEdit() {
   // Fetch stores for the company
   useEffect(() => {
     const fetchStores = async () => {
-      if (!companyId) return;
-      
+      // if (!companyId) return;
+
       try {
         const response = await storeService.listStores({});
         if (response.data) {
@@ -277,7 +277,7 @@ export default function InvoiceEdit() {
           // Fetch store stock for invoice items
           const itemIds = invoiceItems.map(item => item.id);
           let stockMap: Record<string, number> = {};
-          
+
           try {
             const stockResponse = await storeStockService.list({ limit: 1000 });
             if (stockResponse.data) {
@@ -293,7 +293,7 @@ export default function InvoiceEdit() {
           } catch (stockError) {
             console.error('Error fetching store stock:', stockError);
           }
-          
+
           setDisplayStockMap(stockMap);
 
           const previousQuantitiesMap: Record<string, number> = invoiceItems.reduce((acc, it) => {
@@ -364,13 +364,13 @@ export default function InvoiceEdit() {
   useEffect(() => {
     const fetchAndSetNextInvoiceNumber = async () => {
       if (isEditing) return;
-      if (!companyId) return;
+      // if (!companyId) return;
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, '0');
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       const yy = String(now.getFullYear()).slice(-2);
       const todayPrefix = `INV-${dd}${mm}${yy}-`;
-      
+
       try {
         // Fetch invoices to get the last invoice number
         const response = await salesInvoiceService.listInvoices({
@@ -379,7 +379,7 @@ export default function InvoiceEdit() {
           sortBy: 'invoiceNumber',
           sortOrder: 'desc',
         });
-        
+
         let nextSerial = 1;
         if (response.data && response.data.length > 0) {
           const lastInvoice = response.data[0];
@@ -457,7 +457,7 @@ export default function InvoiceEdit() {
 
     return () => clearTimeout(timeoutId);
   }, [customerSearchTerm, selectedCustomer]);
-  
+
   // Handle selecting a customer
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -482,24 +482,24 @@ export default function InvoiceEdit() {
   const handleStoreChange = (storeId: string) => {
     setSelectedStore(storeId);
     setValue('storeId', storeId);
-    
+
     // Clear existing items and search when store changes
     setSelectedSupplies([]);
     setFilteredSupplies([]);
     setItemSearchTerm('');
     setShowSuppliesDropdown(false);
     setTempSelectedSupplies([]);
-    
+
     // Clear form items and reset validation state
     reset({
       ...watchedFields,
       storeId: storeId,
       items: [],
     });
-    
+
     // Clear display stock map
     setDisplayStockMap({});
-    
+
     // Clear any existing validation errors
     clearValidationErrors();
   };
@@ -528,7 +528,7 @@ export default function InvoiceEdit() {
         // Fetch store stock for all items to get available quantities
         const itemIds = response.data.map(item => item._id || item.id);
         const stockMap: Record<string, number> = {};
-        
+
         try {
           // Fetch store stock for these items
           const stockResponse = await storeStockService.list({ limit: 1000 });
@@ -595,12 +595,12 @@ export default function InvoiceEdit() {
       if (idsToFetch.length === 0) return [];
 
       // Fetch items by IDs from filteredSupplies first
-      const itemsFromFiltered = filteredSupplies.filter(item => 
+      const itemsFromFiltered = filteredSupplies.filter(item =>
         idsToFetch.includes(item.id)
       );
 
       // For any remaining items not found in filteredSupplies, fetch from API
-      const remainingIds = idsToFetch.filter(id => 
+      const remainingIds = idsToFetch.filter(id =>
         !itemsFromFiltered.some(item => item.id === id)
       );
 
@@ -620,12 +620,12 @@ export default function InvoiceEdit() {
                   description: item.description || 'No description',
                   price: item.unitPrice || 0,
                 };
-                
+
                 // Only add availableStock if it exists
                 if (item.availableStock !== undefined) {
                   supplyItem.availableStock = item.availableStock;
                 }
-                
+
                 return supplyItem;
               }
               return null;
@@ -641,7 +641,7 @@ export default function InvoiceEdit() {
       // Combine items from filtered supplies and API, ensuring no null values
       const combinedItems: Supply[] = [...itemsFromFiltered];
       combinedItems.push(...additionalItems);
-      
+
       return combinedItems;
     } catch (err: any) {
       console.error('Unexpected error:', err);
@@ -654,7 +654,7 @@ export default function InvoiceEdit() {
   const getAvailableStock = async (items: Supply[]) => {
     try {
       const itemIds = items.map((item) => item.id);
-      
+
       // Fetch store stock for these items
       const stockResponse = await storeStockService.list({ limit: 1000 });
       if (!stockResponse.data) return [];
@@ -685,7 +685,7 @@ export default function InvoiceEdit() {
   const handleConfirmSupplies = async () => {
     // Fetch data for new supplies
     const tempSuppliesData = await fetchTempSuppliesData(tempSelectedSupplies) || [];
-    
+
     if (tempSuppliesData.length === 0) {
       toast.error('No valid items selected');
       return;
@@ -698,7 +698,7 @@ export default function InvoiceEdit() {
       ...tempSuppliesData
     ];
     setSelectedSupplies(newSelectedSupplies);
-    
+
     const itemAvailableStocks = await getAvailableStock(tempSuppliesData) || [];
 
     // Append to invoice form fields
@@ -715,7 +715,7 @@ export default function InvoiceEdit() {
         unitPrice: supply.price,
         discount: 0,
         total: supply.price,
-        availableStock, 
+        availableStock,
       });
     });
 
@@ -779,19 +779,19 @@ export default function InvoiceEdit() {
   // Function to handle form submission with proper validation
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Clear any existing validation errors
     clearValidationErrors();
-    
+
     // Trigger validation for all fields
     const isValid = await trigger();
-    
+
     if (!isValid) {
       setFormStatus('error');
       setError('Please fix the validation errors before submitting.');
       return;
     }
-    
+
     // If validation passes, submit the form
     handleSubmit(onSubmit)(e);
   };
@@ -815,7 +815,7 @@ export default function InvoiceEdit() {
       // Fetch store stock for all items
       const itemIds = items.map(item => item.id);
       const stockResponse = await storeStockService.list({ limit: 1000 });
-      
+
       const stockMap: Record<string, number> = {};
       if (stockResponse.data) {
         stockResponse.data.forEach((stock) => {
@@ -897,87 +897,87 @@ export default function InvoiceEdit() {
     // Don't trigger validation here - let it happen on form submit
   };
 
-   const onSubmit: SubmitHandler<InvoiceFormValues> = async (data) => {
-  console.log('Form submitted with data:', data);
-  setError('');
-  setFormStatus('submitting');
-  
-  try {
-    setIsLoading(true);
+  const onSubmit: SubmitHandler<InvoiceFormValues> = async (data) => {
+    console.log('Form submitted with data:', data);
+    setError('');
+    setFormStatus('submitting');
 
-    if (!selectedCustomer?.id) {
-      throw new Error('Please select a customer');
+    try {
+      setIsLoading(true);
+
+      if (!selectedCustomer?.id) {
+        throw new Error('Please select a customer');
+      }
+
+      if (!data.storeId) {
+        throw new Error('Please select a store');
+      }
+
+      // Check stock availability before proceeding
+      const stockErrors = await checkStockAvailability(data.items);
+      if (stockErrors.length > 0) {
+        throw new Error(`Insufficient stock for the following items:\n${stockErrors.join('\n')}`);
+      }
+
+
+      // const grossItemsTotal = data.items.reduce((sum, item) => {
+      //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      //   return sum + itemSubtotal;
+      // }, 0);
+      // const grossAmount = grossItemsTotal + (data.additionalCharges || 0);
+
+      // const totalDiscountAmount = data.items.reduce((sum, item) => {
+      //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      //   const discountPercentage = item.discount || 0; // This is percentage from UI
+      //   const discountAmount = (itemSubtotal * discountPercentage) / 100; // Convert to actual amount
+      //   return sum + discountAmount;
+      // }, 0);
+
+      // 3. Net amount (after discounts) = gross amount - discount amount
+      // const netAmount = grossAmount - totalDiscountAmount;
+
+      // Prepare invoice payload for API
+      const invoicePayload = {
+        invoiceNumber: data.invoiceNumber,
+        invoiceDate: data.date,
+        customerId: selectedCustomer.id,
+        storeId: data.storeId,
+        items: data.items.map((item) => ({
+          itemId: item.id,
+          description: item.name,
+          quantity: item.quantity || 0,
+          unitPrice: item.unitPrice || 0,
+          discount: item.discount || 0, // This is percentage
+        })),
+        taxAmount: 0, // Can be added later if needed
+        notes: data.billingAddress || undefined,
+      };
+
+      if (isEditing && id) {
+        // Update existing invoice
+        await salesInvoiceService.updateInvoice(id, {
+          invoiceDate: invoicePayload.invoiceDate,
+          items: invoicePayload.items,
+          taxAmount: invoicePayload.taxAmount,
+          notes: invoicePayload.notes,
+        });
+      } else {
+        // Create new invoice
+        await salesInvoiceService.createInvoice(invoicePayload);
+      }
+
+      toast.success(`${isEditing ? 'Invoice updated successfully!' : 'Invoice created successfully!'}`);
+      setFormStatus('success');
+      setTimeout(() => navigate('/dashboard/invoice'), 1000);
+    } catch (error: any) {
+      console.error('Error submitting form:', error);
+      setError(error.message || 'Failed to save invoice. Please check all fields and try again.');
+      setFormStatus('error');
+      toast.error(error.message || 'Failed to save invoice');
+    } finally {
+      setIsLoading(false);
     }
-
-    if (!data.storeId) {
-      throw new Error('Please select a store');
-    }
-
-    // Check stock availability before proceeding
-    const stockErrors = await checkStockAvailability(data.items);
-    if (stockErrors.length > 0) {
-      throw new Error(`Insufficient stock for the following items:\n${stockErrors.join('\n')}`);
-    }
-
-
-    // const grossItemsTotal = data.items.reduce((sum, item) => {
-    //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-    //   return sum + itemSubtotal;
-    // }, 0);
-    // const grossAmount = grossItemsTotal + (data.additionalCharges || 0);
-
-    // const totalDiscountAmount = data.items.reduce((sum, item) => {
-    //   const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-    //   const discountPercentage = item.discount || 0; // This is percentage from UI
-    //   const discountAmount = (itemSubtotal * discountPercentage) / 100; // Convert to actual amount
-    //   return sum + discountAmount;
-    // }, 0);
-
-    // 3. Net amount (after discounts) = gross amount - discount amount
-    // const netAmount = grossAmount - totalDiscountAmount;
-
-    // Prepare invoice payload for API
-    const invoicePayload = {
-      invoiceNumber: data.invoiceNumber,
-      invoiceDate: data.date,
-      customerId: selectedCustomer.id,
-      storeId: data.storeId,
-      items: data.items.map((item) => ({
-        itemId: item.id,
-        description: item.name,
-        quantity: item.quantity || 0,
-        unitPrice: item.unitPrice || 0,
-        discount: item.discount || 0, // This is percentage
-      })),
-      taxAmount: 0, // Can be added later if needed
-      notes: data.billingAddress || undefined,
-    };
-
-    if (isEditing && id) {
-      // Update existing invoice
-      await salesInvoiceService.updateInvoice(id, {
-        invoiceDate: invoicePayload.invoiceDate,
-        items: invoicePayload.items,
-        taxAmount: invoicePayload.taxAmount,
-        notes: invoicePayload.notes,
-      });
-    } else {
-      // Create new invoice
-      await salesInvoiceService.createInvoice(invoicePayload);
-    }
-
-    toast.success(`${isEditing ? 'Invoice updated successfully!' : 'Invoice created successfully!'}`);
-    setFormStatus('success');
-    setTimeout(() => navigate('/dashboard/invoice'), 1000);
-  } catch (error: any) {
-    console.error('Error submitting form:', error);
-    setError(error.message || 'Failed to save invoice. Please check all fields and try again.');
-    setFormStatus('error');
-    toast.error(error.message || 'Failed to save invoice');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
 
   if (isLoading && isEditing) {
@@ -1032,7 +1032,7 @@ export default function InvoiceEdit() {
           <CardContent className="pt-6">
             <form onSubmit={handleFormSubmit} className="space-y-6" noValidate>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               
+
 
                 <div className="space-y-2 group">
                   <Label
@@ -1131,8 +1131,7 @@ export default function InvoiceEdit() {
                           setShowCustomerDropdown(true);
                         }
                       }}
-                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
-                        errors.customerName
+                      className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${errors.customerName
                           ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                           : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                         } transition-all duration-200`}
@@ -1219,9 +1218,16 @@ export default function InvoiceEdit() {
                   <Input
                     id="contactNumber"
                     value={selectedCustomer?.phone ?? ''}
-                    readOnly
                     placeholder="10 digits"
-                    onChange={() => {
+                    onChange={(e) => {
+                      if (selectedCustomer) {
+                        setSelectedCustomer({
+                          ...selectedCustomer,
+                          phone: e.target.value
+                        });
+                        setValue('contactNumber', e.target.value);
+                      }
+
                       // Clear validation errors when user starts typing
                       if (errors.contactNumber) {
                         clearValidationErrors();
@@ -1247,9 +1253,15 @@ export default function InvoiceEdit() {
                   <Input
                     id="email"
                     value={selectedCustomer?.email ?? ''}
-                    readOnly
                     placeholder="example@example.com"
-                    onChange={() => {
+                    onChange={(e) => {
+                      if (selectedCustomer) {
+                        setSelectedCustomer({
+                          ...selectedCustomer,
+                          email: e.target.value
+                        });
+                        setValue('email', e.target.value);
+                      }
                       // Clear validation errors when user starts typing
                       if (errors.email) {
                         clearValidationErrors();
@@ -1275,9 +1287,15 @@ export default function InvoiceEdit() {
                   <Textarea
                     id="billingAddress"
                     value={selectedCustomer?.address ?? ''}
-                    readOnly
                     placeholder="Billing address"
-                    onChange={() => {
+                    onChange={(e) => {
+                      if (selectedCustomer) {
+                        setSelectedCustomer({
+                          ...selectedCustomer,
+                          address: e.target.value
+                        });
+                        setValue('billingAddress', e.target.value);
+                      }
                       // Clear validation errors when user starts typing
                       if (errors.billingAddress) {
                         clearValidationErrors();
@@ -1306,15 +1324,13 @@ export default function InvoiceEdit() {
                       onChange={(e) => setItemSearchTerm(e.target.value)}
                       onFocus={() => selectedStore && setShowSuppliesDropdown(true)}
                       disabled={!selectedStore}
-                      className={`pl-10 pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
-                        selectedStore 
-                          ? 'border-gray-200 focus:border-blue-500 focus:ring-blue-200' 
+                      className={`pl-10 pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${selectedStore
+                          ? 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                           : 'border-gray-200 bg-gray-100 cursor-not-allowed'
-                      }`}
+                        }`}
                     />
-                    <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                      selectedStore ? 'text-gray-400' : 'text-gray-300'
-                    }`} />
+                    <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${selectedStore ? 'text-gray-400' : 'text-gray-300'
+                      }`} />
                   </div>
 
                   {showSuppliesDropdown && filteredSupplies.length > 0 && (
@@ -1341,7 +1357,7 @@ export default function InvoiceEdit() {
                                     selectedSupplies.some((s) => s.id === supply.id)
                                   }
                                   onCheckedChange={() => {
-                                    const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent<HTMLButtonElement>;
+                                    const syntheticEvent = { stopPropagation: () => { } } as React.MouseEvent<HTMLButtonElement>;
                                     handleSupplyToggle(supply, syntheticEvent);
                                   }}
                                   onClick={(e) => e.stopPropagation()}
@@ -1597,8 +1613,8 @@ export default function InvoiceEdit() {
                       {!selectedStore ? 'Select a store first' : 'No items added yet'}
                     </p>
                     <p className="text-sm">
-                      {!selectedStore 
-                        ? 'Choose a store from the dropdown above to start searching for items' 
+                      {!selectedStore
+                        ? 'Choose a store from the dropdown above to start searching for items'
                         : 'Search and select items above to add them to your invoice'
                       }
                     </p>
