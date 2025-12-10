@@ -2,6 +2,18 @@ import { Button } from '@/components/ui/button';
 import { Calendar, RefreshCw, Loader2 } from 'lucide-react';
 
 export const DashboardHeader = ({ onRefresh, loading, lastUpdated }) => {
+  const formatDate = (date) => {
+    if (!date) return 'Never';
+    if (date instanceof Date) {
+      return date.toLocaleString();
+    }
+    try {
+      return new Date(date).toLocaleString();
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
   return (
     <div className="flex items-center justify-between">
       <h1 className="text-3xl font-bold text-gray-900">Inventory Dashboard</h1>
@@ -22,10 +34,9 @@ export const DashboardHeader = ({ onRefresh, loading, lastUpdated }) => {
         </Button>
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Calendar className="h-4 w-4" />
-          Last updated: {lastUpdated ? lastUpdated.toLocaleString() : 'Never'}
+          Last updated: {formatDate(lastUpdated)}
         </div>
       </div>
     </div>
   );
 };
-

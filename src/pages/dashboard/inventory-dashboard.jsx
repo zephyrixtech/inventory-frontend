@@ -7,32 +7,42 @@ import {
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
-import dashboardData from '@/data/dashboard.json';
+import { dashboardService } from '@/services/dashboardService';
 
 export const InventoryDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(dashboardData.lastUpdated);
-  const [data, setData] = useState(dashboardData);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [data, setData] = useState(null);
   const [currencySymbol, setCurrencySymbol] = useState('$');
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('userData') || '{}');
     const currency = userData?.company_data?.currency || '$';
     setCurrencySymbol(currency);
+    
+    // Load initial data
+    loadData();
   }, []);
 
-  const handleRefresh = async () => {
+  const loadData = async () => {
     setLoading(true);
     setError('');
+    
     try {
-      await new Promise(r => setTimeout(r, 400));
-      setLastUpdated(new Date().toISOString());
-    } catch {
-      setError('Failed to refresh');
+      const response = await dashboardService.getDashboardData();
+      setData(response.data);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await loadData();
   };
 
   if (loading && !data) {
@@ -61,6 +71,7 @@ export const InventoryDashboard = () => {
     );
   }
 
+  // Use dynamic data or fallback to empty objects/arrays
   const metrics = data?.metrics || { totalItems: 0, totalValue: 0, totalPurchaseOrders: 0, totalPurchaseOrderValue: 0 };
   const categoryData = data?.categoryData || [];
   const salesData = data?.salesData || [];
@@ -97,5 +108,3 @@ export const InventoryDashboard = () => {
     </div>
   );
 }
-
-

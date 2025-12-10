@@ -2,6 +2,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => {
+  // Transform category data to match chart expectations
+  const transformedCategoryData = categoryData.map(item => ({
+    name: item.name,
+    count: item.stock, // Backend returns "stock", frontend chart expects "count"
+    fill: item.fill
+  }));
+
+  // Transform sales data to match chart expectations
+  const transformedSalesData = salesData.map(item => ({
+    day: item.day,
+    sales: item.sales
+  }));
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {/* Stock by Category Bar Chart */}
@@ -11,9 +24,9 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
         </CardHeader>
         <CardContent>
           <div className="h-60">
-            {categoryData.length > 0 ? (
+            {transformedCategoryData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                <BarChart data={transformedCategoryData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="name" 
@@ -43,7 +56,7 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
                     }}
                   />
-                  <Bar dataKey="stock" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -63,9 +76,9 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
         </CardHeader>
         <CardContent>
           <div className="h-60">
-            {salesData.length > 0 ? (
+            {transformedSalesData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={salesData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                <LineChart data={transformedSalesData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="day" 
@@ -128,4 +141,3 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
     </div>
   );
 };
-

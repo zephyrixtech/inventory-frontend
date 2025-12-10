@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   AlertCircle,
   Loader2,
-  Search,
   Save,
   Package,
   Target,
@@ -40,7 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatCurrency } from '@/Utils/formatters';
+
 
 
 // Import our new services
@@ -54,11 +53,11 @@ interface ICategoryMaster {
   name: string;
 }
 
-interface IUser {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-}
+// interface IUser {
+//   id: string;
+//   first_name: string | null;
+//   last_name: string | null;
+// }
 
 
 
@@ -170,7 +169,7 @@ const InventoryForm = () => {
   const [categories, setCategories] = useState<ICategoryMaster[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]); // NEW: Suppliers state
   const [suppliersLoading, setSuppliersLoading] = useState(false); // NEW: Suppliers loading state
-  const [formSchema, setFormSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
+  const [formSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
   const [image1Preview, setImage1Preview] = useState<string | null>(null);
   const [image2Preview, setImage2Preview] = useState<string | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
@@ -183,8 +182,8 @@ const InventoryForm = () => {
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   // const [categoryRetryCount, setCategoryRetryCount] = useState(0);
-  const user = localStorage.getItem("userData");
-  const userData: IUser | null = user ? JSON.parse(user) : null;
+  // const user = localStorage.getItem("userData");
+  // const userData: IUser | null = user ? JSON.parse(user) : null;
   const [videoType, setVideoType] = useState('upload'); // 'upload' or 'youtube'
   // const [youtubeUrl, setYoutubeUrl] = useState('');
   // const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
