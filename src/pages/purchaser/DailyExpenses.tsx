@@ -16,7 +16,7 @@ export const DailyExpensesPage = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [items, setItems] = useState<Item[]>([]);
+  const [_items, _setItems] = useState<Item[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [transactionId, setTransactionId] = useState('');
@@ -47,7 +47,7 @@ export const DailyExpensesPage = () => {
   const fetchItems = useCallback(async () => {
     try {
       const response = await inventoryService.getItems({ limit: 100 });
-      setItems(response.data);
+      _setItems(response.data);
     } catch (error) {
       console.error('Failed to load items', error);
     }

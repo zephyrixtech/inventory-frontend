@@ -1,20 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-interface CompanyData {
-  id?: string;
-  name?: string;
-  code?: string;
-  currency?: string;
-  description?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postal_code?: string;
-  phone?: string;
-  tax_percentage?: number;
-  email?: string;
-}
+// Removed CompanyData interface as it's no longer used
 
 interface UserData {
   id: string;

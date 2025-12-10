@@ -102,7 +102,7 @@ export const StoreStockPage = () => {
 
     try {
       // Fetch active stores
-      const storesResponse = await storeService.listStores({ type: 'all' });
+      const storesResponse = await storeService.listStores();
       setStores(storesResponse.data);
     } catch (error) {
       console.error('Failed to load stores', error);

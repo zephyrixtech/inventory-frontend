@@ -14,7 +14,7 @@ import {
   selectStatusMessages,
   selectReportConfigs
 } from '@/redux/features/PurchaseOrderReportPrintSlice';
-import { selectUser } from '@/redux/features/userSlice';
+// import { selectUser } from '@/redux/features/userSlice';
 import React from 'react';
 
 // Interfaces based on PurchaseOrderView
@@ -153,8 +153,21 @@ const PrintPreview: React.FC = () => {
   const dateRange = useSelector(selectDateRange);
   const statusMessages = useSelector(selectStatusMessages);
   const reportConfigs = useSelector(selectReportConfigs);
-  const userData = useSelector(selectUser);
-  const companyData = userData?.company_data;
+  // const userData = useSelector(selectUser);
+  
+  // Static company data since we don't have company logic
+  const companyData = {
+    name: 'Inventory Management System',
+    description: 'Complete Inventory & Supply Chain Management',
+    address: '123 Business Street',
+    city: 'Business City',
+    state: 'Business State',
+    country: 'Business Country',
+    postal_code: '12345',
+    phone: '+1 (555) 123-4567',
+    email: 'info@inventoryms.com',
+    tax_percentage: 18
+  };
 
   // Local state
   const [currentPage, setCurrentPage] = useState(1);
@@ -558,11 +571,11 @@ const PrintPreview: React.FC = () => {
               <div class="page">
                 <div class="header">
                   <div>
-                    <h1 style="color: #2563eb; margin: 0;">${companyData?.name}</h1>
-                    <p style="margin: 5px 0; color: #666;">${companyData?.description}</p>
-                    <p style="margin: 2px 0; color: #666;">${companyData?.address}</p>
-                    <p style="margin: 2px 0; color: #666;">${companyData?.city}, ${companyData?.state}, ${companyData?.country}, ${companyData?.postal_code}</p>
-                    <p style="margin: 2px 0; color: #666;">Phone: ${companyData?.phone}</p>
+                    <h1 style="color: #2563eb; margin: 0;">${companyData.name}</h1>
+                    <p style="margin: 5px 0; color: #666;">${companyData.description}</p>
+                    <p style="margin: 2px 0; color: #666;">${companyData.address}</p>
+                    <p style="margin: 2px 0; color: #666;">${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}</p>
+                    <p style="margin: 2px 0; color: #666;">Phone: ${companyData.phone}</p>
                   </div>
                   <div style="text-align: right;">
                     <h2 style="color: #1e40af; margin: 0;">PURCHASE ORDER</h2>
@@ -820,12 +833,12 @@ const PrintPreview: React.FC = () => {
       <div class="page">
         <div class="header">
           <div class="left-column">
-            <h1>${companyData?.name}</h1>
+            <h1>${companyData.name}</h1>
             <div class="company-details">
-              ${companyData?.description}<br>
-              ${companyData?.address}<br>
-              ${companyData?.city}, ${companyData?.state}, ${companyData?.country}, ${companyData?.postal_code}<br>
-              Phone: ${companyData?.phone}
+              ${companyData.description}<br>
+              ${companyData.address}<br>
+              ${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}<br>
+              Phone: ${companyData.phone}
             </div>
           </div>
           <div class="right-column">
@@ -874,7 +887,7 @@ const PrintPreview: React.FC = () => {
           <tfoot>
             <tr>
               <td colspan="4"></td>
-              <td>Tax Amount (${companyData?.tax_percentage}%)</td>
+              <td>Tax Amount (${companyData.tax_percentage}%)</td>
               <td>${formatCurrency(invoice.tax_amount ?? 0)}</td>
             </tr>
             <tr>
@@ -1011,12 +1024,12 @@ const PrintPreview: React.FC = () => {
         <div class="page">
           <div class="header">
             <div class="left-column">
-              <h1>${companyData?.name}</h1>
+              <h1>${companyData.name}</h1>
               <div class="company-details">
-                ${companyData?.description || ''}<br>
-                ${companyData?.address || ''}<br>
-                ${companyData?.city || ''}, ${companyData?.state || ''}, ${companyData?.country || ''}, ${companyData?.postal_code || ''}<br>
-                Phone: ${companyData?.phone || ''}
+                ${companyData.description}<br>
+                ${companyData.address}<br>
+                ${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}<br>
+                Phone: ${companyData.phone}
               </div>
             </div>
             <div class="right-column">
@@ -1208,8 +1221,8 @@ const PrintPreview: React.FC = () => {
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{companyData?.name}</h1>
-                  <p className="text-gray-600 text-sm">{companyData?.description}</p>
+                  <h1 className="text-2xl font-bold text-gray-800">{companyData.name}</h1>
+                  <p className="text-gray-600 text-sm">{companyData.description}</p>
                 </div>
               </div>
               <div className="text-right">

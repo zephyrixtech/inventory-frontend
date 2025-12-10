@@ -15,6 +15,14 @@ import { qualityCheckService } from '@/services/qualityCheckService';
 import { supplierService } from '@/services/supplierService';
 import type { Item } from '@/types/backend';
 
+// Extended Supplier interface to include selectedSupplies
+interface Supplier {
+  _id: string;
+  name: string;
+  contactPerson?: string;
+  selectedSupplies?: string[];
+}
+
 const QualityControlPage = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +52,8 @@ const QualityControlPage = () => {
       );
       const response = await supplierService.listSuppliers({ limit: 200, status: 'approved' });
       const lookup: Record<string, { name: string; contactPerson?: string }> = {};
-      response.data.forEach((supplier) => {
-        supplier.selectedSupplies?.forEach((supplyId) => {
+      response.data.forEach((supplier: Supplier) => {
+        supplier.selectedSupplies?.forEach((supplyId: string) => {
           if (missingIds.has(supplyId)) {
             lookup[supplyId] = { name: supplier.name, contactPerson: supplier.contactPerson };
           }
