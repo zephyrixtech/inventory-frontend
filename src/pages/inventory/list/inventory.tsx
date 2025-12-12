@@ -177,14 +177,15 @@ export const Inventory = () => {
     }
 
     try {
-      const headers = ['Item Code', 'Item Name', 'Category', 'Unit Price', 'Quantity', 'Available Stock', 'Currency', 'Status'];
+      const headers = ['Item Code', 'Item Name', 'Category', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
       const rows = inventory.map((item) => [
         item.code || '',
         item.name || '',
         item.category?.name ?? 'Uncategorized',
         item.unitPrice ?? 0,
         item.quantity ?? 0,
-        item.availableStock ?? 0,
+        item.damagedQuantity ?? 0,
+        item.availableQuantity ?? 0,
         item.currency ?? 'INR',
         item.qcStatus?.replace(/_/g, ' ') ?? 'Unknown',
       ]);
@@ -308,7 +309,9 @@ export const Inventory = () => {
                   </TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Unit Price</TableHead>
-                  <TableHead>Available Stock</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Damaged Qty</TableHead>
+                  <TableHead>Available Qty</TableHead>
                   <TableHead>QC Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -316,13 +319,13 @@ export const Inventory = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Loading inventory...
                     </TableCell>
                   </TableRow>
                 ) : sortedInventory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No items found.
                     </TableCell>
                   </TableRow>
@@ -335,7 +338,9 @@ export const Inventory = () => {
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.category?.name ?? 'Uncategorized'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
-                      <TableCell>{item.availableStock ?? 0}</TableCell>
+                      <TableCell>{item.quantity ?? 0}</TableCell>
+                      <TableCell>{item.damagedQuantity ?? 0}</TableCell>
+                      <TableCell>{item.availableQuantity ?? 0}</TableCell>
                       <TableCell>{item.qcStatus?.replace(/_/g, ' ') ?? 'Unknown'}</TableCell>
                       <TableCell className="text-right">
                         <TooltipProvider>

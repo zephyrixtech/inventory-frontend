@@ -17,6 +17,7 @@ export interface PackingListInput {
   packingDate?: string;
   image1?: string;
   status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  approvalStatus?: 'draft' | 'approved';
   // New fields
   cargoNumber?: string;
   fabricDetails?: string;
@@ -25,7 +26,7 @@ export interface PackingListInput {
 export interface PackingList {
   _id: string;
   id?: string;
-  company: string;
+  company?: string;
   boxNumber: string;
   items: Array<{
     product: {
@@ -50,6 +51,7 @@ export interface PackingList {
     code: string;
   } | string;
   status: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
+  approvalStatus: 'draft' | 'approved';
   createdBy?: {
     _id: string;
     firstName: string;
@@ -69,11 +71,12 @@ export interface PackingList {
 }
 
 export const packingListService = {
-  async list(params: { page?: number; limit?: number; status?: string; search?: string } = {}) {
+  async list(params: { page?: number; limit?: number; status?: string; approvalStatus?: string; search?: string } = {}) {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.status && params.status !== 'all') query.append('status', params.status);
+    if (params.approvalStatus && params.approvalStatus !== 'all') query.append('approvalStatus', params.approvalStatus);
     if (params.search) query.append('search', params.search);
 
     const path = `/packing-lists${query.toString() ? `?${query.toString()}` : ''}`;
@@ -90,6 +93,10 @@ export const packingListService = {
 
   async update(id: string, payload: Partial<PackingListInput>) {
     return apiClient.put<ApiResponse<PackingList>>(`/packing-lists/${id}`, payload);
+  },
+
+  async approve(id: string) {
+    return apiClient.post<ApiResponse<PackingList>>(`/packing-lists/${id}/approve`);
   },
 
   async delete(id: string) {

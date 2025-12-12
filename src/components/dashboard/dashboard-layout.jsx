@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store, FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes } from 'lucide-react';
+import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store, FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes, ArrowRightLeft } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -221,6 +221,12 @@ export const DashboardLayout = () => {
       path: '/dashboard/reports',
       label: 'Reports',
       icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    {
+      path: '/dashboard/administration/product-transmission',
+      label: 'Product Transmission',
+      icon: <ArrowRightLeft className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
     // {

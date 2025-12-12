@@ -47,6 +47,7 @@ import {PackingListsPage} from '@/pages/purchaser/PackingLists'
 import { PackingListView } from '@/pages/purchaser/PackingListView';
 import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { StoreStockPage } from "@/pages/store/StoreStock";
+import ProductTransmissionPage from '@/pages/administration/ProductTransmissionPage';
 
 
 const protectedRoutes = [
@@ -100,7 +101,8 @@ const protectedRoutes = [
   { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
   { path: 'purchaser/packing-lists',element: <PackingListsPage /> ,module: 'Packing Lists'},
   { path: 'purchaser/packing-lists/view/:id',element: <PackingListView /> ,module: 'Packing Lists'},
-  { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'}
+  { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'},
+   { path: 'administration/product-transmission', element: <ProductTransmissionPage /> }
 ];
 
 const unprotectedRoutes = [

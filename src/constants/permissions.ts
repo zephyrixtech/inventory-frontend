@@ -23,6 +23,7 @@ export type ModuleKey =
   | 'Administration'
   | 'Role Management'
   | 'Purchase Return Requests'
+  | 'Product Transmission'
   | 'All Modules';
 
 export const ALL_MODULES: ModuleKey[] = [
@@ -46,6 +47,7 @@ export const ALL_MODULES: ModuleKey[] = [
   'Role Management',
   'Administration',
   'Purchase Return Requests',
+  'Product Transmission',
   'All Modules',
 ];
 
