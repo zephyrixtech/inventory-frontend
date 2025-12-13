@@ -101,8 +101,20 @@ export const StoreStockPage = () => {
     }
 
     try {
-      // Fetch active stores
-      const storesResponse = await storeService.listStores();
+      // Fetch active stores - filtered by user role
+      const userData = localStorage.getItem('userData');
+      const user = userData ? JSON.parse(userData) : null;
+      
+      const params: any = {};
+      
+      // If user has a specific role, pass it to filter stores
+      const userRole = user?.role || user?.role_name; // Handle both possible field names
+      if (user?.id && userRole) {
+        params.userId = user.id;
+        params.userRole = userRole;
+      }
+
+      const storesResponse = await storeService.listStores(params);
       setStores(storesResponse.data);
     } catch (error) {
       console.error('Failed to load stores', error);

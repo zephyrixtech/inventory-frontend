@@ -48,6 +48,9 @@ type Store = {
   name: string;
   address?: string;
   isActive: boolean;
+  biller?: string;
+  manager?: string;
+  purchaser?: string;
 };
 
 // Define Supply type
@@ -205,15 +208,30 @@ export default function InvoiceEdit() {
     console.log('Form State:', { isValid, errors, items: watchedFields.items });
   }, [isValid, errors, watchedFields.items]);
 
-  // Fetch stores for the company
+  // Fetch stores for the company - filtered by user role and biller role
   useEffect(() => {
     const fetchStores = async () => {
-      // if (!companyId) return;
-
       try {
-        const response = await storeService.listStores({});
+        // Get user info from localStorage to filter stores by role
+        const userId = user?.id;
+        const userRole = user?.role || user?.role_name; // Handle both possible field names
+
+        const params: any = {};
+        
+        // If user has a specific role, pass it to filter stores
+        if (userId && userRole) {
+          params.userId = userId;
+          params.userRole = userRole;
+        }
+
+        const response = await storeService.listStores(params);
         if (response.data) {
-          const storeList = response.data.map(store => ({
+          // Filter stores to only include those with biller role set to "ROLE_BILLER"
+          const filteredStores = response.data.filter(store => 
+            store.biller === "ROLE_BILLER" && store.isActive
+          );
+          
+          const storeList = filteredStores.map(store => ({
             _id: store._id,
             id: store.id || store._id,
             name: store.name,
@@ -229,7 +247,7 @@ export default function InvoiceEdit() {
     };
 
     fetchStores();
-  }, [companyId]);
+  }, [user?.id, user?.role, user?.role_name]);
 
   // Fetch invoice data for editing
   useEffect(() => {
@@ -274,12 +292,19 @@ export default function InvoiceEdit() {
             };
           });
 
-          // Fetch store stock for invoice items
+          // Fetch store stock for invoice items from the specific store
           const itemIds = invoiceItems.map(item => item.id);
           let stockMap: Record<string, number> = {};
 
+          const storeId = typeof invoice.store === 'object' && invoice.store !== null
+            ? invoice.store._id
+            : String(invoice.store);
+
           try {
-            const stockResponse = await storeStockService.list({ limit: 1000 });
+            const stockResponse = await storeStockService.list({ 
+              storeId: storeId,
+              limit: 1000 
+            });
             if (stockResponse.data) {
               stockResponse.data.forEach((stock) => {
                 const productId = typeof stock.product === 'object' && stock.product !== null
@@ -300,10 +325,6 @@ export default function InvoiceEdit() {
             acc[it.id] = Number(it.quantity) || 0;
             return acc;
           }, {} as Record<string, number>);
-
-          const storeId = typeof invoice.store === 'object' && invoice.store !== null
-            ? invoice.store._id
-            : String(invoice.store);
 
           const nextValues = {
             storeId: storeId || '',
@@ -358,7 +379,7 @@ export default function InvoiceEdit() {
       };
       fetchInvoice();
     }
-  }, [id, isEditing, reset, companyId]);
+  }, [id, isEditing, reset, user?.id]);
 
   // Generate invoice number
   useEffect(() => {
@@ -397,7 +418,7 @@ export default function InvoiceEdit() {
       }
     };
     fetchAndSetNextInvoiceNumber();
-  }, [isEditing, companyId, setValue]);
+  }, [isEditing, user?.id, setValue]);
 
   // Fetch customers based on search term
   useEffect(() => {
@@ -504,7 +525,7 @@ export default function InvoiceEdit() {
     clearValidationErrors();
   };
 
-  // Item search - now filtered by selected store
+  // Item search - now filtered by selected store stock
   useEffect(() => {
     const fetchSupplies = async () => {
       if (!itemSearchTerm.trim() || itemSearchTerm.trim().length < 3 || !selectedStore) {
@@ -514,8 +535,41 @@ export default function InvoiceEdit() {
       }
 
       try {
-        // Fetch items using the item service
-        const response = await getItems(1, 50, {
+        // First, fetch store stock for the selected store to get available items
+        const stockResponse = await storeStockService.list({ 
+          storeId: selectedStore, 
+          limit: 1000 
+        });
+
+        if (!stockResponse.data || stockResponse.data.length === 0) {
+          setFilteredSupplies([]);
+          setShowSuppliesDropdown(true);
+          return;
+        }
+
+        // Get all product IDs that have stock in this store
+        const stockMap: Record<string, number> = {};
+        const availableProductIds: string[] = [];
+
+        stockResponse.data.forEach((stock) => {
+          const productId = typeof stock.product === 'object' && stock.product !== null
+            ? stock.product._id || stock.product.id
+            : String(stock.product);
+          
+          if (productId && stock.quantity > 0) { // Only include items with positive stock
+            stockMap[productId] = stock.quantity;
+            availableProductIds.push(productId);
+          }
+        });
+
+        if (availableProductIds.length === 0) {
+          setFilteredSupplies([]);
+          setShowSuppliesDropdown(true);
+          return;
+        }
+
+        // Fetch all items to get their details
+        const response = await getItems(1, 200, {
           search: itemSearchTerm.trim(),
         });
 
@@ -525,37 +579,24 @@ export default function InvoiceEdit() {
           return;
         }
 
-        // Fetch store stock for all items to get available quantities
-        const itemIds = response.data.map(item => item._id || item.id);
-        const stockMap: Record<string, number> = {};
+        // Filter items to only include those that have stock in the selected store
+        // and match the search term
+        const filteredItems = response.data.filter(item => {
+          const itemId = item._id || item.id;
+          return availableProductIds.includes(itemId) && 
+                 (item.name?.toLowerCase().includes(itemSearchTerm.toLowerCase()) ||
+                  item.description?.toLowerCase().includes(itemSearchTerm.toLowerCase()));
+        });
 
-        try {
-          // Fetch store stock for these items
-          const stockResponse = await storeStockService.list({ limit: 1000 });
-          if (stockResponse.data) {
-            stockResponse.data.forEach((stock) => {
-              const productId = typeof stock.product === 'object' && stock.product !== null
-                ? stock.product._id || stock.product.id
-                : String(stock.product);
-              if (itemIds.includes(productId)) {
-                stockMap[productId] = stock.quantity || 0;
-              }
-            });
-          }
-        } catch (stockError) {
-          console.error('Error fetching store stock:', stockError);
-          // Continue without stock data
-        }
-
-        // Map items to Supply format with actual stock
-        const mappedSupplies: Supply[] = response.data.map((item) => {
+        // Map filtered items to Supply format with actual stock from selected store
+        const mappedSupplies: Supply[] = filteredItems.map((item) => {
           const itemId = item._id || item.id;
           return {
             id: itemId,
             name: item.name || 'Unnamed Item',
             description: item.description || 'No description',
             price: item.unitPrice || 0,
-            availableStock: stockMap[itemId] || item.availableStock || 0,
+            availableStock: stockMap[itemId] || 0,
           };
         });
 
@@ -571,7 +612,7 @@ export default function InvoiceEdit() {
 
     const timeoutId = setTimeout(fetchSupplies, 300);
     return () => clearTimeout(timeoutId);
-  }, [itemSearchTerm, selectedStore, companyId]);
+  }, [itemSearchTerm, selectedStore, user?.id]);
 
   const handleSupplyToggle = (supply: Supply, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -650,13 +691,16 @@ export default function InvoiceEdit() {
     }
   };
 
-  // Get available stock using store-stock API
+  // Get available stock using store-stock API for selected store
   const getAvailableStock = async (items: Supply[]) => {
     try {
       const itemIds = items.map((item) => item.id);
 
-      // Fetch store stock for these items
-      const stockResponse = await storeStockService.list({ limit: 1000 });
+      // Fetch store stock for these items from the selected store only
+      const stockResponse = await storeStockService.list({ 
+        storeId: selectedStore,
+        limit: 1000 
+      });
       if (!stockResponse.data) return [];
 
       // Map stock data to item_id format
@@ -812,9 +856,12 @@ export default function InvoiceEdit() {
     const stockErrors: string[] = [];
 
     try {
-      // Fetch store stock for all items
+      // Fetch store stock for all items from the selected store only
       const itemIds = items.map(item => item.id);
-      const stockResponse = await storeStockService.list({ limit: 1000 });
+      const stockResponse = await storeStockService.list({ 
+        storeId: selectedStore,
+        limit: 1000 
+      });
 
       const stockMap: Record<string, number> = {};
       if (stockResponse.data) {

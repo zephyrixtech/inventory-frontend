@@ -382,7 +382,7 @@ const ProductTransmissionPage = () => {
   return (
     <div className="space-y-6">
       {/* Currency Rate Management */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-primary" />
@@ -419,7 +419,7 @@ const ProductTransmissionPage = () => {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Packing Lists for Transmission */}
       <Card>

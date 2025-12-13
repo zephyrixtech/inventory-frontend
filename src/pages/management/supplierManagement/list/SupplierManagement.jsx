@@ -321,16 +321,6 @@ const SupplierManagement = () => {
               <Table aria-label="Supplier Management Table">
                 <TableHeader>
                   <TableRow className="hover:bg-gray-50 border-gray-200">
-                    <TableHead className="font-semibold w-[120px]">
-                      <button
-                        type="button"
-                        onClick={() => handleSort("supplier_id")}
-                        className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto ps-2 hover:text-blue-600"
-                      >
-                        Supplier ID
-                        {getSortIcon("supplier_id")}
-                      </button>
-                    </TableHead>
                     <TableHead className="font-semibold w-1/4">
                       <button
                         type="button"
@@ -387,7 +377,7 @@ const SupplierManagement = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         <div className="flex justify-center items-center h-24">
                           <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                         </div>
@@ -399,9 +389,6 @@ const SupplierManagement = () => {
                       const isUsedInPO = false;
                       return (
                         <TableRow key={supplier.id} className="hover:bg-gray-50">
-                          <TableCell className="font-medium py-3">
-                            <p className="ps-2">{supplier.supplier_id}</p>
-                          </TableCell>
                           <TableCell className="font-medium">
                             <p className="ps-2">{supplier.supplier_name}</p>
                           </TableCell>
@@ -469,7 +456,7 @@ const SupplierManagement = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                         <div className="flex flex-col items-center justify-center py-6">
                           <Building2 className="h-12 w-12 text-gray-300 mb-2" />
                           <p className="text-base font-medium">
