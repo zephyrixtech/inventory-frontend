@@ -6,6 +6,8 @@ export interface DashboardMetrics {
   totalValue: number;
   totalPurchaseOrders: number;
   totalPurchaseOrderValue: number;
+  totalSalesInvoices: number; // Added this new metric
+  totalSalesInvoiceValue: number; // Added this new metric
 }
 
 export interface CategoryData {

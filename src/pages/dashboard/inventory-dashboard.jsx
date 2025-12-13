@@ -72,7 +72,14 @@ export const InventoryDashboard = () => {
   }
 
   // Use dynamic data or fallback to empty objects/arrays
-  const metrics = data?.metrics || { totalItems: 0, totalValue: 0, totalPurchaseOrders: 0, totalPurchaseOrderValue: 0 };
+  const metrics = data?.metrics || { 
+    totalItems: 0, 
+    totalValue: 0, 
+    totalPurchaseOrders: 0, 
+    totalPurchaseOrderValue: 0,
+    totalSalesInvoices: 0, // Added new metric with default value
+    totalSalesInvoiceValue: 0 // Added new metric with default value
+  };
   const categoryData = data?.categoryData || [];
   const salesData = data?.salesData || [];
   const fastMovingItems = data?.fastMovingItems || [];
@@ -107,4 +114,4 @@ export const InventoryDashboard = () => {
       </div>
     </div>
   );
-}
+};

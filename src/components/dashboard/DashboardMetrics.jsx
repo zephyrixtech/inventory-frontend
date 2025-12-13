@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Package, FileCheck } from 'lucide-react';
+import { Package, FileText } from 'lucide-react'; // Changed icon from FileCheck to FileText
 
 export const DashboardMetrics = ({ metrics, currencySymbol }) => {
   return (
@@ -29,26 +29,26 @@ export const DashboardMetrics = ({ metrics, currencySymbol }) => {
         </CardContent>
       </Card>
 
-      {/* Purchase Orders Card */}
+      {/* Sales Invoices Card - Updated from Purchase Orders */}
       <Card className="hover:shadow-lg transition-shadow duration-300">
         <CardContent className="px-6">
           <div className="flex items-center space-x-4 mb-6">
             <div className="rounded-full bg-orange-100 p-3">
-              <FileCheck className="h-6 w-6 text-orange-600" />
+              <FileText className="h-6 w-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Purchase Orders</p>
-              <p className="text-2xl font-bold text-gray-900">Orders & Value</p>
+              <p className="text-sm font-medium text-gray-500">Sales Invoices</p> {/* Changed from Purchase Orders */}
+              <p className="text-2xl font-bold text-gray-900">Invoices & Value</p> {/* Updated text */}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-500">Total Orders</p>
-              <p className="text-2xl font-bold text-orange-600">{metrics.totalPurchaseOrders}</p>
+              <p className="text-sm font-medium text-gray-500">Total Invoices</p> {/* Changed from Total Orders */}
+              <p className="text-2xl font-bold text-orange-600">{metrics.totalSalesInvoices}</p> {/* Changed property */}
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-gray-500">Total Value</p>
-              <p className="text-2xl font-bold text-purple-600">{currencySymbol}{metrics.totalPurchaseOrderValue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-purple-600">{currencySymbol}{metrics.totalSalesInvoiceValue.toLocaleString()}</p> {/* Changed property */}
             </div>
           </div>
         </CardContent>
@@ -56,4 +56,3 @@ export const DashboardMetrics = ({ metrics, currencySymbol }) => {
     </div>
   );
 };
-
