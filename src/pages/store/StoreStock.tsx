@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Warehouse, RefreshCcw, Plus, Pen } from 'lucide-react';
+import { Warehouse, RefreshCcw, Pen } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -101,8 +101,20 @@ export const StoreStockPage = () => {
     }
 
     try {
-      // Fetch active stores
-      const storesResponse = await storeService.listStores({ type: 'all' });
+      // Fetch active stores - filtered by user role
+      const userData = localStorage.getItem('userData');
+      const user = userData ? JSON.parse(userData) : null;
+      
+      const params: any = {};
+      
+      // If user has a specific role, pass it to filter stores
+      const userRole = user?.role || user?.role_name; // Handle both possible field names
+      if (user?.id && userRole) {
+        params.userId = user.id;
+        params.userRole = userRole;
+      }
+
+      const storesResponse = await storeService.listStores(params);
       setStores(storesResponse.data);
     } catch (error) {
       console.error('Failed to load stores', error);
@@ -134,19 +146,19 @@ export const StoreStockPage = () => {
   // };
 
   // Open modal for adding new stock
-  const handleOpenAddModal = () => {
-    setIsEditMode(false);
-    setEditingStockId(null);
-    setStockForm({
-      productId: '',
-      storeId: '',
-      quantity: 1,
-      margin: 0,
-      currency: 'INR'
-    });
-    setIsModalOpen(true);
-    fetchItemsAndStores();
-  };
+  // const handleOpenAddModal = () => {
+  //   setIsEditMode(false);
+  //   setEditingStockId(null);
+  //   setStockForm({
+  //     productId: '',
+  //     storeId: '',
+  //     quantity: 1,
+  //     margin: 0,
+  //     currency: 'INR'
+  //   });
+  //   setIsModalOpen(true);
+  //   fetchItemsAndStores();
+  // };
 
   // Open modal for editing existing stock
   const handleOpenEditModal = (stock: StoreStock) => {
@@ -224,18 +236,20 @@ export const StoreStockPage = () => {
               <Warehouse className="h-5 w-5 text-primary" />
               Store Stock
             </CardTitle>
-            <CardDescription>Monitor approved products and apply margin adjustments before billing.</CardDescription>
+            <CardDescription>
+              Monitor approved products and apply margin adjustments before billing. 
+              Items are automatically added to purchaser stores when QC status becomes "approved".
+            </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleOpenAddModal}>
-              <Plus className="mr-2 h-4 w-4" /> Add Stock
-            </Button>
             <Button variant="outline" onClick={() => fetchStock(pagination.page)} disabled={loading}>
               <RefreshCcw className="mr-2 h-4 w-4" /> Refresh
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+        
+          
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -244,22 +258,23 @@ export const StoreStockPage = () => {
                   <TableHead>Item</TableHead>
                   <TableHead>Margin %</TableHead>
                   <TableHead>Currency</TableHead>
-                  <TableHead>Price After Margin</TableHead>
+                  <TableHead>Unit Price</TableHead>
                   <TableHead>Quantity</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Loading store stock...
                     </TableCell>
                   </TableRow>
                 ) : records.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No stock available. Approve items from quality control to populate store stock.
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      No stock available. Items will automatically appear here when they pass Quality Control (QC status = "approved").
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -275,8 +290,13 @@ export const StoreStockPage = () => {
                       </TableCell>
                       <TableCell>{record.margin}%</TableCell>
                       <TableCell>{record.currency}</TableCell>
-                      <TableCell>{record.priceAfterMargin.toFixed(2)}</TableCell>
+                      <TableCell>{record.unitPrice.toFixed(2)}</TableCell>
                       <TableCell>{record.quantity}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Auto QC
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
 
                         <Button
@@ -318,7 +338,7 @@ export const StoreStockPage = () => {
             <DialogDescription>
               {isEditMode
                 ? 'Update stock details including margin and currency.'
-                : 'Add new stock to a store by selecting an item and specifying quantity.'}
+                : 'Manually add stock to a store. Note: Items are automatically added to purchaser stores when they pass QC.'}
             </DialogDescription>
           </DialogHeader>
 

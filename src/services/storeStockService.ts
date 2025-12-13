@@ -13,7 +13,25 @@ export const storeStockService = {
     return apiClient.get<ApiListResponse<StoreStock>>(path);
   },
 
-  async save(payload: { productId: string; storeId?: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
+  async save(payload: { 
+    productId: string; 
+    storeId?: string; 
+    quantity: number; 
+    margin?: number; 
+    currency?: 'INR' | 'AED';
+    unitPrice?: number;
+    transmissionData?: {
+      originalPriceINR?: number;
+      marginPercent?: number;
+      unitPriceINR?: number;
+      dpPriceAED?: number;
+      maxMRPAED?: number;
+      exchangeRate?: number;
+      transmissionDate?: string;
+      fromStoreId?: string;
+      packingListId?: string;
+    };
+  }) {
     return apiClient.post<ApiResponse<StoreStock>>('/store-stock', payload);
   },
 
@@ -21,7 +39,25 @@ export const storeStockService = {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}/quantity`, { quantity });
   },
 
-  async update(id: string, payload: { productId: string; storeId?: string; quantity: number; margin?: number; currency?: 'INR' | 'AED' }) {
+  async update(id: string, payload: { 
+    productId: string; 
+    storeId?: string; 
+    quantity: number; 
+    margin?: number; 
+    currency?: 'INR' | 'AED';
+    unitPrice?: number;
+    transmissionData?: {
+      originalPriceINR?: number;
+      marginPercent?: number;
+      unitPriceINR?: number;
+      dpPriceAED?: number;
+      maxMRPAED?: number;
+      exchangeRate?: number;
+      transmissionDate?: string;
+      fromStoreId?: string;
+      packingListId?: string;
+    };
+  }) {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}`, payload);
   }
 };

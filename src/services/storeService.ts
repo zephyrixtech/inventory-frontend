@@ -66,7 +66,13 @@ export const storeService = {
     if (params.userRole) queryParams.append('userRole', params.userRole);
 
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-    return apiClient.get<ApiResponse<Store[]>>(`/stores${queryString}`);
+    const url = `/stores${queryString}`;
+    
+    // Debug logging (remove in production)
+    console.log('Store API call - params:', params);
+    console.log('Store API call - URL:', url);
+    
+    return apiClient.get<ApiResponse<Store[]>>(url);
   },
 
   async getStore(id: string) {

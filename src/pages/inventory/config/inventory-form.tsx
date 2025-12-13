@@ -78,6 +78,8 @@ const baseInventoryFormSchema = z.object({
     .string()
     .min(1, 'Description is required'),
   quantity: z.number().min(0, 'Quantity cannot be negative'), // NEW FIELD
+  damagedQuantity: z.number().min(0, 'Damaged quantity cannot be negative').optional(), // NEW FIELD
+  availableQuantity: z.number().min(0, 'Available quantity cannot be negative').optional(), // NEW FIELD
   selling_price: z.number().min(0, 'Unit price cannot be negative').nullable(),
   vendorId: z.string().optional(), // NEW FIELD - Vendor/Supplier selection
   paidAmount: z.number().min(0, 'Paid amount cannot be negative').optional(), // NEW FIELD
@@ -207,6 +209,8 @@ const InventoryForm = () => {
       category_id: '',
       description: '',
       quantity: 0,
+      damagedQuantity: 0,
+      availableQuantity: 0,
       selling_price: null,
       vendorId: undefined,
       paidAmount: undefined,
@@ -302,6 +306,8 @@ const InventoryForm = () => {
       category_id: '',
       description: '',
       quantity: 0,
+      damagedQuantity: 0,
+      availableQuantity: 0,
       selling_price: null,
       // image_1: null,
       // image_2: null,
@@ -375,7 +381,8 @@ const InventoryForm = () => {
           category_id: categoryId,
           description: itemData.description || '',
           quantity: itemData.quantity || 0,
-
+          damagedQuantity: itemData.damagedQuantity || 0,
+          availableQuantity: itemData.availableQuantity || 0,
           selling_price: itemData.unitPrice ?? null,
           vendorId: (itemData as any).vendor?._id || (itemData as any).vendor?.id || (itemData as any).vendor || '',
           paidAmount: (itemData as any).paidAmount,
@@ -583,7 +590,8 @@ const InventoryForm = () => {
         category: data.category_id, // Changed from categoryId to category to match backend expectation
         description: data.description,
         quantity: data.quantity,
-
+        // Note: damagedQuantity and availableQuantity are not sent during create/edit
+        // They are managed by the backend (e.g., during QC process)
         unitPrice: data.selling_price ?? null,
         vendorId: data.vendorId || undefined, // NEW: Vendor field
         paidAmount: data.paidAmount ?? undefined, // NEW: Paid amount field
@@ -676,6 +684,9 @@ const InventoryForm = () => {
       item_name: '',
       category_id: '',
       description: '',
+      quantity: 0,
+      damagedQuantity: 0,
+      availableQuantity: 0,
       selling_price: null,
       image_1: null,
       image_2: null,
@@ -931,37 +942,91 @@ const InventoryForm = () => {
                     {/* Alternative items functionality removed as per user request */}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="quantity"
-                        className={`${errors.quantity ? 'text-red-500' : 'text-gray-700'
-                          } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-                      >
-                        <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="quantity"
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="Enter quantity (e.g., 100)"
-                        {...register('quantity', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className={`${errors.quantity
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.quantity !== null && watchedFields.quantity !== undefined && !isViewing ? 'border-blue-300' : ''
-                          }`}
-                      />
-                      {errors.quantity?.message && (
-                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.quantity.message}
-                        </p>
-                      )}
-                    </div>
+                  {/* Quantity fields - show all 3 in view mode, only main quantity in add/edit mode */}
+                  {isViewing ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2 group">
+                        <Label
+                          htmlFor="quantity"
+                          className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                        >
+                          <Package className="h-4 w-4" /> Quantity
+                        </Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          {...register('quantity', { valueAsNumber: true })}
+                          disabled={true}
+                          className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50"
+                        />
+                      </div>
 
+                      <div className="space-y-2 group">
+                        <Label
+                          htmlFor="damagedQuantity"
+                          className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                        >
+                          <Package className="h-4 w-4" /> Damaged Qty
+                        </Label>
+                        <Input
+                          id="damagedQuantity"
+                          type="number"
+                          {...register('damagedQuantity', { valueAsNumber: true })}
+                          disabled={true}
+                          className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50"
+                        />
+                      </div>
+
+                      <div className="space-y-2 group">
+                        <Label
+                          htmlFor="availableQuantity"
+                          className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                        >
+                          <Package className="h-4 w-4" /> Available Qty
+                        </Label>
+                        <Input
+                          id="availableQuantity"
+                          type="number"
+                          {...register('availableQuantity', { valueAsNumber: true })}
+                          disabled={true}
+                          className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2 group">
+                        <Label
+                          htmlFor="quantity"
+                          className={`${errors.quantity ? 'text-red-500' : 'text-gray-700'
+                            } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                        >
+                          <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Enter quantity (e.g., 100)"
+                          {...register('quantity', { valueAsNumber: true })}
+                          className={`${errors.quantity
+                            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                            : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                            } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.quantity !== null && watchedFields.quantity !== undefined ? 'border-blue-300' : ''
+                            }`}
+                        />
+                        {errors.quantity?.message && (
+                          <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {errors.quantity.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2 group">
                       <Label
                         htmlFor="selling_price"

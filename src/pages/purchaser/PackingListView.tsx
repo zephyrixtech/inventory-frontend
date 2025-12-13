@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Box, Calendar, MapPin, Package, User, CheckCircle, XCircle, Clock, Truck, Store, DollarSign, FileText, Image as ImageIcon, Hash, Shirt } from 'lucide-react';
+import { ArrowLeft, Box, Calendar, Package, User, CheckCircle, XCircle, Clock, Truck, Store, FileText, Image as ImageIcon, Hash, Shirt } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -44,7 +44,7 @@ import {
   Download,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
-  Building2,
+  // Building2,
   MapPin,
   Loader2,
 } from 'lucide-react';
@@ -156,13 +156,13 @@ export const StoreManagement = () => {
     return Array.from(managerSet);
   }, [stores]);
 
-  const storeNames = useMemo(() => {
-    const nameSet = new Set<string>(['all']);
-    stores.forEach((store) => {
-      nameSet.add(store.name);
-    });
-    return Array.from(nameSet);
-  }, [stores]);
+  // const storeNames = useMemo(() => {
+  //   const nameSet = new Set<string>(['all']);
+  //   stores.forEach((store) => {
+  //     nameSet.add(store.name);
+  //   });
+  //   return Array.from(nameSet);
+  // }, [stores]);
 
   // === Filter, Sort, Paginate with useMemo ===
   const filteredAndSortedStores = useMemo(() => {

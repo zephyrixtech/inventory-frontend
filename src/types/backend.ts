@@ -113,8 +113,19 @@ export interface StoreStock {
   quantity: number;
   margin: number;
   currency: 'INR' | 'AED';
-  priceAfterMargin: number;
+  unitPrice: number;
   updatedAt: string;
+  transmissionData?: {
+    originalPriceINR?: number;
+    marginPercent?: number;
+    unitPriceINR?: number;
+    dpPriceAED?: number;
+    maxMRPAED?: number;
+    exchangeRate?: number;
+    transmissionDate?: string;
+    fromStoreId?: string;
+    packingListId?: string;
+  };
 }
 
 export interface AuthTokens {

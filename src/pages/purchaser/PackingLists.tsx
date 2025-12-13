@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Box, Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit, Trash2, Loader2, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ interface PackingListFormState {
     unitOfMeasure?: string;
   }[];
   status: 'india' | 'uae';
+  approvalStatus: 'draft' | 'approved';
   // New fields
   cargoNumber?: string;
   fabricDetails?: string;
@@ -48,6 +49,7 @@ const DEFAULT_FORM: PackingListFormState = {
   image1: '',
   items: [],
   status: 'india',
+  approvalStatus: 'draft', // Default to draft
   // New fields
   cargoNumber: '',
   fabricDetails: ''
@@ -67,6 +69,7 @@ export const PackingListsPage = () => {
   const [packingLists, setPackingLists] = useState<PackingList[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [approvalStatusFilter, setApprovalStatusFilter] = useState('all');
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState<{ field: string | null; order: 'asc' | 'desc' | null }>({ field: null, order: null });
@@ -90,6 +93,7 @@ export const PackingListsPage = () => {
         page: page ?? pagination.page,
         limit: pagination.limit,
         status: statusFilter,
+        approvalStatus: approvalStatusFilter,
         search: searchQuery || undefined
       });
       setPackingLists(response.data);
@@ -102,7 +106,7 @@ export const PackingListsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchQuery, statusFilter]);
+  }, [pagination.page, pagination.limit, searchQuery, statusFilter, approvalStatusFilter]);
 
   const loadStores = useCallback(async () => {
     try {
@@ -312,6 +316,7 @@ export const PackingListsPage = () => {
         image1: (packingList as any).image1 || '',
         items: itemsWithProductInfo,
         status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae',
+        approvalStatus: packingList.approvalStatus || 'draft',
         // New fields
         cargoNumber: (packingList as any).cargoNumber || '',
         fabricDetails: (packingList as any).fabricDetails || ''
@@ -374,6 +379,18 @@ export const PackingListsPage = () => {
       toast.error(errorMessage);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await packingListService.approve(id);
+      toast.success('Packing list approved successfully');
+      loadPackingLists(pagination.page);
+    } catch (error: any) {
+      console.error('Failed to approve packing list', error);
+      const errorMessage = error?.message || 'Unable to approve packing list';
+      toast.error(errorMessage);
     }
   };
 
@@ -457,6 +474,7 @@ export const PackingListsPage = () => {
           storeId: formState.storeId,
           toStoreId: formState.toStoreId || undefined,
           status: formState.status,
+          approvalStatus: formState.approvalStatus,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined
@@ -477,6 +495,7 @@ export const PackingListsPage = () => {
           })),
           toStoreId: formState.toStoreId || undefined,
           status: formState.status,
+          approvalStatus: formState.approvalStatus,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined
@@ -507,7 +526,10 @@ export const PackingListsPage = () => {
               <Box className="h-5 w-5 text-primary" />
               Packing Lists
             </CardTitle>
-            <CardDescription>Convert approved inventory into shipment-ready packing lists.</CardDescription>
+            <CardDescription>
+              Convert approved inventory into shipment-ready packing lists. 
+              Creating a packing list reduces stock from the source store. Items are considered shipped/in-transit.
+            </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => setShowDialog(true)}>
@@ -516,7 +538,7 @@ export const PackingListsPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -540,6 +562,15 @@ export const PackingListsPage = () => {
               <option value="india">India</option>
               <option value="uae">UAE</option>
             </select>
+            <select
+              className="border rounded-md px-3 py-2 text-sm bg-background"
+              value={approvalStatusFilter}
+              onChange={(event) => setApprovalStatusFilter(event.target.value)}
+            >
+              <option value="all">All Approval Status</option>
+              <option value="draft">Draft</option>
+              <option value="approved">Approved</option>
+            </select>
           </div>
 
           <div className="border rounded-lg">
@@ -557,6 +588,7 @@ export const PackingListsPage = () => {
                     </div>
                   </TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Approval</TableHead>
                   <TableHead>Packing Date</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -565,23 +597,42 @@ export const PackingListsPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Loading packing lists...
                     </TableCell>
                   </TableRow>
                 ) : sortedLists.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No packing lists found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   sortedLists.map((packing, index) => {
                     const packingId = packing.id ?? packing._id ?? `packing-${index}`;
+                    const isDraft = packing.approvalStatus === 'draft';
                     return (
                       <TableRow key={packingId}>
                         <TableCell className="font-medium">{packing.boxNumber}</TableCell>
                         <TableCell className="capitalize">{packing.status}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              packing.approvalStatus === 'approved' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {packing.approvalStatus === 'approved' ? (
+                                <>
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Approved
+                                </>
+                              ) : (
+                                'Draft'
+                              )}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell>{packing.packingDate ? new Date(packing.packingDate).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>
                           {packing.items?.map((item: any, itemIndex: number) => {
@@ -608,11 +659,23 @@ export const PackingListsPage = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {isDraft && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(packingId)}
+                                title="Approve"
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(packingId)}
                               title="Edit"
+                              disabled={!isDraft}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -622,6 +685,7 @@ export const PackingListsPage = () => {
                               onClick={() => handleDeleteClick(packingId)}
                               title="Delete"
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              disabled={!isDraft}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -664,7 +728,7 @@ export const PackingListsPage = () => {
           <DialogHeader className="pb-4 border-b mb-6">
             <DialogTitle className="text-2xl font-semibold">{editingId ? 'Edit Packing List' : 'Create Packing List'}</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground mt-1">
-              {editingId ? 'Update packing list information.' : 'Bundle approved inventory into shipment-ready boxes.'}
+              {editingId ? 'Update packing list information.' : 'Bundle approved inventory into shipment-ready boxes. Stock will be reduced from the source store and considered shipped.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -676,7 +740,7 @@ export const PackingListsPage = () => {
                 <h3 className="text-base font-semibold">Packing Details</h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="storeId" className="text-sm font-medium">
                     {!editingId ? 'From Store *' : 'From Store'}
@@ -803,6 +867,22 @@ export const PackingListsPage = () => {
                     <option value="uae">UAE</option>
                   </select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="approvalStatus" className="text-sm font-medium">Approval Status</Label>
+                  <select
+                    id="approvalStatus"
+                    className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
+                    value={formState.approvalStatus}
+                    onChange={(e) => setFormState(prev => ({ ...prev, approvalStatus: e.target.value as 'draft' | 'approved' }))}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="approved">Approved</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Approving confirms the shipment. Stock remains reduced from source store.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -842,7 +922,16 @@ export const PackingListsPage = () => {
               )}
 
               {formState.items.length > 0 && (
-                <div className="border rounded-lg overflow-hidden bg-white">
+                <>
+                  {!editingId && formState.storeId && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                      <p className="text-sm text-blue-800">
+                        <strong>Stock Impact:</strong> Creating this packing list will immediately reduce the selected quantities from "{stores.find(s => (s._id || s.id) === formState.storeId)?.name}" store. 
+                        Items will be considered shipped/in-transit and won't be added to any destination store.
+                      </p>
+                    </div>
+                  )}
+                  <div className="border rounded-lg overflow-hidden bg-white">
                   <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
                     <div className="font-semibold text-sm">Product</div>
                     <div className="font-semibold text-sm text-center">Available Stock</div>
@@ -943,7 +1032,7 @@ export const PackingListsPage = () => {
                                 )}
                                 {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
                                   <p className="text-xs text-muted-foreground text-center">
-                                    {availableQty - item.quantity} remaining
+                                    {availableQty - item.quantity} will remain in store
                                   </p>
                                 )}
                               </div>
@@ -1005,6 +1094,7 @@ export const PackingListsPage = () => {
                     })}
                   </div>
                 </div>
+                </>
               )}
             </div>
 
@@ -1082,7 +1172,7 @@ export const PackingListsPage = () => {
           <DialogHeader>
             <DialogTitle>Delete Packing List</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this packing list? This action cannot be undone.
+              Are you sure you want to delete this packing list? The stock will be restored to the source store. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

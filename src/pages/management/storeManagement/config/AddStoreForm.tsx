@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+// import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -43,7 +43,7 @@ interface ExtendedUser {
 }
 
 // Validation schema for the store form
-const createStoreSchema = (centralStoreExists: boolean, isEditing: boolean) =>
+const createStoreSchema = (_centralStoreExists: boolean, _isEditing: boolean) =>
   z
     .object({
       code: z
@@ -128,39 +128,39 @@ type StoreFormData = z.infer<ReturnType<typeof createStoreSchema>>;
 //   return "";
 // };
 
-// Interface for user data stored in local storage
-interface UserData {
-  id: string;
-  email: string;
-  email_confirmed: boolean;
-  created_at: string;
-  last_sign_in: string;
-  first_name: string;
-  last_name: string;
-  role_id: string;
-  status: string;
-  company_id: string;
-  full_name: string;
-  // Add company object structure
-  company?: {
-    id: string;
-    name: string;
-    code: string;
-    currency: string;
-  };
-  user?: {
-    company?: {
-      id: string;
-    };
-  };
-}
+// Interface for user data stored in local storage (unused but kept for reference)
+// interface UserData {
+//   id: string;
+//   email: string;
+//   email_confirmed: boolean;
+//   created_at: string;
+//   last_sign_in: string;
+//   first_name: string;
+//   last_name: string;
+//   role_id: string;
+//   status: string;
+//   company_id: string;
+//   full_name: string;
+//   // Add company object structure
+//   company?: {
+//     id: string;
+//     name: string;
+//     code: string;
+//     currency: string;
+//   };
+//   user?: {
+//     company?: {
+//       id: string;
+//     };
+//   };
+// }
 
 export default function AddStoreForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [managers, setManagers] = useState<ExtendedUser[]>([]);
+  const [_managers, _setManagers] = useState<ExtendedUser[]>([]);
   const [store, setStore] = useState<IStore | null>(null);
-  const [parentStores, setParentStores] = useState<IStore[]>([]);
+  const [_parentStores, _setParentStores] = useState<IStore[]>([]);
   const [isLoadingStore, setIsLoadingStore] = useState(false);
   const [centralStoreExists, setCentralStoreExists] = useState(false);
   const [isCheckingCentralStore, setIsCheckingCentralStore] = useState(!id);
@@ -204,7 +204,7 @@ export default function AddStoreForm() {
     reset,
     setError,
     clearErrors,
-    setValue,
+    setValue: _setValue,
     formState: { errors, isSubmitting },
   } = useForm<StoreFormData>({
     resolver: zodResolver(storeSchema),
@@ -420,7 +420,7 @@ export default function AddStoreForm() {
           ...store
         })) as unknown as IStore[];
         
-        setParentStores(convertedStores);
+        _setParentStores(convertedStores);
       } catch (error) {
         console.error("Error loading parent stores:", error);
       }
@@ -472,11 +472,11 @@ export default function AddStoreForm() {
           full_name: `${user.firstName} ${user.lastName}`,
         }));
 
-        setManagers(mappedManagers);
+        _setManagers(mappedManagers);
       } catch (error) {
         console.error('Error loading users:', error);
         toast.error('Failed to load users.', { position: 'top-right' });
-        setManagers([]);
+        _setManagers([]);
       }
     };
 
@@ -597,11 +597,11 @@ export default function AddStoreForm() {
     );
   };
 
-  // UI Control Logic
-  const isStoreTypeDisabled = false; // Always false since we're removing store configuration
-  const isCentralStoreDisabled = false; // Always false since we're removing store configuration
-  const isBranchStoreDisabled = false; // Always false since we're removing store configuration
-  const isParentStoreDisabled = true; // Always true since we're removing store configuration
+  // UI Control Logic (unused variables but kept for reference)
+  // const isStoreTypeDisabled = false; // Always false since we're removing store configuration
+  // const isCentralStoreDisabled = false; // Always false since we're removing store configuration
+  // const isBranchStoreDisabled = false; // Always false since we're removing store configuration
+  // const isParentStoreDisabled = true; // Always true since we're removing store configuration
 
   return (
     <>
