@@ -39,6 +39,7 @@ import { storeService } from '@/services/storeService';
 import { getItems } from '@/services/itemService';
 import { apiClient } from '@/services/apiClient';
 import { storeStockService } from '@/services/storeStockService';
+import { salesInvoiceService } from '@/services/salesInvoiceService';
 import type { Supplier } from '@/types/backend';
 import type { Store } from '@/services/storeService';
 import type { StoreStock } from '@/types/backend';
@@ -85,6 +86,9 @@ type ISalesInvoiceWithTax = {
   netAmount: number;
   tax_amount: number;
   net_amount: number; // calculated field
+  items?: any[]; // Include items array for print preview
+  total_items?: number;
+  [key: string]: any; // Allow additional properties from original invoice
 };
 type InventoryStockReport = {
   _id: string;
@@ -214,6 +218,7 @@ const Reports: React.FC = () => {
     console.log('Suppliers state updated:', suppliers);
     console.log('Number of suppliers:', suppliers.length);
   }, [suppliers]);
+
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderItem[]>([]);
   const [fullPurchaseOrders, setFullPurchaseOrders] = useState<PurchaseOrderItem[]>([]);
   const [summaryStats, setSummaryStats] = useState<SummaryStats>({
@@ -277,6 +282,12 @@ const Reports: React.FC = () => {
   const [allStocks, setAllStocks] = useState<InventoryStockReport[]>([])
   const [allStores, setAllStores] = useState<Store[]>([])
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
+
+  // Debug: Log paginatedSales when it changes (moved after state declaration)
+  useEffect(() => {
+    console.log('🔍 paginatedSales state updated:', paginatedSales);
+    console.log('🔍 paginatedSales length:', paginatedSales.length);
+  }, [paginatedSales]);
 
   /**
    * Fetch supplier-item relationships from the API
@@ -949,25 +960,291 @@ const Reports: React.FC = () => {
     }
   }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, selectedReportType, fetchSupplierItems, suppliers]);
 
-  // Fetch all sales invoices for the given date range - TODO: Implement with proper service
+  // Fetch all sales invoices for the given date range
   const fetchAllSales = useCallback(async () => {
-    console.log('Sales fetching temporarily disabled');
-    setAllSales([]);
-    setSalesSummaryStats({ totalSales: 0, totalSalesValue: 0 });
-  }, [])
+    try {
+      console.log('📊 Fetching all sales invoices...');
+      
+      if (!dateRange[0] || !dateRange[1]) {
+        console.log('⚠️ No date range provided, setting empty sales data');
+        setAllSales([]);
+        setSalesSummaryStats({ totalSales: 0, totalSalesValue: 0 });
+        return;
+      }
 
-  // Fetch paginated sales data - TODO: Implement with proper service
+      // Format dates for API
+      const dateFrom = format(dateRange[0], 'yyyy-MM-dd');
+      const dateTo = format(dateRange[1], 'yyyy-MM-dd');
+      
+      console.log('📅 Fetching sales invoices from', dateFrom, 'to', dateTo);
+
+      // Fetch all sales invoices (use a large limit to get all)
+      let allInvoices: any[] = [];
+      let page = 1;
+      let hasMore = true;
+      const limit = 1000; // Large limit to fetch all
+
+      while (hasMore) {
+        try {
+          console.log(`📄 Fetching page ${page}...`);
+          const response = await salesInvoiceService.listInvoices({
+            page,
+            limit,
+            dateFrom,
+            dateTo,
+            sortBy: 'invoiceDate',
+            sortOrder: 'desc',
+          });
+
+          console.log('📦 API Response:', {
+            hasData: !!response.data,
+            dataLength: response.data?.length || 0,
+            hasMeta: !!response.meta,
+            meta: response.meta
+          });
+
+          // Handle different response structures
+          let invoices: any[] = [];
+          if (response && response.data && Array.isArray(response.data)) {
+            invoices = response.data;
+          } else if (Array.isArray(response)) {
+            invoices = response;
+          }
+
+          if (invoices.length > 0) {
+            allInvoices = [...allInvoices, ...invoices];
+            console.log(`✅ Added ${invoices.length} invoices. Total: ${allInvoices.length}`);
+          }
+          
+          // Check if there are more pages
+          if (response.meta) {
+            hasMore = response.meta.hasNextPage || false;
+            if (hasMore) {
+              page++;
+            } else {
+              console.log('📄 No more pages to fetch');
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+
+          // Safety check to prevent infinite loops
+          if (page > 100) {
+            console.warn('⚠️ Reached maximum page limit (100), stopping pagination');
+            hasMore = false;
+          }
+        } catch (pageError: any) {
+          console.error(`❌ Error fetching page ${page}:`, pageError);
+          hasMore = false;
+        }
+      }
+
+      console.log(`✅ Fetched ${allInvoices.length} total sales invoices`);
+
+      // Transform to ISalesInvoiceWithTax format
+      const transformedSales: ISalesInvoiceWithTax[] = allInvoices.map((invoice: any) => {
+        const invoiceAmount = invoice.subTotal || 0;
+        const discountAmount = invoice.discountTotal || 0;
+        const taxAmount = invoice.taxAmount || 0;
+        const netAmount = invoice.netAmount || 0;
+
+        return {
+          _id: invoice._id || invoice.id,
+          invoiceNumber: invoice.invoiceNumber || '',
+          invoiceDate: invoice.invoiceDate || invoice.invoice_date || new Date().toISOString(),
+          invoiceAmount,
+          discountAmount,
+          netAmount,
+          tax_amount: taxAmount,
+          net_amount: netAmount,
+          // Include all original invoice data for print preview
+          ...invoice,
+          // Ensure items array is preserved
+          items: invoice.items || [],
+          total_items: invoice.items?.length || 0,
+        };
+      });
+
+      // Apply search filter if provided
+      const filteredSales = searchQuerySales
+        ? transformedSales.filter((invoice) =>
+            invoice.invoiceNumber.toLowerCase().includes(searchQuerySales.toLowerCase())
+          )
+        : transformedSales;
+
+      setAllSales(filteredSales);
+
+      // Calculate summary statistics
+      const totalSales = filteredSales.length;
+      const totalSalesValue = filteredSales.reduce((sum, invoice) => sum + (invoice.net_amount || 0), 0);
+
+      setSalesSummaryStats({
+        totalSales,
+        totalSalesValue,
+      });
+
+      console.log('📊 Sales summary stats:', { totalSales, totalSalesValue });
+    } catch (error: any) {
+      console.error('❌ Error fetching sales invoices:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response,
+        data: error?.response?.data
+      });
+      setAllSales([]);
+      setSalesSummaryStats({ totalSales: 0, totalSalesValue: 0 });
+      setErrorMessage(`Failed to fetch sales data: ${error?.message || 'Unknown error'}`);
+    }
+  }, [dateRange, searchQuerySales]);
+
+  // Fetch paginated sales data
   const fetchAllPaginatedSales = useCallback(async () => {
-    console.log('Paginated sales fetching temporarily disabled');
-    setIsLoading(false);
-    setPaginatedSales([]);
-    setSalesPagination({
-      currentPage: 1,
-      totalPages: 0,
-      total: 0,
-      itemsPerPage: itemsPerPageSales,
-    });
-  }, [itemsPerPageSales]);
+    try {
+      setIsLoading(true);
+      console.log('📄 Fetching paginated sales invoices...');
+      
+      if (!dateRange[0] || !dateRange[1]) {
+        console.log('⚠️ No date range provided, setting empty paginated sales');
+        setPaginatedSales([]);
+        setSalesPagination({
+          currentPage: 1,
+          totalPages: 0,
+          total: 0,
+          itemsPerPage: itemsPerPageSales,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Format dates for API
+      const dateFrom = format(dateRange[0], 'yyyy-MM-dd');
+      const dateTo = format(dateRange[1], 'yyyy-MM-dd');
+      
+      console.log('📅 Paginated fetch - Date range:', dateFrom, 'to', dateTo);
+      
+      // Determine sort field mapping
+      let sortBy = 'invoiceDate';
+      if (sortConfigSales.field === 'invoice_number') {
+        sortBy = 'invoiceNumber';
+      } else if (sortConfigSales.field === 'invoice_amount') {
+        sortBy = 'subTotal';
+      } else if (sortConfigSales.field === 'net_amount') {
+        sortBy = 'netAmount';
+      }
+
+      console.log('🔍 Fetch params:', {
+        page: currentPageSales,
+        limit: itemsPerPageSales,
+        dateFrom,
+        dateTo,
+        search: searchQuerySales || undefined,
+        sortBy,
+        sortOrder: sortConfigSales.direction || 'desc',
+      });
+
+      const response = await salesInvoiceService.listInvoices({
+        page: currentPageSales,
+        limit: itemsPerPageSales,
+        dateFrom,
+        dateTo,
+        search: searchQuerySales || undefined,
+        sortBy,
+        sortOrder: sortConfigSales.direction || 'desc',
+      });
+
+      console.log('📦 Paginated API Response:', {
+        hasResponse: !!response,
+        hasData: !!response?.data,
+        dataLength: response?.data?.length || 0,
+        hasMeta: !!response?.meta,
+        meta: response?.meta
+      });
+
+      // Handle different response structures
+      let invoices: any[] = [];
+      if (response && response.data && Array.isArray(response.data)) {
+        invoices = response.data;
+      } else if (Array.isArray(response)) {
+        invoices = response;
+      }
+
+      if (invoices.length > 0) {
+        // Transform to ISalesInvoiceWithTax format
+        const transformedSales: ISalesInvoiceWithTax[] = invoices.map((invoice: any) => {
+          const invoiceAmount = invoice.subTotal || 0;
+          const discountAmount = invoice.discountTotal || 0;
+          const taxAmount = invoice.taxAmount || 0;
+          const netAmount = invoice.netAmount || 0;
+
+          return {
+            _id: invoice._id || invoice.id,
+            invoiceNumber: invoice.invoiceNumber || '',
+            invoiceDate: invoice.invoiceDate || invoice.invoice_date || new Date().toISOString(),
+            invoiceAmount,
+            discountAmount,
+            netAmount,
+            tax_amount: taxAmount,
+            net_amount: netAmount,
+            // Include all original invoice data for print preview
+            ...invoice,
+            // Ensure items array is preserved
+            items: invoice.items || [],
+            total_items: invoice.items?.length || 0,
+          };
+        });
+
+        console.log('🔍 Setting paginatedSales with data:', transformedSales);
+        console.log('🔍 transformedSales length:', transformedSales.length);
+        setPaginatedSales(transformedSales);
+
+        // Update pagination
+        if (response.meta) {
+          setSalesPagination({
+            currentPage: response.meta.page || currentPageSales,
+            totalPages: response.meta.totalPages || 1,
+            total: response.meta.total || 0,
+            itemsPerPage: itemsPerPageSales,
+          });
+        } else {
+          setSalesPagination({
+            currentPage: currentPageSales,
+            totalPages: 1,
+            total: transformedSales.length,
+            itemsPerPage: itemsPerPageSales,
+          });
+        }
+
+        console.log(`✅ Fetched ${transformedSales.length} paginated sales invoices`);
+      } else {
+        console.log('⚠️ No invoices found in response');
+        setPaginatedSales([]);
+        setSalesPagination({
+          currentPage: 1,
+          totalPages: 0,
+          total: 0,
+          itemsPerPage: itemsPerPageSales,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching paginated sales invoices:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response,
+        data: error?.response?.data
+      });
+      setPaginatedSales([]);
+      setSalesPagination({
+        currentPage: 1,
+        totalPages: 0,
+        total: 0,
+        itemsPerPage: itemsPerPageSales,
+      });
+      setErrorMessage(`Failed to fetch paginated sales data: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateRange, currentPageSales, itemsPerPageSales, searchQuerySales, sortConfigSales]);
 
   // Sorting function for sales report
   const handleSortSales = (field: SortFieldSales) => {
@@ -1341,16 +1618,19 @@ const Reports: React.FC = () => {
         // Fetch all three: paginated data for table, full data for export, and summary stats
         await Promise.all([fetchData(), fetchFullPurchaseOrders(), fetchSummaryStats()]);
         setIsReportGenerated(true);
+        setIsLoading(false);
         console.log('✅ Purchase order report generated successfully');
       } else if (selectedReportType === 'sales') {
         console.log('📊 Generating sales report...');
         await Promise.all([fetchAllPaginatedSales(), fetchAllSales()]);
         setIsReportGenerated(true);
+        setIsLoading(false);
         console.log('✅ Sales report generated successfully');
       } else if (selectedReportType === 'stock') {
         console.log('📊 Generating stock report...');
         await Promise.all([fetchPaginatedStock(), fetchAllInventoryStock()]);
         setIsReportGenerated(true);
+        setIsLoading(false);
         console.log('✅ Stock report generated successfully');
       } else {
         console.log('⚠️ Unknown report type, setting as generated');
@@ -1526,7 +1806,7 @@ const Reports: React.FC = () => {
       fetchAllPaginatedSales();
       fetchAllSales();
     }
-  }, [fetchAllPaginatedSales, fetchAllSales, isReportGenerated, selectedReportType, sortConfigSales, searchQuerySales]);
+  }, [fetchAllPaginatedSales, fetchAllSales, isReportGenerated, selectedReportType, sortConfigSales, searchQuerySales, currentPageSales, itemsPerPageSales, dateRange]);
 
   useEffect(() => {
     if (isReportGenerated && selectedReportType === 'stock') {
