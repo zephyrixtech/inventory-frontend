@@ -14,7 +14,7 @@ export interface SalesInvoice {
   email: any;
   _id: string;
   id?: string;
-  company: string;
+  company?: string;
   invoiceNumber: string;
   invoiceDate: string;
   customer: string | { _id: string; name: string; customerId?: string; email?: string; phone?: string };
@@ -24,7 +24,7 @@ export interface SalesInvoice {
   netAmount: number;
   taxAmount: number;
   notes?: string;
-  createdBy: string;
+  createdBy?: string;
   items: SalesInvoiceItem[];
   createdAt: string;
   updatedAt: string;

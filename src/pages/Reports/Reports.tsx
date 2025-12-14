@@ -1113,11 +1113,9 @@ const Reports: React.FC = () => {
       // Apply date range filtering if provided
       let filteredStocks = stockReports;
       if (dateRange[0] || dateRange[1]) {
-        filteredStocks = stockReports.filter((stock: InventoryStockReport) => {
-          // Note: StoreStock doesn't have a date field, so we'll skip date filtering for stock
-          // If you need date filtering, you'd need to check stock.updatedAt or another date field
-          return true;
-        });
+        // Note: StoreStock doesn't have a date field, so we'll skip date filtering for stock
+        // If you need date filtering, you'd need to check stock.updatedAt or another date field
+        filteredStocks = stockReports;
       }
 
       // Apply search filtering (already done in API, but can refine here)
@@ -1263,9 +1261,8 @@ const Reports: React.FC = () => {
       // Apply date range filtering if provided (same as paginated)
       let filteredStocks = stockReports;
       if (dateRange[0] || dateRange[1]) {
-        filteredStocks = stockReports.filter((stock: InventoryStockReport) => {
-          return true; // Date filtering not applicable for stock reports
-        });
+        // Date filtering not applicable for stock reports
+        filteredStocks = stockReports;
       }
 
       // Calculate summary statistics
