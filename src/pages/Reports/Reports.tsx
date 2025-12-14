@@ -38,8 +38,10 @@ import { supplierService } from '@/services/supplierService';
 import { storeService } from '@/services/storeService';
 import { getItems } from '@/services/itemService';
 import { apiClient } from '@/services/apiClient';
+import { storeStockService } from '@/services/storeStockService';
 import type { Supplier } from '@/types/backend';
 import type { Store } from '@/services/storeService';
+import type { StoreStock } from '@/types/backend';
 
 
 
@@ -1043,25 +1045,247 @@ const Reports: React.FC = () => {
 
 
 
-  // Fetch paginated inventory stock report - TODO: Implement with proper service
+  // Fetch paginated inventory stock report
   const fetchPaginatedStock = useCallback(async () => {
-    console.log('Paginated stock fetching temporarily disabled');
-    setIsLoading(false);
-    setPaginatedStocks([]);
-    setStockPagination({
-      currentPage: 1,
-      totalPages: 0,
-      total: 0,
-      itemsPerPage: itemsPerPageStock,
-    });
-  }, [itemsPerPageStock]);
+    if (selectedReportType !== 'stock' || selectedStores.length === 0) {
+      setIsLoading(false);
+      setPaginatedStocks([]);
+      setStockPagination({
+        currentPage: 1,
+        totalPages: 0,
+        total: 0,
+        itemsPerPage: itemsPerPageStock,
+      });
+      return;
+    }
 
-  // Fetch all inventory stock for summary and export - TODO: Implement with proper service
+    try {
+      setIsLoading(true);
+      console.log('Fetching paginated stock data for stores:', selectedStores);
+
+      // Fetch stock data for each selected store
+      const allStockPromises = selectedStores.map(storeId =>
+        storeStockService.list({
+          page: 1,
+          limit: 1000, // Get all for filtering
+          storeId: storeId,
+          search: searchQueryStock.trim() || undefined
+        })
+      );
+
+      const stockResponses = await Promise.all(allStockPromises);
+      
+      // Combine all stock data
+      let allStockData: StoreStock[] = [];
+      stockResponses.forEach(response => {
+        if (response.data) {
+          allStockData = [...allStockData, ...response.data];
+        }
+      });
+
+      console.log('Total stock records fetched:', allStockData.length);
+
+      // Transform StoreStock to InventoryStockReport format
+      const stockReports: InventoryStockReport[] = allStockData.map((stock: StoreStock) => {
+        const product = typeof stock.product === 'object' && stock.product !== null
+          ? stock.product
+          : null;
+        const store = typeof stock.store === 'object' && stock.store !== null
+          ? stock.store
+          : null;
+
+        // Handle different possible field names for product
+        const productName = product?.name || (product as any)?.item_name || 'Unknown Item';
+        const productCode = product?.code || product?.id || (product as any)?._id || 'N/A';
+        const storeName = store?.name || (store as any)?.store_name || 'Unknown Store';
+
+        return {
+          _id: stock.id || (stock as any)._id,
+          itemId: productCode,
+          itemName: productName,
+          storeName: storeName,
+          quantity: stock.quantity || 0,
+          unitPrice: stock.unitPrice || 0,
+          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0)
+        };
+      });
+
+      // Apply date range filtering if provided
+      let filteredStocks = stockReports;
+      if (dateRange[0] || dateRange[1]) {
+        filteredStocks = stockReports.filter((stock: InventoryStockReport) => {
+          // Note: StoreStock doesn't have a date field, so we'll skip date filtering for stock
+          // If you need date filtering, you'd need to check stock.updatedAt or another date field
+          return true;
+        });
+      }
+
+      // Apply search filtering (already done in API, but can refine here)
+      if (searchQueryStock.trim()) {
+        const searchLower = searchQueryStock.toLowerCase();
+        filteredStocks = filteredStocks.filter((stock: InventoryStockReport) =>
+          stock.itemId.toLowerCase().includes(searchLower) ||
+          stock.itemName.toLowerCase().includes(searchLower) ||
+          stock.storeName.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Apply sorting
+      const sortField = sortConfigStock.field;
+      const sortDirection = sortConfigStock.direction;
+      
+      if (sortField && sortDirection) {
+        filteredStocks.sort((a, b) => {
+          let aValue: any, bValue: any;
+          
+          switch (sortField) {
+            case 'itemId':
+              aValue = a.itemId;
+              bValue = b.itemId;
+              break;
+            case 'itemName':
+              aValue = a.itemName;
+              bValue = b.itemName;
+              break;
+            case 'storeName':
+              aValue = a.storeName;
+              bValue = b.storeName;
+              break;
+            case 'quantity':
+              aValue = a.quantity;
+              bValue = b.quantity;
+              break;
+            case 'unitPrice':
+              aValue = a.unitPrice;
+              bValue = b.unitPrice;
+              break;
+            default:
+              return 0;
+          }
+
+          if (sortDirection === 'desc') {
+            return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+          } else {
+            return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+          }
+        });
+      }
+
+      // Apply pagination
+      const total = filteredStocks.length;
+      const totalPages = itemsPerPageStock === -1 ? 1 : Math.ceil(total / itemsPerPageStock);
+      const startIndex = itemsPerPageStock === -1 ? 0 : (currentPageStock - 1) * itemsPerPageStock;
+      const endIndex = itemsPerPageStock === -1 ? total : startIndex + itemsPerPageStock;
+      const paginatedItems = filteredStocks.slice(startIndex, endIndex);
+
+      console.log('Paginated stock items:', paginatedItems.length, 'of', total);
+
+      setPaginatedStocks(paginatedItems);
+      setStockPagination({
+        currentPage: currentPageStock,
+        totalPages,
+        total,
+        itemsPerPage: itemsPerPageStock,
+      });
+
+    } catch (error: any) {
+      console.error('Error fetching paginated stock:', error);
+      setErrorMessage(`Failed to fetch stock data: ${error?.message || 'Unknown error'}`);
+      setPaginatedStocks([]);
+      setStockPagination({
+        currentPage: 1,
+        totalPages: 0,
+        total: 0,
+        itemsPerPage: itemsPerPageStock,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedReportType, selectedStores, searchQueryStock, sortConfigStock, currentPageStock, itemsPerPageStock, dateRange]);
+
+  // Fetch all inventory stock for summary and export
   const fetchAllInventoryStock = useCallback(async () => {
-    console.log('All stock fetching temporarily disabled');
-    setAllStocks([]);
-    setStockSummaryStats({ totalStock: 0, totalStockValue: 0 });
-  }, [])
+    if (selectedReportType !== 'stock' || selectedStores.length === 0) {
+      setAllStocks([]);
+      setStockSummaryStats({ totalStock: 0, totalStockValue: 0 });
+      return;
+    }
+
+    try {
+      console.log('Fetching all stock data for stores:', selectedStores);
+
+      // Fetch stock data for each selected store
+      const allStockPromises = selectedStores.map(storeId =>
+        storeStockService.list({
+          page: 1,
+          limit: 1000, // Get all for export
+          storeId: storeId
+        })
+      );
+
+      const stockResponses = await Promise.all(allStockPromises);
+      
+      // Combine all stock data
+      let allStockData: StoreStock[] = [];
+      stockResponses.forEach(response => {
+        if (response.data) {
+          allStockData = [...allStockData, ...response.data];
+        }
+      });
+
+      console.log('Total stock records for export:', allStockData.length);
+
+      // Transform StoreStock to InventoryStockReport format
+      const stockReports: InventoryStockReport[] = allStockData.map((stock: StoreStock) => {
+        const product = typeof stock.product === 'object' && stock.product !== null
+          ? stock.product
+          : null;
+        const store = typeof stock.store === 'object' && stock.store !== null
+          ? stock.store
+          : null;
+
+        // Handle different possible field names for product
+        const productName = product?.name || (product as any)?.item_name || 'Unknown Item';
+        const productCode = product?.code || product?.id || (product as any)?._id || 'N/A';
+        const storeName = store?.name || (store as any)?.store_name || 'Unknown Store';
+
+        return {
+          _id: stock.id || (stock as any)._id,
+          itemId: productCode,
+          itemName: productName,
+          storeName: storeName,
+          quantity: stock.quantity || 0,
+          unitPrice: stock.unitPrice || 0,
+          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0)
+        };
+      });
+
+      // Apply date range filtering if provided (same as paginated)
+      let filteredStocks = stockReports;
+      if (dateRange[0] || dateRange[1]) {
+        filteredStocks = stockReports.filter((stock: InventoryStockReport) => {
+          return true; // Date filtering not applicable for stock reports
+        });
+      }
+
+      // Calculate summary statistics
+      const totalStock = filteredStocks.length;
+      const totalStockValue = filteredStocks.reduce((sum, stock) => sum + stock.totalValue, 0);
+
+      console.log('Stock summary stats:', { totalStock, totalStockValue });
+
+      setAllStocks(filteredStocks);
+      setStockSummaryStats({
+        totalStock,
+        totalStockValue
+      });
+
+    } catch (error: any) {
+      console.error('Error fetching all stock:', error);
+      setAllStocks([]);
+      setStockSummaryStats({ totalStock: 0, totalStockValue: 0 });
+    }
+  }, [selectedReportType, selectedStores, dateRange])
 
   // Sorting function for sales report
   const handleSortStock = (field: SortFieldStock) => {
@@ -1312,7 +1536,7 @@ const Reports: React.FC = () => {
       fetchPaginatedStock();
       fetchAllInventoryStock();
     }
-  }, [fetchPaginatedStock, fetchAllInventoryStock, isReportGenerated, selectedReportType, searchQueryStock, sortConfigStock]);
+  }, [fetchPaginatedStock, fetchAllInventoryStock, isReportGenerated, selectedReportType, searchQueryStock, sortConfigStock, selectedStores, currentPageStock, itemsPerPageStock]);
 
   const handleSort = (field: SortField) => {
     let direction: SortDirection = 'asc';
