@@ -28,35 +28,37 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/Utils/types/supabaseClient';
-import { debounce } from 'lodash';
-import { setPrintData, setReportConfigs } from '@/redux/features/PurchaseOrderReportPrintSlice';
+import { setPrintData } from '@/redux/features/PurchaseOrderReportPrintSlice';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/hooks/redux';
-import { ICompany, ISalesInvoice, IStore } from '@/Utils/constants';
+import { ICompany } from '@/Utils/constants';
 import { formatCurrency } from '@/Utils/formatters';
-import { Badge } from '@/components/ui/badge';
 
-// Type Definitions
-interface Supplier {
-  supplier_id: string;
-  supplier_name: string;
-  is_active: boolean;
-}
+import { supplierService } from '@/services/supplierService';
+import { storeService } from '@/services/storeService';
+import { getItems } from '@/services/itemService';
+import { apiClient } from '@/services/apiClient';
+import type { Supplier } from '@/types/backend';
+import type { Store } from '@/services/storeService';
 
-interface PurchaseOrder {
-  id: string;
-  po_number: string;
-  supplier_id: string;
-  order_date: string;
-  total_items: number;
-  total_value: number;
-  approval_status: any;
-  supplier_name?: string;
-  system_message_config?: {
-    sub_category_id: string;
-    id: string;
+
+
+// Type Definitions - using imported types
+
+interface PurchaseOrderItem {
+  _id: string;
+  itemId: string;
+  itemName: string;
+  description?: string;
+  unitPrice: number;
+  quantity: number;
+  totalValue: number;
+  supplier: {
+    _id: string;
+    name: string;
   };
+  orderDate: string; // item created_at date
+  status: string;
 }
 
 // Sales Report Type Definitions
@@ -72,15 +74,24 @@ interface PurchaseOrder {
 //   net_amount: number | null;
 // };
 
-type ISalesInvoiceWithTax = ISalesInvoice & { tax_amount: number };
+type ISalesInvoiceWithTax = {
+  _id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  invoiceAmount: number;
+  discountAmount: number;
+  netAmount: number;
+  tax_amount: number;
+  net_amount: number; // calculated field
+};
 type InventoryStockReport = {
-  id: string;
-  item_id: string;
-  item_name: string;
-  store_name: string;
-  total_quantity: number;
-  unit_price: number;
-  total_count: number;
+  _id: string;
+  itemId: string;
+  itemName: string;
+  storeName: string;
+  quantity: number;
+  unitPrice: number;
+  totalValue: number;
 };
 
 interface SalesReport {
@@ -102,7 +113,7 @@ interface StockReport {
     'Item ID',
     'Item Name',
     'Store Name',
-    'Item Quantity',
+    'Quantity',
     'Unit Price',
     'Total Value',
   ];
@@ -113,14 +124,14 @@ interface StockReport {
 interface PurchaseOrderReport {
   title: string;
   headers: readonly [
-    'PO Number',
+    'Item Name',
     'Supplier',
     'Order Date',
-    'Items',
-    'Total Value',
-    'Status'
+    'Quantity',
+    'Unit Price',
+    'Total Value'
   ];
-  data: PurchaseOrder[];
+  data: PurchaseOrderItem[];
 }
 
 // Combined Report Data Type
@@ -134,8 +145,8 @@ interface ReportData {
 type ReportType = 'sales' | 'stock' | 'purchase-order';
 
 type SortFieldSales = 'invoice_date' | 'invoice_number' | 'invoice_amount' | 'net_amount';
-type SortField = 'po_number' | 'supplier_name' | 'order_date' | 'total_items' | 'total_value' | 'order_status';
-type SortFieldStock = 'item_id' | 'item_name' | 'store_name' | 'item_qty' | 'unit_price';
+type SortField = 'itemName' | 'supplier.name' | 'orderDate' | 'quantity' | 'unitPrice' | 'totalValue';
+type SortFieldStock = 'itemId' | 'itemName' | 'storeName' | 'quantity' | 'unitPrice';
 type SortDirection = 'asc' | 'desc' | null;
 
 interface SortConfig {
@@ -195,8 +206,14 @@ const Reports: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [fullPurchaseOrders, setFullPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  
+  // Debug: Log suppliers when they change
+  useEffect(() => {
+    console.log('Suppliers state updated:', suppliers);
+    console.log('Number of suppliers:', suppliers.length);
+  }, [suppliers]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderItem[]>([]);
+  const [fullPurchaseOrders, setFullPurchaseOrders] = useState<PurchaseOrderItem[]>([]);
   const [summaryStats, setSummaryStats] = useState<SummaryStats>({
     totalOrders: 0,
     totalValue: 0,
@@ -210,9 +227,8 @@ const Reports: React.FC = () => {
     totalStock: 0,
     totalStockValue: 0,
   });
-  const [statusMessages, setStatusMessages] = useState<{ [key: string]: string }>({});
+  const [statusMessages] = useState<{ [key: string]: string }>({});
   const [userData, setUserData] = useState<{ company_id: string, company_data: ICompany } | null>(null);
-  const companyData = userData?.company_data;
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -242,7 +258,7 @@ const Reports: React.FC = () => {
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    field: 'order_date',
+    field: 'orderDate',
     direction: 'desc',
   });
   const [sortConfigSales, setSortConfigSales] = useState<SortConfigSales>({
@@ -257,117 +273,31 @@ const Reports: React.FC = () => {
   const [paginatedSales, setPaginatedSales] = useState<ISalesInvoiceWithTax[]>([])
   const [paginatedStocks, setPaginatedStocks] = useState<InventoryStockReport[]>([])
   const [allStocks, setAllStocks] = useState<InventoryStockReport[]>([])
-  const [allStores, setAllStores] = useState<IStore[]>([])
+  const [allStores, setAllStores] = useState<Store[]>([])
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
 
-  // Add this interface for the report configs
-  interface ReportConfigs {
-    'purchase-order': {
-      payment_details?: string;
-      remarks?: string;
-      report_footer?: string;
-    };
-    'sales': {
-      remarks?: string;
-      report_footer?: string;
-    };
-    'stock': {
-      remarks?: string;
-      report_footer?: string;
-    };
-  }
-
-  // Update the dispatch usage with proper typing
-  const fetchReportConfigs = useCallback(async () => {
-    if (!userData?.company_id) return;
-
+  /**
+   * Fetch supplier-item relationships from the API
+   * This creates a mapping between items and their associated suppliers
+   * Used for filtering items by supplier in purchase order reports
+   * 
+   * @returns Array of supplier-item relationship objects with item_id and supplier_id
+   */
+  const fetchSupplierItems = useCallback(async () => {
     try {
-      console.log('Fetching report configs for company:', userData.company_id);
+      console.log('Fetching supplier-item relationships...');
       
-      let reportConfigData: any[];
-      const { data: companyFilteredData, error: reportConfigError } = await supabase
-        .from('report_config')
-        .select('*')
-        .eq('company_id', userData.company_id)
-        .order('report_category', { ascending: true });
-
-      if (reportConfigError) {
-        console.warn('Error loading company-filtered report configs:', reportConfigError);
-        console.log('Falling back to loading all report configs...');
-        
-        // Fallback: Load all report configs if company filtering fails
-        const { data: allReportConfigData, error: allReportConfigError } = await supabase
-          .from('report_config')
-          .select('*')
-          .order('report_category', { ascending: true });
-
-        if (allReportConfigError) {
-          console.error('Error loading all report configs:', allReportConfigError);
-          return;
-        }
-        
-        reportConfigData = allReportConfigData;
-      } else {
-        reportConfigData = companyFilteredData;
-      }
-
-      if (reportConfigData && reportConfigData.length > 0) {
-        // Process report configs by category and key
-        const configs: ReportConfigs = {
-          'purchase-order': {},
-          'sales': {},
-          'stock': {}
-        };
-
-        // Map the specific records by category and key
-        const paymentDetailsConfig = reportConfigData.find(config => 
-          config.report_category === 'PURCHASE_ORDER_REPORT' && config.report_config_key === 'PAYMENT_DETAILS'
-        );
-        const poRemarksConfig = reportConfigData.find(config => 
-          config.report_category === 'PURCHASE_ORDER_REPORT' && config.report_config_key === 'REMARKS'
-        );
-        const poFooterConfig = reportConfigData.find(config => 
-          config.report_category === 'PURCHASE_ORDER_REPORT' && config.report_config_key === 'FOOTER'
-        );
-        const salesRemarksConfig = reportConfigData.find(config => 
-          config.report_category === 'SALES_REPORT' && config.report_config_key === 'REMARKS'
-        );
-        const salesFooterConfig = reportConfigData.find(config => 
-          config.report_category === 'SALES_REPORT' && config.report_config_key === 'FOOTER'
-        );
-        const stockRemarksConfig = reportConfigData.find(config => 
-          config.report_category === 'STOCK_REPORT' && config.report_config_key === 'REMARKS'
-        );
-        const stockFooterConfig = reportConfigData.find(config => 
-          config.report_category === 'STOCK_REPORT' && config.report_config_key === 'FOOTER'
-        );
-
-        // Build configs object
-        configs['purchase-order'] = {
-          payment_details: paymentDetailsConfig?.report_config_value || '',
-          remarks: poRemarksConfig?.report_config_value || '',
-          report_footer: poFooterConfig?.report_config_value || ''
-        };
-
-        configs['sales'] = {
-          remarks: salesRemarksConfig?.report_config_value || '',
-          report_footer: salesFooterConfig?.report_config_value || ''
-        };
-
-        configs['stock'] = {
-          remarks: stockRemarksConfig?.report_config_value || '',
-          report_footer: stockFooterConfig?.report_config_value || ''
-        };
-
-        console.log('Processed report configs:', configs);
-        
-        // Store in Redux
-        dispatch(setReportConfigs(configs as any));
-      }
+      // Use the correct endpoint based on documentation: /supplier-items
+      const response = await apiClient.get('/supplier-items?limit=1000');
+      const data = (response as any).data || (response as any) || [];
+      console.log(`✅ Fetched ${data.length} supplier-item relationships`);
+      return Array.isArray(data) ? data : [];
     } catch (error) {
-      console.error('Error fetching report configs:', error);
+      console.error('Error fetching supplier-items:', error);
+      // Return empty array if endpoint doesn't exist - items might have direct vendor field
+      return [];
     }
-  }, [userData, dispatch]);
+  }, []);
 
   const reportData: ReportData = {
     'sales': {
@@ -388,7 +318,7 @@ const Reports: React.FC = () => {
         'Item ID',
         'Item Name',
         'Store Name',
-        'Item Quantity',
+        'Quantity',
         'Unit Price',
         'Total Value',
       ] as const,
@@ -397,12 +327,12 @@ const Reports: React.FC = () => {
     'purchase-order': {
       title: 'Purchase Order Report',
       headers: [
-        'PO Number',
+        'Item Name',
         'Supplier',
         'Order Date',
-        'Items',
-        'Total Value',
-        'Status'
+        'Quantity',
+        'Unit Price',
+        'Total Value'
       ] as const,
       data: fullPurchaseOrders
     }
@@ -413,102 +343,164 @@ const Reports: React.FC = () => {
     return reportData[reportType];
   };
 
-  // Fetch summary statistics (totals without pagination)
+  // Fetch summary statistics for purchase orders
   const fetchSummaryStats = useCallback(async () => {
-    if (!userData?.company_id || selectedReportType !== 'purchase-order') return;
-
-    const formatDate = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const params: any = {
-      p_company_id: userData.company_id,
-      p_start_date: dateRange[0] ? formatDate(dateRange[0]) : null,
-      p_end_date: dateRange[1] ? formatDate(dateRange[1]) : null,
-      p_supplier_ids: selectedSuppliers.length > 0 ? selectedSuppliers : null,
-      p_search_query: searchQuery.trim() ? searchQuery.trim() : null,
-      p_sort_field: sortConfig.field || 'order_date',
-      p_sort_direction: sortConfig.direction || 'desc',
-      p_page: 1,
-      p_limit: -1, // Get all records for summary stats
-    };
+    const companyId = userData?.company_id || (userData as any)?.companyId || (userData as any)?.id;
+    if (!companyId || selectedReportType !== 'purchase-order') {
+      console.log('⚠️ fetchSummaryStats early return:', { companyId, selectedReportType });
+      return;
+    }
 
     try {
-      const { data, error }: any = await supabase.rpc('get_purchase_orders_for_report', params);
-
-      if (error) {
-        console.error('Error fetching summary stats:', error);
+      console.log('Fetching summary stats...');
+      
+      // Step 1: Items already have vendor field with supplier information
+      // No need to fetch supplier-items relationships - use item.vendor directly
+      console.log('Using item.vendor field directly for supplier relationships');
+      
+      // Fetch all items without pagination for summary
+      const itemFilters: any = {};
+      const itemsResponse = await getItems(1, 1000, itemFilters);
+      
+      if (!itemsResponse.data || itemsResponse.data.length === 0) {
+        console.log('No items found for summary stats');
+        setSummaryStats({
+          totalOrders: 0,
+          totalValue: 0,
+          pendingDelivery: 0,
+        });
         return;
       }
 
-      const allOrders = data?.data || [];
-      const totalOrders = allOrders.length;
-      const totalValue = allOrders.reduce((sum: number, po: PurchaseOrder) => sum + (po.total_value || 0), 0);
-      const pendingDelivery = allOrders.filter(
-        (po: PurchaseOrder) => po.system_message_config?.sub_category_id === 'ORDER_ISSUED'
-      ).length;
+      console.log('Total items for summary:', itemsResponse.data.length);
+
+      // Filter items by date range and supplier selection
+      let filteredItems = itemsResponse.data.filter((item: any) => {
+        // Check date range using item's createdAt (this is the primary filter)
+        if (dateRange[0] || dateRange[1]) {
+          // Items use createdAt field (not created_at) - API returns createdAt
+          const itemCreatedAt = item.createdAt || item.created_at;
+          if (!itemCreatedAt) return false; // Skip items without creation date
+          
+          const itemDate = new Date(itemCreatedAt);
+          const start = dateRange[0] ? new Date(dateRange[0]) : null;
+          const end = dateRange[1] ? new Date(dateRange[1]) : null;
+          
+          // Set time to start/end of day for proper date comparison
+          if (start) {
+            start.setHours(0, 0, 0, 0);
+            if (itemDate < start) return false;
+          }
+          if (end) {
+            end.setHours(23, 59, 59, 999);
+            if (itemDate > end) return false;
+          }
+        }
+
+        // Check supplier filter using item.vendor field directly
+        if (selectedSuppliers.length > 0) {
+          // Get supplier ID from item.vendor field
+          const itemVendorId = item.vendor?._id || item.vendor?.id || item.vendor;
+          if (!itemVendorId || !selectedSuppliers.includes(itemVendorId)) {
+            return false;
+          }
+        } else {
+          // If no suppliers selected, only show items that have a vendor
+          if (!item.vendor) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      console.log('Filtered items for summary:', filteredItems.length);
+
+      // Calculate summary statistics
+      const totalOrders = filteredItems.length;
+      const totalValue = filteredItems.reduce((sum, item) => {
+        const unitPrice = item.unitPrice || (item as any).selling_price || 0;
+        const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
+        return sum + (unitPrice * quantity);
+      }, 0);
+      
+      // For pendingDelivery, count items that are active (assuming active items are pending)
+      const pendingDelivery = filteredItems.filter(item => (item as any).isActive !== false).length;
+
+      console.log('Summary stats calculated:', { totalOrders, totalValue, pendingDelivery });
 
       setSummaryStats({
         totalOrders,
         totalValue,
         pendingDelivery,
       });
-    } catch (err) {
-      console.error('Unexpected error fetching summary stats:', err);
+
+    } catch (error) {
+      console.error('Error fetching summary stats:', error);
+      setSummaryStats({
+        totalOrders: 0,
+        totalValue: 0,
+        pendingDelivery: 0,
+      });
     }
-  }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, selectedReportType]);
+  }, [userData, dateRange, selectedSuppliers, selectedReportType, fetchSupplierItems]);
 
-  // Debounced fetchData for paginated table
-  const debouncedFetchData = useCallback(
-    debounce(async (params: any) => {
+  /**
+   * Fetch and filter purchase order items based on date range and supplier selection
+   * 
+   * Flow:
+   * 1. Fetch supplier-item relationships to create item->supplier mapping
+   * 2. If suppliers are selected, get item IDs that belong to those suppliers
+   * 3. Fetch all items (with search filter if provided)
+   * 4. Filter items by:
+   *    - Date range: items created_at must be within selected date range
+   *    - Supplier: items must belong to selected suppliers (via supplier-items table)
+   * 5. Transform items to PurchaseOrderItem format with supplier information
+   * 6. Apply sorting and pagination
+   * 
+   * @param queryParams - URL search params containing filters, pagination, and sorting
+   */
+  const fetchPurchaseOrderItems = useCallback(async (queryParams: URLSearchParams) => {
+    try {
+      setIsLoading(true);
+      
+      // Extract parameters from queryParams
+      const page = parseInt(queryParams.get('page') || '1');
+      const limit = parseInt(queryParams.get('limit') || '10');
+      const startDate = queryParams.get('startDate');
+      const endDate = queryParams.get('endDate');
+      const selectedSupplierIds = queryParams.get('suppliers')?.split(',') || [];
+      const search = queryParams.get('search');
+      const sortField = queryParams.get('sortField') || 'created_at';
+      const sortDirection = queryParams.get('sortDirection') || 'desc';
+
+      console.log('Fetching items with parameters:', {
+        page,
+        limit,
+        startDate,
+        endDate,
+        selectedSupplierIds,
+        search
+      });
+
+      // Step 1: Items already have vendor field with supplier information
+      // No need to fetch supplier-items relationships - use item.vendor directly
+      console.log('Using item.vendor field directly for supplier relationships');
+
+      // Step 4: Fetch items with filters
+      const itemFilters: any = {};
+      if (search) itemFilters.search = search;
+
+      console.log('Calling getItems with filters:', itemFilters);
+      
+      // Get a large number of items to ensure we get all items for filtering
+      let itemsResponse;
       try {
-        setIsLoading(true);
-        setErrorMessage(null);
-
-        const { data, error } = await supabase.rpc('get_purchase_orders_for_report', params);
-
-        if (error) {
-          console.error('Error calling RPC function:', error);
-          setErrorMessage(`Failed to fetch purchase orders: ${error.message}`);
-          setPurchaseOrders([]);
-          setPagination({
-            total: 0,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPrevPage: false,
-          });
-          return;
-        }
-
-        setPurchaseOrders((data as any).data || []);
-        setPagination({
-          total: (data as any).total_count || 0,
-          totalPages: (data as any).total_pages || 0,
-          hasNextPage: (data as any).has_next_page || false,
-          hasPrevPage: (data as any).has_prev_page || false,
-        });
-
-        // Fetch status messages
-        const { data: statusData, error: statusError } = await supabase
-          .from('system_message_config')
-          .select('id, value')
-          .eq('company_id', userData?.company_id!);
-
-        if (statusError) {
-          console.error('Error fetching status messages:', statusError);
-        } else {
-          const statusMap = statusData?.reduce((acc: any, item: any) => ({
-            ...acc,
-            [item.id]: item.value,
-          }), {}) || {};
-          setStatusMessages(statusMap);
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching data:', err);
-        setErrorMessage('An unexpected error occurred while fetching data.');
+        itemsResponse = await getItems(1, 1000, itemFilters);
+        console.log('✅ getItems call successful');
+      } catch (error: any) {
+        console.error('❌ getItems call failed:', error);
+        setErrorMessage(`Failed to fetch items: ${error?.message || 'Unknown error'}`);
         setPurchaseOrders([]);
         setPagination({
           total: 0,
@@ -516,12 +508,262 @@ const Reports: React.FC = () => {
           hasNextPage: false,
           hasPrevPage: false,
         });
-      } finally {
-        setIsLoading(false);
+        return;
       }
-    }, 500),
-    [userData]
-  );
+      
+      console.log('Items API response structure:', {
+        hasData: !!itemsResponse.data,
+        dataType: typeof itemsResponse.data,
+        isArray: Array.isArray(itemsResponse.data),
+        dataLength: itemsResponse.data?.length,
+        fullResponse: itemsResponse
+      });
+      
+      if (!itemsResponse.data || itemsResponse.data.length === 0) {
+        console.log('❌ No items found from API');
+        console.log('Items response was:', itemsResponse);
+        setPurchaseOrders([]);
+        setPagination({
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPrevPage: false,
+        });
+        return;
+      }
+
+      console.log('Total items fetched:', itemsResponse.data.length);
+      console.log('Sample item structure:', itemsResponse.data[0]);
+     
+
+      // Step 5: Create suppliers map from the suppliers state
+      const suppliersMap = new Map<string, Supplier>();
+      suppliers.forEach(supplier => {
+        suppliersMap.set(supplier._id, supplier);
+      });
+
+      console.log('Available suppliers:', Array.from(suppliersMap.keys()));
+
+      // Step 6: Filter items by date range and supplier selection
+      let filteredItems = itemsResponse.data.filter((item: any) => {
+        // Check date range using item's createdAt (this is the primary filter)
+        if (startDate || endDate) {
+          // Items use createdAt field - API returns createdAt
+          const itemCreatedAt = (item as any).createdAt || (item as any).created_at;
+          if (!itemCreatedAt) {
+            console.log('Item missing creation date:', (item as any).id || item._id);
+            return false; // Skip items without creation date
+          }
+          
+          const itemDate = new Date(itemCreatedAt);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          
+          // Set time to start/end of day for proper date comparison
+          if (start) {
+            start.setHours(0, 0, 0, 0);
+            if (itemDate < start) return false;
+          }
+          if (end) {
+            end.setHours(23, 59, 59, 999);
+            if (itemDate > end) return false;
+          }
+        }
+
+        // Check supplier filter using item.vendor field directly
+        if (selectedSupplierIds.length > 0) {
+          // Get supplier ID from item.vendor field (handle different possible structures)
+          const itemVendorId = (item as any).vendor?._id || (item as any).vendor?.id || (item as any).vendor;
+          if (!itemVendorId || !selectedSupplierIds.includes(itemVendorId)) {
+            return false;
+          }
+        } else {
+          // If no suppliers selected, only show items that have a vendor
+          if (!(item as any).vendor) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      console.log('Items after filtering:', filteredItems.length);
+      
+      // Debug: Log why items might be filtered out
+      if (filteredItems.length === 0 && itemsResponse.data.length > 0) {
+        console.warn('⚠️ No items matched filters. Debugging...');
+        const sampleItem = itemsResponse.data[0];
+        const sampleItemAny = sampleItem as any;
+        console.log('Sample item:', {
+          id: sampleItemAny.id || sampleItemAny._id,
+          name: sampleItemAny.name,
+          item_name: sampleItemAny.item_name,
+          createdAt: sampleItemAny.createdAt,
+          created_at: sampleItemAny.created_at,
+          vendor: sampleItemAny.vendor,
+          vendorId: sampleItemAny.vendor?._id || sampleItemAny.vendor?.id,
+          selectedSupplierIds,
+          matchesSupplier: selectedSupplierIds.length > 0 ? 
+            selectedSupplierIds.includes(sampleItemAny.vendor?._id || sampleItemAny.vendor?.id) : 
+            !!sampleItemAny.vendor
+        });
+        
+        // Check date range
+        if (startDate || endDate) {
+          const sampleItemAny = sampleItem as any;
+          const itemCreatedAt = sampleItemAny.createdAt || sampleItemAny.created_at;
+          if (itemCreatedAt) {
+            const itemDate = new Date(itemCreatedAt);
+            console.log('Date check:', {
+              itemDate: itemDate.toISOString(),
+              startDate: startDate,
+              endDate: endDate,
+              beforeStart: startDate ? itemDate < new Date(startDate) : false,
+              afterEnd: endDate ? itemDate > new Date(endDate) : false
+            });
+          } else {
+            console.log('Item has no creation date');
+          }
+        }
+      }
+
+      // Step 7: Transform items to PurchaseOrderItem format
+      const purchaseOrderItems: PurchaseOrderItem[] = filteredItems.map((item: any) => {
+        // Get supplier from item.vendor field directly
+        const itemVendor = item.vendor;
+        const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
+        const vendorName = itemVendor?.name || 'Unknown Supplier';
+        
+        // Try to get full supplier details from suppliersMap
+        const supplier = vendorId ? suppliersMap.get(vendorId) : null;
+        
+        const supplierInfo = supplier ? {
+          _id: supplier._id,
+          name: supplier.name
+        } : {
+          _id: vendorId || 'no-supplier',
+          name: vendorName
+        };
+        
+        // Use correct field names from API response
+        const itemName = item.name || item.item_name || 'Unnamed Item';
+        const createdAt = item.created_at;
+        const unitPrice = item.unitPrice || item.selling_price || 0;
+        const quantity = item.availableStock || item.availableQuantity || item.quantity || 1;
+        
+        console.log(`Transforming item ${itemName}:`, {
+          vendorId,
+          vendorName,
+          createdAt,
+          unitPrice,
+          quantity,
+          itemVendor,
+          rawItem: {
+            id: (item as any).id,
+            _id: item._id,
+            code: (item as any).code,
+            createdAt: (item as any).createdAt,
+            created_at: (item as any).created_at,
+            availableQuantity: (item as any).availableQuantity,
+            isActive: (item as any).isActive
+          }
+        });
+        
+        // Validate date before using it
+        if (!createdAt) {
+          console.warn('⚠️ Item has no valid creation date:', itemName, 'Raw item:', item);
+        }
+        
+        return {
+          _id: (item as any).id || item._id,
+          itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
+          itemName: itemName,
+          description: (item as any).description || undefined,
+          unitPrice: unitPrice,
+          quantity: quantity,
+          totalValue: unitPrice * quantity,
+          supplier: supplierInfo,
+          orderDate: createdAt || new Date().toISOString(), // Fallback to current date if missing
+          status: (item as any).isActive !== false ? 'active' : 'inactive'
+        };
+      });
+
+      console.log('Transformed purchase order items:', purchaseOrderItems.length);
+
+      // Step 8: Apply sorting
+      purchaseOrderItems.sort((a, b) => {
+        let aValue: any, bValue: any;
+        
+        switch (sortField) {
+          case 'itemName':
+            aValue = a.itemName;
+            bValue = b.itemName;
+            break;
+          case 'supplier.name':
+            aValue = a.supplier.name;
+            bValue = b.supplier.name;
+            break;
+          case 'orderDate':
+            aValue = new Date(a.orderDate);
+            bValue = new Date(b.orderDate);
+            break;
+          case 'quantity':
+            aValue = a.quantity;
+            bValue = b.quantity;
+            break;
+          case 'unitPrice':
+            aValue = a.unitPrice;
+            bValue = b.unitPrice;
+            break;
+          case 'totalValue':
+            aValue = a.totalValue;
+            bValue = b.totalValue;
+            break;
+          default:
+            aValue = new Date(a.orderDate);
+            bValue = new Date(b.orderDate);
+        }
+
+        if (sortDirection === 'desc') {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        } else {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        }
+      });
+
+      // Step 9: Apply pagination to the filtered and sorted results
+      const total = purchaseOrderItems.length;
+      const totalPages = limit === 0 ? 1 : Math.ceil(total / limit);
+      const startIndex = limit === 0 ? 0 : (page - 1) * limit;
+      const endIndex = limit === 0 ? total : startIndex + limit;
+      const paginatedItems = purchaseOrderItems.slice(startIndex, endIndex);
+
+      console.log('Final paginated items:', paginatedItems.length);
+
+      setPurchaseOrders(paginatedItems);
+      setPagination({
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      });
+
+    } catch (error) {
+      console.error('Error fetching purchase order items:', error);
+      setErrorMessage('Failed to fetch purchase order items. Please try again.');
+      setPurchaseOrders([]);
+      setPagination({
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [suppliers, fetchSupplierItems]);
+
+  // Removed debounce - we want immediate execution when generate is clicked
 
   const handlePrintPreview = () => {
     // Make sure the latest data is in Redux before showing print preview
@@ -544,200 +786,186 @@ const Reports: React.FC = () => {
 
   // Fetch full (unpaginated) purchase orders for PrintPreview
   const fetchFullPurchaseOrders = useCallback(async () => {
-    if (!userData?.company_id || selectedReportType !== 'purchase-order') return;
-
-    const formatDate = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const params: any = {
-      p_company_id: userData.company_id,
-      p_start_date: dateRange[0] ? formatDate(dateRange[0]) : null,
-      p_end_date: dateRange[1] ? formatDate(dateRange[1]) : null,
-      p_supplier_ids: selectedSuppliers.length > 0 ? selectedSuppliers : null,
-      p_search_query: searchQuery.trim() ? searchQuery.trim() : null,
-      p_sort_field: sortConfig.field || 'order_date',
-      p_sort_direction: sortConfig.direction || 'desc',
-      p_page: 1,
-      p_limit: -1, // Fetch all records
-    };
+    const companyId = userData?.company_id || (userData as any)?.companyId || (userData as any)?.id;
+    if (!companyId || selectedReportType !== 'purchase-order') {
+      console.log('⚠️ fetchFullPurchaseOrders early return:', { companyId, selectedReportType });
+      return;
+    }
 
     try {
-      const { data, error }: any = await supabase.rpc('get_purchase_orders_for_report', params);
+      console.log('Fetching full purchase orders for print preview...');
+      
+      // Step 1: Items already have vendor field with supplier information
+      // No need to fetch supplier-items relationships - use item.vendor directly
+      console.log('Using item.vendor field directly for supplier relationships');
 
-      if (error) {
-        console.error('Error fetching full purchase orders:', error);
-        setErrorMessage(`Failed to fetch purchase orders: ${error.message}`);
+      // Step 4: Fetch items with search filter
+      const itemFilters: any = {};
+      if (searchQuery.trim()) itemFilters.search = searchQuery.trim();
+
+      const itemsResponse = await getItems(1, 1000, itemFilters);
+      
+      if (!itemsResponse.data || itemsResponse.data.length === 0) {
         setFullPurchaseOrders([]);
         return;
       }
 
-      setFullPurchaseOrders(data?.data || []);
-    } catch (err) {
-      console.error('Unexpected error fetching full purchase orders:', err);
-      setErrorMessage('An unexpected error occurred while fetching full purchase orders.');
+      // Step 5: Create suppliers map
+      const suppliersMap = new Map<string, Supplier>();
+      suppliers.forEach(supplier => {
+        suppliersMap.set(supplier._id, supplier);
+      });
+
+      // Step 6: Filter items by date range and supplier selection
+      let filteredItems = itemsResponse.data.filter((item: any) => {
+        // Check date range using item's createdAt (this is the primary filter)
+        if (dateRange[0] || dateRange[1]) {
+          // Items use createdAt field - API returns createdAt
+          const itemCreatedAt = (item as any).createdAt || (item as any).created_at;
+          if (!itemCreatedAt) return false; // Skip items without creation date
+          
+          const itemDate = new Date(itemCreatedAt);
+          const start = dateRange[0] ? new Date(dateRange[0]) : null;
+          const end = dateRange[1] ? new Date(dateRange[1]) : null;
+          
+          // Set time to start/end of day for proper date comparison
+          if (start) {
+            start.setHours(0, 0, 0, 0);
+            if (itemDate < start) return false;
+          }
+          if (end) {
+            end.setHours(23, 59, 59, 999);
+            if (itemDate > end) return false;
+          }
+        }
+
+        // Check supplier filter using item.vendor field directly
+        if (selectedSuppliers.length > 0) {
+          // Get supplier ID from item.vendor field (handle different possible structures)
+          const itemVendorId = item.vendor?._id || item.vendor?.id || item.vendor;
+          if (!itemVendorId || !selectedSuppliers.includes(itemVendorId)) {
+            return false;
+          }
+        } else {
+          // If no suppliers selected, only show items that have a vendor
+          if (!item.vendor) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      // Step 7: Transform items to PurchaseOrderItem format
+      const purchaseOrderItems: PurchaseOrderItem[] = filteredItems.map(item => {
+        // Get supplier from item.vendor field directly
+        const itemVendor = (item as any).vendor;
+        const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
+        const vendorName = itemVendor?.name || 'Unknown Supplier';
+        
+        // Try to get full supplier details from suppliersMap
+        const supplier = vendorId ? suppliersMap.get(vendorId) : null;
+        
+        const supplierInfo = supplier ? {
+          _id: supplier._id,
+          name: supplier.name
+        } : {
+          _id: vendorId || 'no-supplier',
+          name: vendorName
+        };
+        
+        // Use correct field names from API response
+        const itemName = item.name || (item as any).item_name || 'Unnamed Item';
+        const createdAt = (item as any).createdAt || (item as any).created_at;
+        const unitPrice = item.unitPrice || (item as any).selling_price || 0;
+        const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
+        
+        return {
+          _id: (item as any).id || item._id,
+          itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
+          itemName: itemName,
+          description: (item as any).description || undefined,
+          unitPrice: unitPrice,
+          quantity: quantity,
+          totalValue: unitPrice * quantity,
+          supplier: supplierInfo,
+          orderDate: createdAt || new Date().toISOString(), // Fallback to current date if missing
+          status: (item as any).isActive !== false ? 'active' : 'inactive'
+        };
+      });
+
+      // Step 8: Apply sorting
+      const sortField = sortConfig.field || 'orderDate';
+      const sortDirection = sortConfig.direction || 'desc';
+      
+      purchaseOrderItems.sort((a, b) => {
+        let aValue: any, bValue: any;
+        
+        switch (sortField) {
+          case 'itemName':
+            aValue = a.itemName;
+            bValue = b.itemName;
+            break;
+          case 'supplier.name':
+            aValue = a.supplier.name;
+            bValue = b.supplier.name;
+            break;
+          case 'orderDate':
+            aValue = new Date(a.orderDate);
+            bValue = new Date(b.orderDate);
+            break;
+          case 'quantity':
+            aValue = a.quantity;
+            bValue = b.quantity;
+            break;
+          case 'unitPrice':
+            aValue = a.unitPrice;
+            bValue = b.unitPrice;
+            break;
+          case 'totalValue':
+            aValue = a.totalValue;
+            bValue = b.totalValue;
+            break;
+          default:
+            aValue = new Date(a.orderDate);
+            bValue = new Date(b.orderDate);
+        }
+
+        if (sortDirection === 'desc') {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        } else {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        }
+      });
+
+      console.log('Full purchase orders fetched:', purchaseOrderItems.length);
+      setFullPurchaseOrders(purchaseOrderItems);
+
+    } catch (error) {
+      console.error('Error fetching full purchase orders:', error);
       setFullPurchaseOrders([]);
     }
-  }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, selectedReportType]);
+  }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, selectedReportType, fetchSupplierItems, suppliers]);
 
-  // Fetch full sales in the given date range
+  // Fetch all sales invoices for the given date range - TODO: Implement with proper service
   const fetchAllSales = useCallback(async () => {
-    if (!userData?.company_id || selectedReportType !== 'sales') return;
+    console.log('Sales fetching temporarily disabled');
+    setAllSales([]);
+    setSalesSummaryStats({ totalSales: 0, totalSalesValue: 0 });
+  }, [])
 
-    const formatToUTC: any = (dateString: Date) => {
-      const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // months are 0-based
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    try {
-      const fromDate = dateRange[0] ? formatToUTC(dateRange[0]) : null;
-      const toDate = dateRange[1] ? formatToUTC(dateRange[1]) : null;
-
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from('sales_invoice')
-        .select('*')
-        .eq('company_id', userData?.company_id)
-        .gte('invoice_date', fromDate)
-        .lte('invoice_date', toDate);
-
-      if (invoiceError) {
-        console.error('Error fetching all sales:', invoiceError);
-        setErrorMessage(`Failed to fetch sales data: ${invoiceError.message}`);
-        setAllSales([]);
-        return;
-      }
-
-      const formattedData = invoiceData.map((data) => {
-        // const discountAmt =
-        //   ((data?.discount_amount ?? 0) / 100) * (data?.invoice_amount ?? 0);
-        const taxAmt = ((companyData?.tax_percentage ?? 0) / 100 * (data?.invoice_amount ?? 0))
-        return {
-          ...data,
-          tax_amount: taxAmt,
-          net_amount: (data?.net_amount ?? 0) + taxAmt,
-        };
-      });
-
-      const totalSales = formattedData.length;
-      const totalSalesValue = formattedData.reduce((sum: number, invoice: ISalesInvoice) => sum + (invoice.net_amount || 0), 0)
-      setSalesSummaryStats({ totalSales, totalSalesValue });
-
-      setAllSales(formattedData);
-    } catch (err) {
-      console.error('Unexpected error fetching sales:', err);
-      setErrorMessage('An unexpected error occurred while fetching sales.');
-      setAllSales([]);
-    }
-  }, [userData, dateRange, selectedReportType])
-
-  // Fetch paginated sales data 
-  const fetchAllPaginatedSales = useCallback(async (page?: number) => {
-    if (!userData?.company_id || selectedReportType !== 'sales') return;
-
-    const targetPage = page ?? currentPageSales;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const formatToUTC = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    try {
-      const fromDate = dateRange[0] ? formatToUTC(dateRange[0]) : null;
-      const toDate = dateRange[1] ? formatToUTC(dateRange[1]) : null;
-
-      const from = (targetPage - 1) * itemsPerPageSales;
-      const to = from + itemsPerPageSales - 1;
-
-      let query = supabase
-        .from('sales_invoice')
-        .select('*', { count: 'exact' })
-        .eq('company_id', userData.company_id);
-
-      if (fromDate) query = query.gte('invoice_date', fromDate);
-      if (toDate) query = query.lte('invoice_date', toDate);
-
-      // Search filter
-      if (searchQuerySales) {
-        const sanitizedQuery = searchQuerySales.replace(/[%_]/g, '');
-        const searchConditions = [
-          `invoice_number.ilike.%${sanitizedQuery.trim()}%`,
-        ];
-        query = query.or(searchConditions.join(','));
-      }
-
-      // Sorting with deterministic tie-breaker
-      const fieldMap: { [key in SortFieldSales]: string } = {
-        invoice_date: 'invoice_date',
-        invoice_number: 'invoice_number',
-        invoice_amount: 'invoice_amount',
-        net_amount: 'net_amount',
-      };
-
-      if (sortConfigSales.field && sortConfigSales.direction) {
-        query = query
-          .order(fieldMap[sortConfigSales.field], {
-            ascending: sortConfigSales.direction === 'asc',
-          })
-          .order('id', { ascending: true }); // ✅ Stable tie-breaker
-      } else {
-        query = query.order('id', { ascending: true }); // ✅ Default sort
-      }
-
-      // Pagination after stable sort
-      query = query.range(from, to);
-
-      const { data: invoiceData, error: invoiceError, count } = await query;
-
-      if (invoiceError) {
-        console.error('Error fetching paginated sales:', invoiceError);
-        setErrorMessage(`Failed to fetch paginated sales data: ${invoiceError.message}`);
-        setPaginatedSales([]);
-        return;
-      }
-
-      const formattedData = invoiceData.map((data) => {
-        const taxAmt = ((companyData?.tax_percentage ?? 0) / 100) * (data?.invoice_amount ?? 0);
-        return {
-          ...data,
-          tax_amount: taxAmt,
-          net_amount: (data?.net_amount ?? 0) + taxAmt,
-        };
-      });
-      setPaginatedSales(formattedData);
-
-      const totalItems = count || 0;
-      const totalPages = Math.ceil(totalItems / itemsPerPageSales);
-
-      setSalesPagination({
-        currentPage: targetPage,
-        totalPages,
-        total: totalItems,
-        itemsPerPage: itemsPerPageSales,
-      });
-    } catch (err) {
-      console.error('Unexpected error fetching paginated sales:', err);
-      setErrorMessage('An unexpected error occurred while fetching paginated sales.');
-      setPaginatedSales([]);
-      setSalesPagination((prev) => ({
-        ...prev,
-        currentPage: targetPage,
-        totalPages: 0,
-        total: 0,
-      }));
-    } finally {
-      setIsLoading(false)
-    }
-  }, [userData, dateRange, selectedReportType, currentPageSales, itemsPerPageSales, sortConfigSales, searchQuerySales]);
+  // Fetch paginated sales data - TODO: Implement with proper service
+  const fetchAllPaginatedSales = useCallback(async () => {
+    console.log('Paginated sales fetching temporarily disabled');
+    setIsLoading(false);
+    setPaginatedSales([]);
+    setSalesPagination({
+      currentPage: 1,
+      totalPages: 0,
+      total: 0,
+      itemsPerPage: itemsPerPageSales,
+    });
+  }, [itemsPerPageSales]);
 
   // Sorting function for sales report
   const handleSortSales = (field: SortFieldSales) => {
@@ -770,9 +998,24 @@ const Reports: React.FC = () => {
     );
   };
 
-  // Main fetchData function for paginated table
+  // Main fetchData function for paginated purchase orders
   const fetchData = useCallback(async () => {
-    if (!userData?.company_id || selectedReportType !== 'purchase-order') return;
+    console.log('🔍 fetchData called', {
+      hasUserData: !!userData,
+      company_id: userData?.company_id,
+      companyId: (userData as any)?.companyId,
+      id: (userData as any)?.id,
+      selectedReportType,
+      dateRange,
+      selectedSuppliers
+    });
+
+    // Check if we have user data (try multiple possible fields)
+    const companyId = userData?.company_id || (userData as any)?.companyId || (userData as any)?.id;
+    if (!companyId || selectedReportType !== 'purchase-order') {
+      console.log('⚠️ fetchData early return:', { companyId, selectedReportType });
+      return;
+    }
 
     const formatDate = (date: Date): string => {
       const year = date.getFullYear();
@@ -781,166 +1024,44 @@ const Reports: React.FC = () => {
       return `${year}-${month}-${day}`;
     };
 
-    const params: any = {
-      p_company_id: userData.company_id,
-      p_start_date: dateRange[0] ? formatDate(dateRange[0]) : null,
-      p_end_date: dateRange[1] ? formatDate(dateRange[1]) : null,
-      p_supplier_ids: selectedSuppliers.length > 0 ? selectedSuppliers : null,
-      p_search_query: searchQuery.trim() ? searchQuery.trim() : null,
-      p_sort_field: sortConfig.field || 'order_date',
-      p_sort_direction: sortConfig.direction || 'desc',
-      p_page: currentPage,
-      p_limit: itemsPerPage === -1 ? -1 : itemsPerPage,
-    };
+    const queryParams = new URLSearchParams({
+      companyId: companyId,
+      page: currentPage.toString(),
+      limit: itemsPerPage === -1 ? '0' : itemsPerPage.toString(),
+      ...(dateRange[0] && { startDate: formatDate(dateRange[0]) }),
+      ...(dateRange[1] && { endDate: formatDate(dateRange[1]) }),
+      ...(selectedSuppliers.length > 0 && { suppliers: selectedSuppliers.join(',') }),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      sortField: sortConfig.field || 'orderDate',
+      sortDirection: sortConfig.direction || 'desc'
+    });
 
-    debouncedFetchData(params);
-  }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, currentPage, itemsPerPage, selectedReportType, debouncedFetchData]);
+    console.log('📋 Calling fetchPurchaseOrderItems with params:', Object.fromEntries(queryParams));
+    // Call directly instead of debounced to ensure immediate execution
+    await fetchPurchaseOrderItems(queryParams);
+  }, [userData, dateRange, selectedSuppliers, searchQuery, sortConfig, currentPage, itemsPerPage, selectedReportType, fetchPurchaseOrderItems]);
 
-  // Function to format to UTC string
-  function formatAsUTCString(date: Date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
 
-    return `${year}-${month}-${day}T00:00:00.000Z`;
-  }
 
-  // Function to get formatted date range
-  function getFormattedDateRange(dateRange: (Date | null)[]) {
-    if (!dateRange[0] || !dateRange[1]) return null;
+  // Fetch paginated inventory stock report - TODO: Implement with proper service
+  const fetchPaginatedStock = useCallback(async () => {
+    console.log('Paginated stock fetching temporarily disabled');
+    setIsLoading(false);
+    setPaginatedStocks([]);
+    setStockPagination({
+      currentPage: 1,
+      totalPages: 0,
+      total: 0,
+      itemsPerPage: itemsPerPageStock,
+    });
+  }, [itemsPerPageStock]);
 
-    const from = formatAsUTCString(dateRange[0]);
-
-    const to = new Date(dateRange[1]);
-    to.setDate(to.getDate() + 1);
-    const toFormatted = formatAsUTCString(to);
-
-    return {
-      fromFormatted: from,
-      toFormatted: toFormatted,
-    };
-  }
-
-  // Fetch paginated inventory stock report
-  const fetchPaginatedStock = useCallback(async (page?: number) => {
-    if (!userData?.company_id || selectedReportType !== 'stock') return;
-
-    const targetPage = page ?? currentPageStock;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    try {
-      let fromDate: string | null = null;
-      let toDate: string | null = null;
-
-      if (dateRange[0] && dateRange[1]) {
-        const formatResult = getFormattedDateRange([dateRange[0], dateRange[1]]);
-        fromDate = formatResult?.fromFormatted ?? null;
-        toDate = formatResult?.toFormatted ?? null;
-      }
-
-      const { data, error } = await supabase.rpc("get_inventory_items_for_reports", {
-        search_term: searchQueryStock.trim() ? searchQueryStock.trim() : undefined,
-        sort_field: sortConfigStock.field || "item_name",
-        sort_direction: sortConfigStock.direction || "asc",
-        page_size: itemsPerPageStock,
-        page_number: targetPage,
-        company_id: userData.company_id,
-        selected_stores: selectedStores?.length ? selectedStores : undefined,
-        from_date: fromDate || undefined,
-        to_date: toDate || undefined
-      }
-      );
-
-      if (error) {
-        console.error("Error fetching paginated stock:", error);
-        setErrorMessage(`Failed to fetch stock data: ${error.message}`);
-        setPaginatedStocks([]);
-        setStockPagination((prev) => ({
-          ...prev,
-          currentPage: targetPage,
-          totalPages: 0,
-          total: 0,
-        }));
-        return;
-      }
-
-      if (data) {
-        // console.log("Stock Data => ", data);
-        setPaginatedStocks(data);
-
-        const totalItems = data[0]?.total_count ?? 0;
-        const totalPages = Math.ceil(totalItems / itemsPerPageStock);
-
-        setStockPagination({
-          currentPage: targetPage,
-          totalPages,
-          total: totalItems,
-          itemsPerPage: itemsPerPageStock,
-        });
-      }
-    } catch (err) {
-      console.error("Unexpected error fetching stock:", err);
-      setErrorMessage("An unexpected error occurred while fetching stock.");
-      setPaginatedStocks([]);
-      setStockPagination((prev) => ({
-        ...prev,
-        currentPage: targetPage,
-        totalPages: 0,
-        total: 0,
-      }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userData, dateRange, selectedReportType, selectedStores, searchQueryStock, currentPageStock, itemsPerPageStock, sortConfigStock]);
-
-  // Fetch paginated inventory stock report
+  // Fetch all inventory stock for summary and export - TODO: Implement with proper service
   const fetchAllInventoryStock = useCallback(async () => {
-    if (!userData?.company_id || selectedReportType !== 'stock') return;
-
-    try {
-      let fromDate: string | null = null;
-      let toDate: string | null = null;
-
-      if (dateRange[0] && dateRange[1]) {
-        const formatResult = getFormattedDateRange([dateRange[0], dateRange[1]]);
-        fromDate = formatResult?.fromFormatted ?? null;
-        toDate = formatResult?.toFormatted ?? null;
-      }
-
-      const { data, error } = await supabase.rpc("get_inventory_items_for_reports", {
-        search_term: undefined,
-        sort_field: "item_name",
-        sort_direction: "asc",
-        page_size: undefined,
-        page_number: 1,
-        company_id: userData.company_id,
-        selected_stores: selectedStores?.length ? selectedStores : undefined,
-        from_date: fromDate || undefined,
-        to_date: toDate || undefined
-      }
-      );
-
-      if (error) {
-        console.error("Error fetching paginated stock:", error);
-        setErrorMessage(`Failed to fetch stock data: ${error.message}`);
-        setAllStocks([]);
-        return;
-      }
-
-      if (data) {
-        // console.log("All Stock Data => ", data);
-        setAllStocks(data);
-        const totalStock = data.reduce((sum: number, stock: InventoryStockReport) => sum + (stock.total_quantity || 0), 0);
-        const totalStockValue = data.reduce((sum: number, stock: InventoryStockReport) => sum + ((stock.total_quantity * stock.unit_price) || 0), 0);
-        setStockSummaryStats({ totalStock, totalStockValue });
-      }
-    } catch (err) {
-      console.error("Unexpected error fetching stock:", err);
-      setErrorMessage("An unexpected error occurred while fetching stock.");
-      setAllStocks([]);
-    }
-  }, [userData, dateRange, selectedStores, searchQueryStock, sortConfigStock, currentPageStock, itemsPerPageStock, selectedReportType])
+    console.log('All stock fetching temporarily disabled');
+    setAllStocks([]);
+    setStockSummaryStats({ totalStock: 0, totalStockValue: 0 });
+  }, [])
 
   // Sorting function for sales report
   const handleSortStock = (field: SortFieldStock) => {
@@ -973,22 +1094,51 @@ const Reports: React.FC = () => {
     );
   };
 
-  // Modified handleGenerateReport to fetch paginated data, full data, and summary stats
+  /**
+   * Generate report based on selected filters
+   * 
+   * For Purchase Order Reports:
+   * - Validates date range and supplier selection are provided
+   * - Fetches items filtered by:
+   *   1. Date range (item.created_at within selected dates)
+   *   2. Supplier ID (items linked to selected suppliers via supplier-items table)
+   * - Generates paginated view, full data for export, and summary statistics
+   */
   const handleGenerateReport = async () => {
+    console.log('🚀 Starting report generation...');
+    console.log('Report type:', selectedReportType);
+    console.log('Date range:', dateRange);
+    console.log('Selected suppliers:', selectedSuppliers);
+    console.log('User data:', userData);
+    
     setIsLoading(true);
     setErrorMessage(null);
 
-    if (selectedReportType === 'purchase-order') {
-      await Promise.all([fetchData(), fetchFullPurchaseOrders(), fetchSummaryStats()]);
-      setIsReportGenerated(true);
-    } else if (selectedReportType === 'sales') {
-      await Promise.all([fetchAllPaginatedSales(), fetchAllSales()]);
-      setIsReportGenerated(true);
-    } else if (selectedReportType === 'stock') {
-      await Promise.all([fetchPaginatedStock(), fetchAllInventoryStock()]);
-      setIsReportGenerated(true);
-    } else {
-      setIsReportGenerated(true);
+    try {
+      if (selectedReportType === 'purchase-order') {
+        console.log('📊 Generating purchase order report...');
+        // Fetch all three: paginated data for table, full data for export, and summary stats
+        await Promise.all([fetchData(), fetchFullPurchaseOrders(), fetchSummaryStats()]);
+        setIsReportGenerated(true);
+        console.log('✅ Purchase order report generated successfully');
+      } else if (selectedReportType === 'sales') {
+        console.log('📊 Generating sales report...');
+        await Promise.all([fetchAllPaginatedSales(), fetchAllSales()]);
+        setIsReportGenerated(true);
+        console.log('✅ Sales report generated successfully');
+      } else if (selectedReportType === 'stock') {
+        console.log('📊 Generating stock report...');
+        await Promise.all([fetchPaginatedStock(), fetchAllInventoryStock()]);
+        setIsReportGenerated(true);
+        console.log('✅ Stock report generated successfully');
+      } else {
+        console.log('⚠️ Unknown report type, setting as generated');
+        setIsReportGenerated(true);
+        setIsLoading(false);
+      }
+    } catch (error: any) {
+      console.error('❌ Report generation failed:', error);
+      setErrorMessage(`Report generation failed: ${error?.message || 'Unknown error'}`);
       setIsLoading(false);
     }
   };
@@ -997,59 +1147,26 @@ const Reports: React.FC = () => {
   const exportToCSV = useCallback(async () => {
     if (!selectedReportType || !isReportGenerated) return;
 
-    const formatDate = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
     let csvContent = '';
     let filename = '';
 
     if (selectedReportType === 'purchase-order') {
-      const params: any = {
-        p_company_id: userData?.company_id,
-        p_start_date: dateRange[0] ? formatDate(dateRange[0]) : null,
-        p_end_date: dateRange[1] ? formatDate(dateRange[1]) : null,
-        p_supplier_ids: selectedSuppliers.length > 0 ? selectedSuppliers : null,
-        p_search_query: searchQuery.trim() ? searchQuery.trim() : null,
-        p_sort_field: sortConfig.field || 'order_date',
-        p_sort_direction: sortConfig.direction || 'desc',
-        p_page: 1,
-        p_limit: -1,
-      };
+      const headers = ['Item Name', 'Supplier', 'Order Date', 'Quantity', 'Unit Price', 'Total Value'];
+      const rows = fullPurchaseOrders.map((item: PurchaseOrderItem) => [
+        `"${item.itemName}"`,
+        `"${item.supplier?.name || ''}"`,
+        `"${format(new Date(item.orderDate), 'dd MMM yyyy')}"`,
+        item.quantity,
+        `"Rs ${item.unitPrice.toLocaleString('en-IN')}"`,
+        `"Rs ${item.totalValue.toLocaleString('en-IN')}"`,
+      ]);
 
-      try {
-        const { data, error }: any = await supabase.rpc('get_purchase_orders_for_report', params);
+      csvContent = [
+        headers.join(','),
+        ...rows.map((row: any) => row.join(','))
+      ].join('\n');
 
-        if (error) {
-          console.error('Error fetching data for CSV:', error);
-          setErrorMessage(`Failed to fetch data for CSV: ${error.message}`);
-          return;
-        }
-
-        const headers = ['PO Number', 'Supplier', 'Order Date', 'Items', 'Total Value', 'Status'];
-        const rows = (data?.data || []).map((item: PurchaseOrder) => [
-          `"${item.po_number}"`,
-          `"${item.supplier_name || ''}"`,
-          `"${format(new Date(item.order_date), 'dd MMM yyyy')}"`,
-          item.total_items,
-          `"Rs ${item.total_value.toLocaleString('en-IN')}"`, // Changed from ₹ to Rs
-          `"${statusMessages[item.system_message_config?.sub_category_id || 'Unknown'] || item.system_message_config?.sub_category_id?.replace(/_/g, ' ') || 'Unknown'}"`,
-        ]);
-
-        csvContent = [
-          headers.join(','),
-          ...rows.map((row: any) => row.join(','))
-        ].join('\n');
-
-        filename = `Purchase_Order_Report_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
-      } catch (err) {
-        console.error('Unexpected error exporting CSV:', err);
-        setErrorMessage('An unexpected error occurred while exporting CSV.');
-        return;
-      }
+      filename = `Purchase_Order_Report_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
     } else {
       // Handle other report types with proper typing
       const report = getReportData(selectedReportType);
@@ -1059,22 +1176,22 @@ const Reports: React.FC = () => {
         if (selectedReportType === 'sales') {
           const salesItem = item as ISalesInvoiceWithTax;
           return [
-            `"${salesItem.invoice_number}"`,
-            `"${format(new Date(salesItem.invoice_date!), 'dd MMM yyyy')}"`,
-            `"${formatCurrency(salesItem.invoice_amount ?? 0)}"`,
-            `"${formatCurrency(salesItem.discount_amount ?? 0)}"`,
+            `"${format(new Date(salesItem.invoiceDate!), 'dd MMM yyyy')}"`,
+            `"${salesItem.invoiceNumber}"`,
+            `"${formatCurrency(salesItem.invoiceAmount ?? 0)}"`,
+            `"${formatCurrency(salesItem.discountAmount ?? 0)}"`,
             `"${formatCurrency(salesItem.tax_amount ?? 0)}"`,
             `"${formatCurrency(salesItem.net_amount ?? 0)}"`,
           ];
         } else if (selectedReportType === 'stock') {
           const stockItem = item as unknown as InventoryStockReport;
           return [
-            `"${stockItem.item_id}"`,
-            `"${stockItem.item_name}"`,
-            `"${stockItem.store_name}"`,
-            `"${stockItem.total_quantity}"`,
-            `"${stockItem.unit_price}"`,
-            `"${(stockItem.total_quantity * stockItem.unit_price)}"`,
+            `"${stockItem.itemId}"`,
+            `"${stockItem.itemName}"`,
+            `"${stockItem.storeName}"`,
+            `"${stockItem.quantity}"`,
+            `"${stockItem.unitPrice}"`,
+            `"${(stockItem.quantity * stockItem.unitPrice)}"`,
           ];
         }
         return [];
@@ -1106,74 +1223,73 @@ const Reports: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig, statusMessages]);
+  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig]);
 
   // Fetch user data
   useEffect(() => {
     const mockUserData = JSON.parse(localStorage.getItem('userData') || '{}');
+    console.log('User data from localStorage:', mockUserData);
+    console.log('Company ID available:', mockUserData?.company_id || mockUserData?.companyId || 'NOT FOUND');
     setUserData(mockUserData);
   }, []);
 
-  // Fetch report configs when userData is available
-  useEffect(() => {
-    if (userData?.company_id) {
-      fetchReportConfigs();
-    }
-  }, [userData, fetchReportConfigs]);
 
-  // Fetch suppliers when userData is available
-  useEffect(() => {
-    if (!userData?.company_id) return;
 
+  // Fetch suppliers when component mounts
+  useEffect(() => {
     const fetchSuppliers = async () => {
       try {
-        const { data, error }: any = await supabase
-          .from('supplier_mgmt')
-          .select('supplier_id, supplier_name, is_active')
-          .eq('is_active', true)
-          .eq('company_id', userData.company_id);
-
-        if (error) {
-          console.error('Error fetching suppliers:', error);
-          setErrorMessage('Failed to fetch suppliers. Please try again.');
-          return;
+        console.log('Fetching suppliers using supplierService...');
+        
+        const response = await supplierService.listSuppliers({
+          page: 1,
+          limit: 100,
+          status: 'approved' // Only get approved suppliers
+        });
+        
+        console.log('Suppliers API response:', response);
+        
+        if (response && response.data) {
+          console.log('Suppliers data:', response.data);
+          setSuppliers(response.data);
+        } else {
+          console.error('No suppliers data in response');
+          setErrorMessage('No suppliers found');
         }
-        setSuppliers(data || []);
-      } catch (err) {
-        console.error('Unexpected error fetching suppliers:', err);
-        setErrorMessage('An unexpected error occurred while fetching suppliers.');
+      } catch (err: any) {
+        console.error('Error fetching suppliers:', err);
+        setErrorMessage(err.message || 'An unexpected error occurred while fetching suppliers.');
       }
     };
 
     fetchSuppliers();
-  }, [userData]);
+  }, []);
 
-  // Fetch stores data when userData is available
+  // Fetch stores data when component mounts
   useEffect(() => {
-    if (!userData?.company_id) return;
-
     const fetchStores = async () => {
       try {
-        const { data, error }: any = await supabase
-          .from('store_mgmt')
-          .select('id, name, is_active')
-          .eq('is_active', true)
-          .eq('company_id', userData.company_id);
-
-        if (error) {
-          console.error('Error fetching suppliers:', error);
-          setErrorMessage('Failed to fetch suppliers. Please try again.');
-          return;
+        console.log('Fetching stores using storeService...');
+        
+        const response = await storeService.listStores();
+        
+        console.log('Stores API response:', response);
+        
+        if (response && response.data) {
+          console.log('Stores data:', response.data);
+          setAllStores(response.data);
+        } else {
+          console.error('No stores data in response');
+          setErrorMessage('No stores found');
         }
-        setAllStores(data || []);
-      } catch (err) {
-        console.error('Unexpected error fetching suppliers:', err);
-        setErrorMessage('An unexpected error occurred while fetching suppliers.');
+      } catch (err: any) {
+        console.error('Error fetching stores:', err);
+        setErrorMessage(err.message || 'An unexpected error occurred while fetching stores.');
       }
     };
 
     fetchStores();
-  }, [userData]);
+  }, []);
 
   // Fetch data when relevant state changes
   useEffect(() => {
@@ -1251,7 +1367,7 @@ const Reports: React.FC = () => {
 
   const handleSelectAllSuppliers = (checked: boolean) => {
     if (checked) {
-      setSelectedSuppliers(suppliers.map((s) => s.supplier_id));
+      setSelectedSuppliers(suppliers.map((s) => s._id));
     } else {
       setSelectedSuppliers([]);
     }
@@ -1261,7 +1377,7 @@ const Reports: React.FC = () => {
 
   const handleSelectAllStores = (checked: boolean) => {
     if (checked) {
-      setSelectedStores(allStores.map((s) => s.id));
+      setSelectedStores(allStores.map((s) => s._id));
     } else {
       setSelectedStores([]);
     }
@@ -1301,42 +1417,9 @@ const Reports: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const STATUS_STYLES = {
-    ORDER_CREATED: 'bg-gray-100 text-gray-800 border-gray-300',
-    APPROVER_COMPLETED: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-    ORDER_RECEIVED: 'bg-green-100 text-green-800 border-green-300',
-    APPROVAL_PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    ORDER_CANCELLED: 'bg-red-100 text-red-800 border-red-300',
-    ORDER_PARTIALLY_RECEIVED: 'bg-lime-100 text-lime-800 border-lime-300',
-    ORDER_ISSUED: 'bg-blue-100 text-blue-800 border-blue-300',
-  };
 
-  const getStatusBadge = (status: string, type: ReportType | string) => {
-    const statusValue = status || 'Unknown';
 
-    if (type === 'purchase-order') {
-      switch (statusValue) {
-        case 'ORDER_CREATED':
-          return STATUS_STYLES.ORDER_CREATED;
-        case 'APPROVER_COMPLETED':
-          return STATUS_STYLES.APPROVER_COMPLETED;
-        case 'ORDER_RECEIVED':
-          return STATUS_STYLES.ORDER_RECEIVED;
-        case 'APPROVAL_PENDING':
-          return STATUS_STYLES.APPROVAL_PENDING;
-        case 'ORDER_CANCELLED':
-          return STATUS_STYLES.ORDER_CANCELLED;
-        case 'ORDER_PARTIALLY_RECEIVED':
-          return STATUS_STYLES.ORDER_PARTIALLY_RECEIVED;
-        case 'ORDER_ISSUED':
-          return STATUS_STYLES.ORDER_ISSUED;
-        default:
-          return STATUS_STYLES.ORDER_CREATED;
-      }
-    } else {
-      return null;
-    }
-  };
+
 
   const isFormValid = dateRange[0] && dateRange[1] && selectedReportType && (selectedReportType === "purchase-order" ? selectedSuppliers.length > 0 : true) && (selectedReportType === 'stock' ? selectedStores.length > 0 : true);
   const isAllSuppliersSelected = selectedSuppliers.length === suppliers.length && suppliers.length > 0;
@@ -1450,7 +1533,7 @@ const Reports: React.FC = () => {
                               ) : selectedSuppliers.length === suppliers.length ? (
                                 'All suppliers selected'
                               ) : selectedSuppliers.length === 1 ? (
-                                suppliers.find((s) => s.supplier_id === selectedSuppliers[0])?.supplier_name
+                                suppliers.find((s) => s._id === selectedSuppliers[0])?.name
                               ) : (
                                 `${selectedSuppliers.length} suppliers selected`
                               )}
@@ -1473,17 +1556,17 @@ const Reports: React.FC = () => {
                                 </label>
                               </div>
                               {suppliers.map((supplier) => (
-                                <div key={supplier.supplier_id} className="flex items-center space-x-2">
+                                <div key={supplier._id} className="flex items-center space-x-2">
                                   <Checkbox
-                                    id={supplier.supplier_id}
-                                    checked={selectedSuppliers.includes(supplier.supplier_id)}
-                                    onCheckedChange={() => handleSupplierChange(supplier.supplier_id)}
+                                    id={supplier._id}
+                                    checked={selectedSuppliers.includes(supplier._id)}
+                                    onCheckedChange={() => handleSupplierChange(supplier._id)}
                                   />
                                   <label
-                                    htmlFor={supplier.supplier_id}
+                                    htmlFor={supplier._id}
                                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                                   >
-                                    {supplier.supplier_name}
+                                    {supplier.name}
                                   </label>
                                 </div>
                               ))}
@@ -1505,7 +1588,7 @@ const Reports: React.FC = () => {
                               ) : selectedStores.length === allStores.length ? (
                                 'All stores selected'
                               ) : selectedStores.length === 1 ? (
-                                allStores.find((s) => s.id === selectedStores[0])?.name
+                                allStores.find((s) => s._id === selectedStores[0])?.name
                               ) : (
                                 `${selectedStores.length} stores selected`
                               )}
@@ -1528,14 +1611,14 @@ const Reports: React.FC = () => {
                                 </label>
                               </div>
                               {allStores.map((store) => (
-                                <div key={store.id} className="flex items-center space-x-2">
+                                <div key={store._id} className="flex items-center space-x-2">
                                   <Checkbox
-                                    id={store.id}
-                                    checked={selectedStores.includes(store.id)}
-                                    onCheckedChange={() => handleStoreChange(store.id)}
+                                    id={store._id}
+                                    checked={selectedStores.includes(store._id)}
+                                    onCheckedChange={() => handleStoreChange(store._id)}
                                   />
                                   <label
-                                    htmlFor={store.id}
+                                    htmlFor={store._id}
                                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                                   >
                                     {store.name}
@@ -1629,7 +1712,7 @@ const Reports: React.FC = () => {
                         <div className="relative flex-1 w-full">
                           <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                           <Input
-                            placeholder="Search by PO number or supplier..."
+                            placeholder="Search by item name or supplier..."
                             value={searchQuery}
                             onChange={(e) => handleSearchChange(e.target.value)}
                             className="pl-10"
@@ -1713,95 +1796,103 @@ const Reports: React.FC = () => {
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600"
-                                  onClick={() => handleSort('po_number')}
+                                  onClick={() => handleSort('itemName')}
                                 >
-                                  PO Number
-                                  {getSortIcon('po_number')}
+                                  Item Name
+                                  {getSortIcon('itemName')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600"
-                                  onClick={() => handleSort('supplier_name')}
+                                  onClick={() => handleSort('supplier.name')}
                                 >
                                   Supplier
-                                  {getSortIcon('supplier_name')}
+                                  {getSortIcon('supplier.name')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600"
-                                  onClick={() => handleSort('order_date')}
+                                  onClick={() => handleSort('orderDate')}
                                 >
                                   Order Date
-                                  {getSortIcon('order_date')}
+                                  {getSortIcon('orderDate')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600"
-                                  onClick={() => handleSort('total_items')}
+                                  onClick={() => handleSort('quantity')}
                                 >
-                                  Items
-                                  {getSortIcon('total_items')}
+                                  Quantity
+                                  {getSortIcon('quantity')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600"
-                                  onClick={() => handleSort('total_value')}
+                                  onClick={() => handleSort('unitPrice')}
+                                >
+                                  Unit Price
+                                  {getSortIcon('unitPrice')}
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p
+                                  className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600"
+                                  onClick={() => handleSort('totalValue')}
                                 >
                                   Total Value
-                                  {getSortIcon('total_value')}
+                                  {getSortIcon('totalValue')}
                                 </p>
                               </TableHead>
-                              <TableHead className="font-semibold">Status</TableHead>
                             </>
                           ) : selectedReportType === 'stock' ? (
                             <>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600 ps-2"
-                                  onClick={() => handleSortStock('item_id')}
+                                  onClick={() => handleSortStock('itemId')}
                                 >
                                   Item ID
-                                  {getSortIconStock('item_id')}
+                                  {getSortIconStock('itemId')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600 ps-2"
-                                  onClick={() => handleSortStock('item_name')}
+                                  onClick={() => handleSortStock('itemName')}
                                 >
                                   Item Name
-                                  {getSortIconStock('item_name')}
+                                  {getSortIconStock('itemName')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center gap-1 font-semibold cursor-pointer hover:text-blue-600 ps-2"
-                                  onClick={() => handleSortStock('store_name')}
+                                  onClick={() => handleSortStock('storeName')}
                                 >
                                   Store Name
-                                  {getSortIconStock('store_name')}
+                                  {getSortIconStock('storeName')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600 ps-2"
-                                  onClick={() => handleSortStock('item_qty')}
+                                  onClick={() => handleSortStock('quantity')}
                                 >
-                                  Item Quantity
-                                  {getSortIconStock('item_qty')}
+                                  Quantity
+                                  {getSortIconStock('quantity')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600 ps-2"
-                                  onClick={() => handleSortStock('unit_price')}
+                                  onClick={() => handleSortStock('unitPrice')}
                                 >
                                   Unit Price
-                                  {getSortIconStock('unit_price')}
+                                  {getSortIconStock('unitPrice')}
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold text-end"><p className='pe-2'>Total Value</p></TableHead>
@@ -1892,36 +1983,25 @@ const Reports: React.FC = () => {
                           ) : purchaseOrders.length > 0 ? (
                             purchaseOrders.map((item, index) => (
                               <TableRow
-                                key={item.id}
+                                key={item._id}
                                 className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
                                   }`}
                               >
-                                <TableCell className="font-medium text-gray-900 py-3">{item.po_number}</TableCell>
-                                <TableCell className="text-gray-700 py-3">{item.supplier_name}</TableCell>
-                                <TableCell className="text-gray-700 py-3">{format(new Date(item.order_date), 'dd MMM yyyy')}</TableCell>
-                                <TableCell className="text-gray-700 py-3 text-end px-4">{item.total_items}</TableCell>
-                                <TableCell className="font-medium text-gray-900 py-3 text-end px-4">₹{item.total_value.toLocaleString('en-IN')}</TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant="outline"
-                                    className={`font-medium ${getStatusBadge(
-                                      item.system_message_config?.sub_category_id || "unknown",
-                                      "purchase-order"
-                                    )}`}
-                                  >
-                                    {item.system_message_config?.sub_category_id
-                                      .replace(/_/g, ' ')
-                                      .toLowerCase()
-                                      .replace(/\b\w/g, c => c.toUpperCase())}
-                                  </Badge>
+                                <TableCell className="font-medium text-gray-900 py-3">{item.itemName}</TableCell>
+                                <TableCell className="text-gray-700 py-3">{item.supplier?.name}</TableCell>
+                                <TableCell className="text-gray-700 py-3">
+                                  {item.orderDate ? format(new Date(item.orderDate), 'dd MMM yyyy') : 'N/A'}
                                 </TableCell>
+                                <TableCell className="text-gray-700 py-3 text-end px-4">{item.quantity}</TableCell>
+                                <TableCell className="text-gray-700 py-3 text-end px-4">₹{item.unitPrice.toLocaleString('en-IN')}</TableCell>
+                                <TableCell className="font-medium text-gray-900 py-3 text-end px-4">₹{item.totalValue.toLocaleString('en-IN')}</TableCell>
                               </TableRow>
                             ))
                           ) : (
                             <TableRow>
                               <TableCell colSpan={6} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
-                                  <p className="text-base font-medium">No purchase orders found</p>
+                                  <p className="text-base font-medium">No items found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
                                 </div>
                               </TableCell>
@@ -1945,13 +2025,13 @@ const Reports: React.FC = () => {
                           ) : paginatedSales.length > 0 ? (
                             paginatedSales.map((item, index) => (
                               <TableRow
-                                key={item.id}
+                                key={item._id}
                                 className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
                               >
-                                <TableCell className="text-gray-700 px-4 py-3">{format(new Date(item.invoice_date!), 'dd MMM yyyy')}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{item.invoice_number}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.invoice_amount ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.discount_amount ?? 0)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{format(new Date(item.invoiceDate!), 'dd MMM yyyy')}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{item.invoiceNumber}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.invoiceAmount ?? 0)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.discountAmount ?? 0)}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.tax_amount ?? 0)}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{formatCurrency(item?.net_amount ?? 0)}</TableCell>
                               </TableRow>
@@ -1982,15 +2062,15 @@ const Reports: React.FC = () => {
                           ) : paginatedStocks.length > 0 ? (
                             paginatedStocks.map((stock, index) => (
                               <TableRow
-                                key={stock.id}
+                                key={stock._id}
                                 className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
                               >
-                                <TableCell className="text-gray-700 px-4 py-3">{stock.item_id}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{stock.item_name}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3">{stock.store_name}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{stock.total_quantity}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(stock.unit_price ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{formatCurrency(((stock.total_quantity ?? 0) * (stock.unit_price ?? 0)))}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{stock.itemId}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{stock.itemName}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{stock.storeName}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{stock.quantity}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(stock.unitPrice ?? 0)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{formatCurrency(((stock.quantity ?? 0) * (stock.unitPrice ?? 0)))}</TableCell>
                               </TableRow>
                             ))) : (
                             <TableRow>

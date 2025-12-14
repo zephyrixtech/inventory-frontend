@@ -1,5 +1,6 @@
 import { Package } from 'lucide-react';
 import type { JSX } from 'react';
+import { formatCurrency } from '@/Utils/formatters';
 
 interface PrintTemplateProps {
   reportData: any;
@@ -29,10 +30,33 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
     if (selectedReportType === 'purchase-order') {
       return reportData['purchase-order']?.data || [];
     }
+    if (selectedReportType === 'sales') {
+      return reportData['sales']?.data || [];
+    }
+    if (selectedReportType === 'stock') {
+      return reportData['stock']?.data || [];
+    }
     return [];
   };
 
   const data = getData();
+  
+  // Interface for PurchaseOrderItem from Reports.tsx
+  interface PurchaseOrderItem {
+    _id: string;
+    itemId: string;
+    itemName: string;
+    description?: string;
+    unitPrice: number;
+    quantity: number;
+    totalValue: number;
+    supplier: {
+      _id: string;
+      name: string;
+    };
+    orderDate: string;
+    status: string;
+  }
 
   return (
     <div className="print-template min-h-screen bg-gray-50 print:bg-white">
@@ -94,28 +118,28 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
         {/* Purchase Order Report Content */}
         {selectedReportType === 'purchase-order' && data.length > 0 && (
           <div className="space-y-8">
-            {data.map((currentItem: any, index: number) => (
+            {(data as PurchaseOrderItem[]).map((currentItem: PurchaseOrderItem, index: number) => (
               <div
-                key={currentItem.id || index}
+                key={currentItem._id || index}
                 className="bg-white border border-gray-200 rounded-lg p-6 break-inside-avoid print:mb-8"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                      Purchase Order: {currentItem.id}
+                      Purchase Order Item: {currentItem.itemId}
                     </h3>
                     <div className="space-y-2 text-sm">
                       <p>
                         <span className="font-medium">Supplier:</span>{' '}
-                        {currentItem.supplier}
+                        {currentItem.supplier?.name || 'N/A'}
                       </p>
                       <p>
-                        <span className="font-medium">Purchase Date:</span>{' '}
-                        {formatDate(currentItem.purchaseDate)}
+                        <span className="font-medium">Order Date:</span>{' '}
+                        {formatDate(currentItem.orderDate)}
                       </p>
                       <p>
-                        <span className="font-medium">Delivery Date:</span>{' '}
-                        {formatDate(currentItem.deliveryDate)}
+                        <span className="font-medium">Item Name:</span>{' '}
+                        {currentItem.itemName}
                       </p>
                     </div>
                   </div>
@@ -125,8 +149,8 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                     </div>
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="font-medium">Total Cost:</span>{' '}
-                        {currentItem.totalCost}
+                        <span className="font-medium">Total Value:</span>{' '}
+                        {formatCurrency(currentItem.totalValue)}
                       </p>
                     </div>
                   </div>
@@ -137,10 +161,13 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left font-medium text-gray-700">
-                            Item Code
+                            Item ID
                           </th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700">
                             Item Name
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700">
+                            Supplier
                           </th>
                           <th className="px-4 py-3 text-center font-medium text-gray-700">
                             Quantity
@@ -149,27 +176,21 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                             Unit Price
                           </th>
                           <th className="px-4 py-3 text-right font-medium text-gray-700">
-                            Line Total
+                            Total Value
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {currentItem.itemBreakdown?.map(
-                          (item: any, itemIndex: number) => (
-                            <tr
-                              key={itemIndex}
-                              className={itemIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                            >
-                              <td className="px-4 py-3 font-medium">{item.itemCode}</td>
-                              <td className="px-4 py-3">{item.itemName}</td>
-                              <td className="px-4 py-3 text-center">{item.quantity}</td>
-                              <td className="px-4 py-3 text-right">{item.unitPrice}</td>
-                              <td className="px-4 py-3 text-right font-medium">
-                                {item.lineTotal}
-                              </td>
-                            </tr>
-                          )
-                        )}
+                        <tr className="bg-white">
+                          <td className="px-4 py-3 font-medium">{currentItem.itemId}</td>
+                          <td className="px-4 py-3">{currentItem.itemName}</td>
+                          <td className="px-4 py-3">{currentItem.supplier?.name || 'N/A'}</td>
+                          <td className="px-4 py-3 text-center">{currentItem.quantity}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(currentItem.unitPrice)}</td>
+                          <td className="px-4 py-3 text-right font-medium">
+                            {formatCurrency(currentItem.totalValue)}
+                          </td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
