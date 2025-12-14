@@ -31,22 +31,9 @@ interface PurchaseOrderItem {
   status: string;
 }
 
-// Item Management Interface
-interface ItemMgmt {
-  item_name: string;
-  description?: string | null;
-}
 
-// Sales Invoice Interfaces
-interface SalesInvoiceItem {
-  id: string;
-  item_id: string;
-  quantity: number | null;
-  unit_price: number | null;
-  discount_percentage: number | null;
-  total: number;
-  item_mgmt: ItemMgmt;
-}
+
+
 
 
 
@@ -75,7 +62,7 @@ const PrintPreview: React.FC = () => {
   const dateRange = useSelector(selectDateRange);
   const reportConfigs = useSelector(selectReportConfigs);
   // const userData = useSelector(selectUser);
-  
+
   // Static company data since we don't have company logic
   const companyData = {
     name: 'Inventory Management System',
@@ -116,17 +103,17 @@ const PrintPreview: React.FC = () => {
   const data = getData();
   const totalPages = data.length;
   const currentItem = data[currentPage - 1];
-  
+
   // For purchase order reports, group items by supplier and date for display
-  const purchaseOrderItems = selectedReportType === 'purchase-order' 
-    ? (data as PurchaseOrderItem[]) 
+  const purchaseOrderItems = selectedReportType === 'purchase-order'
+    ? (data as PurchaseOrderItem[])
     : [];
-  
+
   // For stock reports, group by item
-  const stockItems = selectedReportType === 'stock' 
-    ? (data as any[]) 
+  const stockItems = selectedReportType === 'stock'
+    ? (data as any[])
     : [];
-  
+
   // Group stock items by item name
   const allInventoryStocks = stockItems.reduce((acc: GroupedStockItem[], item: any) => {
     const existingItem = acc.find(i => i.item_id === item.itemId);
@@ -157,7 +144,7 @@ const PrintPreview: React.FC = () => {
     }
     return acc;
   }, []);
-  
+
   const totalStockQty = stockItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
   const totalStockValue = stockItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
 
@@ -183,58 +170,44 @@ const PrintPreview: React.FC = () => {
       year: 'numeric',
     });
   };
-  
-  const currentSalesInvoice = selectedReportType === 'sales' && currentItem
-    ? {
-        ...currentItem,
-        items: [],
-        total_items: 1,
-        total_value: (currentItem as any).net_amount || 0
-      }
-    : null;
-  
+
+
+
   // For printing, use all purchase order items
   const allPurchaseOrders = selectedReportType === 'purchase-order'
     ? purchaseOrderItems.map(item => ({
+      id: item._id,
+      po_number: `PO-${item.itemId}`,
+      supplier_id: item.supplier._id,
+      order_date: item.orderDate,
+      total_items: 1,
+      total_value: item.totalValue,
+      payment_details: null,
+      remarks: null,
+      items: [{
         id: item._id,
-        po_number: `PO-${item.itemId}`,
-        supplier_id: item.supplier._id,
-        order_date: item.orderDate,
-        total_items: 1,
-        total_value: item.totalValue,
-        payment_details: null,
-        remarks: null,
-        items: [{
-          id: item._id,
-          item_id: item.itemId,
-          order_qty: item.quantity,
-          order_price: item.totalValue,
-          item_mgmt: {
-            item_name: item.itemName,
-            description: item.description || null
-          }
-        }],
-        supplier: {
-          supplier_name: item.supplier.name,
-          email: null,
-          address: null
-        },
-        store: {
-          name: 'Default Store',
-          address: null
-        },
-        order_status: item.status
-      }))
+        item_id: item.itemId,
+        order_qty: item.quantity,
+        order_price: item.totalValue,
+        item_mgmt: {
+          item_name: item.itemName,
+          description: item.description || null
+        }
+      }],
+      supplier: {
+        supplier_name: item.supplier.name,
+        email: null,
+        address: null
+      },
+      store: {
+        name: 'Default Store',
+        address: null
+      },
+      order_status: item.status
+    }))
     : [];
-  
-  const allSalesInvoices = selectedReportType === 'sales'
-    ? (data as any[]).map(invoice => ({
-        ...invoice,
-        items: [],
-        total_items: 1,
-        total_value: invoice.net_amount || 0
-      }))
-    : [];
+
+
 
   const handleNext = () => {
     if (currentPage < totalPages) {
@@ -298,8 +271,8 @@ const PrintPreview: React.FC = () => {
           </head>
           <body>
             ${allPurchaseOrders.map((po) => {
-              const item = purchaseOrderItems.find(i => i._id === po.id) || purchaseOrderItems[0];
-              return `
+        const item = purchaseOrderItems.find(i => i._id === po.id) || purchaseOrderItems[0];
+        return `
               <div class="page">
                 <div class="header">
                   <div>
@@ -383,7 +356,7 @@ const PrintPreview: React.FC = () => {
                 </div>
               </div>
             `;
-            }).join('')}
+      }).join('')}
           </body>
         </html>
       `;
@@ -398,13 +371,29 @@ const PrintPreview: React.FC = () => {
       };
 
     } else if (selectedReportType === 'sales') {
-      // Handle sales invoices printing - use data from Redux
-      if (allSalesInvoices.length === 0) {
+      const salesData = (data as any[]);
+
+      if (salesData.length === 0) {
         toast.error('No sales invoice data available');
         return;
       }
 
-      console.log('Printing', allSalesInvoices.length, 'sales invoices');
+      const totalGross = salesData.reduce((sum: number, inv: any) => sum + (inv.subTotal || inv.invoice_amount || 0), 0);
+      const totalDiscount = salesData.reduce((sum: number, inv: any) => sum + (inv.discountTotal || inv.discount_amount || 0), 0);
+      const totalTax = salesData.reduce((sum: number, inv: any) => sum + (inv.taxAmount || inv.tax_amount || 0), 0);
+      const totalNet = salesData.reduce((sum: number, inv: any) => sum + (inv.netAmount || inv.net_amount || 0), 0);
+
+      const tableRows = salesData.map((invoice: any) => `
+        <tr>
+          <td>${formatDate(invoice.invoiceDate || invoice.invoice_date)}</td>
+          <td>${invoice.invoiceNumber || invoice.invoice_number}</td>
+          <td>${invoice.customer?.name || invoice.customer_name || 'Walk-in Customer'}</td>
+          <td style="text-align: right;">${formatCurrency(invoice.subTotal || invoice.invoice_amount || 0)}</td>
+          <td style="text-align: right;">${formatCurrency(invoice.discountTotal || invoice.discount_amount || 0)}</td>
+          <td style="text-align: right;">${formatCurrency(invoice.taxAmount || invoice.tax_amount || 0)}</td>
+          <td style="text-align: right;"><strong>${formatCurrency(invoice.netAmount || invoice.net_amount || 0)}</strong></td>
+        </tr>
+      `).join('');
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -412,224 +401,79 @@ const PrintPreview: React.FC = () => {
         return;
       }
 
-      // Create the print content for sales invoices
-      const printContent =
-        `<!DOCTYPE html>
+      const printContent = `
+        <!DOCTYPE html>
         <html>
           <head>
-            <title>Sales Invoices</title>
+            <title>Sales Report</title>
             <style>
-              @page {size: A4; margin: 15mm; }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: 'Helvetica Neue', Arial, sans-serif;
-                color: #333; 
-              }
-              .page {
-                page-break-after: always; 
-              }
-              .page:last-child {
-              page-break-after: auto; 
-              }
-              .header {
-                padding: 20px;
-                border-bottom: 2px solid #e5e7eb;
-                margin-bottom: 25px;
-                border-radius: 8px 8px 0 0;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-              }
-              .header .left-column {
-                text - align: left; 
-              }
-              .header .right-column {
-                text - align: right; 
-              }
-              .header h1 {
-                color: #1e40af;
-                font-size: 28px;
-                font-weight: 800;
-                margin: 0;
-                letter-spacing: -0.025em; 
-              }
-              .header h2 {
-                color: #1e3a8a;
-                font-size: 20px;
-                font-weight: 600;
-                margin: 0 0 8px; 
-              }
-              .header .company-details, .header .invoice-details {
-                color: #6b7280;
-                font-size: 14px;
-                margin-top: 8px; 
-              }
-              .header .invoice-details p {
-                margin: 4px 0; 
-              }
-              .customer-details {
-                margin: 15px 0;
-                padding: 15px;
-                background-color: #f9fafb;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                font-size: 12px;
-                color: #4b5563;
-                display: flex;
-                justify-content: space-between;
-              }
-              .customer-details p {
-                margin: 5px 0; 
-              }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 15px 0;
-                font-size: 13px; 
-              }
-              th, td {
-                border: 1px solid #e5e7eb;
-                padding: 10px;
-                font-size: 13px; 
-              }
-              th {
-                background-color: #f9fafb;
-                font-weight: 600;
-                color: #1f2937; 
-              }
-              th:not(:first-child), td:not(:first-child):not(:nth-child(2)) {
-                text-align: right; 
-              }
-              tbody tr:nth-child(even) {
-                background-color: #f9fafb; 
-              }
-              tbody tr:hover {
-                background-color: #eff6ff;
-                transition: background-color 0.2s ease; 
-              }
-              tfoot tr {
-                border-top: 2px solid #e5e7eb; 
-              }
-              tfoot td {
-                font-weight: 600;
-                color: #1f2937; 
-              }
-              tfoot tr:last-child td:last-child {
-                color: #1e40af;
-                font-size: 14px; 
-              }
-              .footer {
-                margin-top: 25px;
-                text-align: center;
-                font-size: 12px;
-                color: #6b7280;
-                border-top: 1px solid #e5e7eb;
-                padding-top: 15px; 
-              }
-              @media print {
-                .header {
-                  background: none;
-                  border-bottom: 1px solid #e5e7eb; 
-                }
-                .customer-details {
-                  background: none;
-                  border: 1px solid #e5e7eb; 
-                }
-                tbody tr:hover {
-                  background-color: transparent; 
-                }
-              }
+              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+              .header { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; }
+              .company-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 5px; }
+              .report-title { font-size: 20px; font-weight: bold; color: #1e40af; text-align: right; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+              th { background-color: #f8fafc; color: #1e40af; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; }
+              td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+              .totals-row td { background-color: #eff6ff; font-weight: bold; border-top: 2px solid #bfdbfe; color: #1e3a8a; }
+              .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #eee; padding-top: 10px; }
             </style>
           </head>
           <body>
-            ${allSalesInvoices.map((invoice) => `
-      <div class="page">
-        <div class="header">
-          <div class="left-column">
-            <h1>${companyData.name}</h1>
-            <div class="company-details">
-              ${companyData.description}<br>
-              ${companyData.address}<br>
-              ${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}<br>
-              Phone: ${companyData.phone}
-            </div>
-          </div>
-          <div class="right-column">
-            <h2>SALES INVOICE</h2>
-            <div class="invoice-details">
-              <p>Invoice #: ${invoice.invoice_number}</p>
-              <p>Date: ${formatDate(invoice.invoice_date)}</p>
-            </div>
-          </div>
-        </div>
+             <div class="header">
+                <div>
+                   <div class="company-name">${companyData?.name}</div>
+                   <div style="font-size: 12px; color: #666;">
+                      ${companyData?.description || ''}<br/>
+                      ${companyData?.address}<br/>
+                      ${companyData?.city ? companyData.city + ', ' : ''}${companyData?.state ? companyData.state + ', ' : ''}${companyData?.country || ''}
+                   </div>
+                </div>
+                <div>
+                   <div class="report-title">SALES REPORT</div>
+                   <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                      Generated: ${formatDate(new Date())}<br/>
+                      Range: ${dateRange && dateRange[0] ? formatDate(dateRange[0]) + (dateRange[1] ? ' - ' + formatDate(dateRange[1]) : '') : 'All Time'}
+                   </div>
+                </div>
+             </div>
 
-        <div class="customer-details">
-            <div>
-              ${invoice.email ? `<p><strong>Customer:</strong> ${invoice.customer_name}</p>` : ''}
-              ${invoice.billing_address ? `<p><strong>Address:</strong> ${invoice.billing_address}</p>` : ''}
-            </div>
-            <div>
-              ${invoice.contact_number ? `<p><strong>Phone:</strong> ${invoice.contact_number}</p>` : ''}
-              ${invoice.email ? `<p><strong>Email:</strong> ${invoice.email}</p>` : ''}
-            </div>
-        </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th>Item Name</th>
-              <th>Description</th>
-              <th>Quantity</th>
-              <th>Unit Price</th>
-              <th>Discount %</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${invoice.items?.length > 0 ? invoice.items.map((item: SalesInvoiceItem) => `
-              <tr>
-                <td>${item.item_mgmt.item_name || 'N/A'}</td>
-                <td>${item.item_mgmt.description || '-'}</td>
-                <td>${item.quantity || 0}</td>
-                <td>${formatCurrency(item.unit_price ?? 0)}</td>
-                <td>${item.discount_percentage || 0}%</td>
-                <td>${formatCurrency(item.total ?? 0)}</td>
-              </tr>
-            `).join('') : '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No items found</td></tr>'}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="4"></td>
-              <td>Tax Amount (${companyData.tax_percentage}%)</td>
-              <td>${formatCurrency(invoice.tax_amount ?? 0)}</td>
-            </tr>
-            <tr>
-              <td colspan="4"></td>
-              <td>Net Total:</td>
-              <td>${formatCurrency(invoice.net_amount ?? 0)}</td>
-            </tr>
-          </tfoot>
-        </table>
-        
-        <div style="margin: 20px 0;">
-          <h4 style="margin: 0 0 10px 0;">Additional Details</h4>
-          <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
-            <div>
-              <p style="margin: 5px 0; color: #666; font-size: 12px;"><strong>Remarks:</strong> ${reportConfigs['sales']?.remarks || 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="footer">
-          <p>${reportConfigs['sales']?.report_footer || 'Thank you for your business!'}</p>
-          
-        </div>
-      </div>
-    `).join('')}
+             <table>
+                <thead>
+                   <tr>
+                      <th>Date</th>
+                      <th>Invoice #</th>
+                      <th>Customer</th>
+                      <th style="text-align: right;">Gross Amount</th>
+                      <th style="text-align: right;">Discount</th>
+                      <th style="text-align: right;">Tax Amount</th>
+                      <th style="text-align: right;">Net Amount</th>
+                   </tr>
+                </thead>
+                <tbody>
+                   ${tableRows}
+                </tbody>
+                <tfoot>
+                   <tr class="totals-row">
+                      <td colspan="3" style="text-align: right;">Grand Total</td>
+                      <td style="text-align: right;">${formatCurrency(totalGross)}</td>
+                      <td style="text-align: right;">${formatCurrency(totalDiscount)}</td>
+                      <td style="text-align: right;">${formatCurrency(totalTax)}</td>
+                      <td style="text-align: right;">${formatCurrency(totalNet)}</td>
+                   </tr>
+                </tfoot>
+             </table>
+
+             <div style="margin-top: 20px;">
+                <h4 style="font-size: 14px; margin-bottom: 5px;">Additional Details</h4>
+                <p style="font-size: 12px; color: #666; margin: 0;"><strong>Remarks:</strong> ${reportConfigs['sales']?.remarks || 'N/A'}</p>
+             </div>
+
+             <div class="footer">
+                ${reportConfigs['sales']?.report_footer || 'Generated by GarageInventory Management System'}
+             </div>
           </body>
-        </html>`
-        ;
+        </html>
+      `;
 
       printWindow.document.write(printContent);
       printWindow.document.close();
@@ -1160,187 +1004,93 @@ const PrintPreview: React.FC = () => {
             </div>
           )
         ) : selectedReportType === 'sales' ? (
-          currentSalesInvoice ? (
-            <div className="space-y-8">
-              <div className="relative">
-                <div className="bg-white rounded-lg shadow-lg border border-gray-200">
-                  <div className="min-h-[29.7cm] p-8">
-                    {/* Header Section */}
-                    <div className="flex justify-between items-start mb-8 border-b pb-6 print:pb-4">
-                      <div>
-                        <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
-                        <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
-                        <p className="text-gray-600 text-sm">{companyData?.address}</p>
-                        <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
-                        <p className="text-gray-600 text-sm">Phone: {companyData?.phone}</p>
-                      </div>
-                      <div className="text-right">
-                        <h2 className="text-xl font-bold text-blue-800">SALES INVOICE</h2>
-                        <p className="text-gray-600 mt-1 text-sm">Invoice #: {currentSalesInvoice.invoice_number}</p>
-                        <p className="text-gray-600 text-sm">Date: {formatDate(currentSalesInvoice.invoice_date)}</p>
-                        {currentSalesInvoice.customer_name && (
-                          <p className="text-gray-600 text-sm">Customer: <b>{currentSalesInvoice.customer_name}</b></p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Invoice Summary Section */}
-                    <div className="grid grid-cols-2 gap-8 mb-8 print:gap-6">
-                      <div>
-                        <h3 className="text-gray-800 font-semibold mb-2 text-sm">Invoice Summary:</h3>
-                        <div className="border-l-4 border-blue-600 pl-4">
-                          <p className="text-gray-600 text-sm">Gross Amount: <span className="font-medium">{formatCurrency(currentSalesInvoice.invoice_amount)}</span></p>
-                          <p className="text-gray-600 text-sm">Discount: <span className="font-medium">{formatCurrency(currentSalesInvoice.discount_amount)}</span></p>
-                          <p className="text-gray-600 text-sm">Tax Amount: <span className="font-medium">{formatCurrency(currentSalesInvoice.tax_amount)}</span></p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <h3 className="text-gray-800 font-semibold mb-2 text-sm">Customer Details:</h3>
-                        <div className="border-r-4 border-blue-600 pr-4">
-                          <p className="text-gray-600 text-sm"><span className="font-medium">{currentSalesInvoice.billing_address}</span></p>
-                          <p className="text-gray-600 text-sm">Email: <span className="font-medium">{currentSalesInvoice?.email ?? '--'}</span></p>
-                          <p className="text-gray-600 text-sm">Phone: <span className="font-medium">{currentSalesInvoice.contact_number}</span></p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Items Table */}
-                    <div className="mb-8 print:mb-6">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-blue-50 border-y">
-                            <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Item Name</th>
-                            <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Description</th>
-                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Quantity</th>
-                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Unit Price</th>
-                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Discount %</th>
-                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {loading ? (
-                            <tr>
-                              <td colSpan={6} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
-                            </tr>
-                          ) : currentSalesInvoice?.items?.length > 0 ? (
-                            currentSalesInvoice.items.map((item: SalesInvoiceItem, index: number) => (
-                              <tr key={index} className="border-b">
-                                <td className="py-3 px-4 text-gray-800 text-sm">{item.item_mgmt.item_name || 'N/A'}</td>
-                                <td className="py-3 px-4 text-gray-600 text-sm">{item.item_mgmt.description || '-'}</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.quantity || 0}</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">{formatCurrency(item.unit_price ?? 0)}</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.discount_percentage || 0}%</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">{formatCurrency(item.total ?? 0)}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={6} className="py-3 px-4 text-center text-gray-600">No items found</td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot>
-                          <tr>
-                            <td colSpan={4} className="py-3 px-4"></td>
-                            <td className="py-3 px-4 text-right font-semibold text-sm">Total Items:</td>
-                            <td className="py-3 px-4 text-right font-semibold text-sm">{currentSalesInvoice?.total_items || 0}</td>
-                          </tr>
-                          <tr className="border-t-2">
-                            <td colSpan={4} className="py-3 px-4"></td>
-                            <td className="py-3 px-4 text-right font-bold text-base">Net Total:</td>
-                            <td className="py-3 px-4 text-right font-bold text-base text-blue-600">
-                              {formatCurrency(currentSalesInvoice?.net_amount ?? 0)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-
-                    {/* Additional Details */}
-                    <div className="mb-8 print:mb-6">
-                      <h3 className="text-gray-800 font-semibold mb-2 text-sm">Additional Details</h3>
-                      <div className="grid grid-cols-1 gap-8">
-                        <div>
-                          <p className="text-gray-600 text-sm"><strong>Remarks:</strong> {reportConfigs['sales']?.remarks || 'N/A'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer Section */}
-                    <div className="mt-12 border-t pt-8 print:pt-6">
-                      <div className="text-center text-gray-500 text-xs">
-                        <p>{reportConfigs['sales']?.report_footer }</p>
-                        {/* <p>For any queries, please contact at {companyData?.email}</p> */}
-                      </div>
-                    </div>
-                  </div>
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200">
+            <div className="min-h-[29.7cm] p-8">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-8 border-b pb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
+                  <p className="text-gray-600 text-sm">{companyData?.address}</p>
+                  <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
+                  <p className="text-gray-600 text-sm">Phone: {companyData?.phone}</p>
                 </div>
-
-                {/* Desktop Navigation Arrows for Sales Invoice */}
-                {!isMobile && totalPages > 1 && (
-                  <div>
-                    <button
-                      onClick={handlePrevious}
-                      disabled={currentPage === 1 || loading}
-                      className="absolute left-[-50px] top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 text-gray-600 p-3 rounded-full shadow-md hover:bg-gray-50 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={handleNext}
-                      disabled={currentPage === totalPages || loading}
-                      className="absolute right-[-50px] top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 text-gray-600 p-3 rounded-full shadow-md hover:bg-gray-50 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-                  </div>
-                )}
+                <div className="text-right">
+                  <h2 className="text-xl font-bold text-blue-800">SALES REPORT</h2>
+                  <p className="text-gray-600 mt-1 text-sm">Generated: {formatDate(new Date())}</p>
+                  <p className="text-gray-600 text-sm">
+                    {dateRange && dateRange[0]
+                      ? `${formatDate(dateRange[0])} - ${dateRange[1] ? formatDate(dateRange[1]) : 'Now'}`
+                      : 'All Time'}
+                  </p>
+                </div>
               </div>
 
-              {/* Desktop Pagination Details for Sales Invoice */}
-              {!isMobile && totalPages > 1 && (
-                <div className="text-center text-sm text-gray-600 mt-4">
-                  Page {currentPage} of {totalPages}
-                </div>
-              )}
+              {/* Table */}
+              <div className="mb-8">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-50 border-y">
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Date</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Invoice #</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Customer</th>
+                      <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Gross Amount</th>
+                      <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Discount</th>
+                      <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Tax Amount</th>
+                      <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Net Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.length > 0 ? (
+                      (data as any[]).map((invoice, index) => (
+                        <tr key={index} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4 text-gray-800 text-sm">{formatDate(invoice.invoiceDate || invoice.invoice_date)}</td>
+                          <td className="py-3 px-4 text-gray-800 text-sm">{invoice.invoiceNumber || invoice.invoice_number}</td>
+                          <td className="py-3 px-4 text-gray-800 text-sm">{invoice.customer?.name || invoice.customer_name || 'Walk-in Customer'}</td>
+                          <td className="py-3 px-4 text-right text-gray-800 text-sm">{formatCurrency(invoice.subTotal || invoice.invoice_amount || 0)}</td>
+                          <td className="py-3 px-4 text-right text-gray-800 text-sm">{formatCurrency(invoice.discountTotal || invoice.discount_amount || 0)}</td>
+                          <td className="py-3 px-4 text-right text-gray-800 text-sm">{formatCurrency(invoice.taxAmount || invoice.tax_amount || 0)}</td>
+                          <td className="py-3 px-4 text-right text-gray-800 text-sm font-semibold">{formatCurrency(invoice.netAmount || invoice.net_amount || 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 px-4 text-center text-gray-600">
+                          No sales data available for the selected range
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-blue-100 font-semibold border-t-2">
+                      <td className="py-3 px-4 text-right" colSpan={3}>
+                        Grand Total
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {formatCurrency(data.reduce((sum: number, inv: any) => sum + (inv.subTotal || inv.invoice_amount || 0), 0))}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {formatCurrency(data.reduce((sum: number, inv: any) => sum + (inv.discountTotal || inv.discount_amount || 0), 0))}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {formatCurrency(data.reduce((sum: number, inv: any) => sum + (inv.taxAmount || inv.tax_amount || 0), 0))}
+                      </td>
+                      <td className="py-3 px-4 text-right text-blue-700">
+                        {formatCurrency(data.reduce((sum: number, inv: any) => sum + (inv.netAmount || inv.net_amount || 0), 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
 
-              {/* Mobile Navigation for Sales Invoice */}
-              {isMobile && totalPages > 1 && (
-                <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                  <button
-                    onClick={handlePrevious}
-                    disabled={currentPage === 1 || loading}
-                    className="bg-gray-50 border border-gray-200 text-gray-600 p-3 rounded-full shadow-sm hover:bg-gray-100 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-700">
-                      Page {currentPage} of {totalPages}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {currentSalesInvoice?.invoice_number || `Item ${currentPage}`}
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleNext}
-                    disabled={currentPage === totalPages || loading}
-                    className="bg-gray-50 border border-gray-200 text-gray-600 p-3 rounded-full shadow-sm hover:bg-gray-100 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
+              {/* Footer */}
+              <div className="mt-12 border-t pt-8">
+                <div className="text-center text-gray-500 text-xs">
+                  <p>{reportConfigs['sales']?.report_footer || `Generated on ${formatDate(new Date())} by GarageInventory Management System`}</p>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 text-center py-12">
-              <div className="text-gray-500">
-                <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">Loading Sales Invoice</h3>
-                <p className="text-sm">{loading ? 'Loading...' : 'No data available for the selected sales invoice.'}</p>
               </div>
             </div>
-          )
+          </div>
         ) : selectedReportType === 'stock' ? (
           // Other Report Types (Stock, Supplier, etc.)
           <div className="bg-white rounded-lg shadow-lg border border-gray-200">
