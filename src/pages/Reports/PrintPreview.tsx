@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, Printer, X, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/Utils/types/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { formatCurrency } from '@/Utils/formatters';
 import { useSelector } from 'react-redux';
@@ -11,50 +10,31 @@ import {
   selectPrintData,
   selectSelectedReportType,
   selectDateRange,
-  selectStatusMessages,
   selectReportConfigs
 } from '@/redux/features/PurchaseOrderReportPrintSlice';
-// import { selectUser } from '@/redux/features/userSlice';
 import React from 'react';
 
-// Interfaces based on PurchaseOrderView
+// Interfaces matching Reports.tsx data structure
+interface PurchaseOrderItem {
+  _id: string;
+  itemId: string;
+  itemName: string;
+  description?: string;
+  unitPrice: number;
+  quantity: number;
+  totalValue: number;
+  supplier: {
+    _id: string;
+    name: string;
+  };
+  orderDate: string;
+  status: string;
+}
+
+// Item Management Interface
 interface ItemMgmt {
   item_name: string;
-  description: string | null;
-}
-
-interface SupplierMgmt {
-  supplier_name: string | null;
-  email: string | null;
-  address: string | null;
-}
-
-interface StoreMgmt {
-  name: string;
-  address: string | null;
-}
-
-interface PurchaseOrderItem {
-  id: string;
-  item_id: string;
-  order_qty: number | null;
-  order_price: number | null;
-  item_mgmt: ItemMgmt;
-}
-
-interface PurchaseOrderViewData {
-  id: string;
-  po_number: string;
-  supplier_id: string;
-  order_date: string;
-  total_items: number;
-  total_value: number;
-  payment_details: string | null;
-  remarks: string | null;
-  items: PurchaseOrderItem[];
-  supplier: SupplierMgmt | null;
-  store: StoreMgmt | null;
-  order_status: string;
+  description?: string | null;
 }
 
 // Sales Invoice Interfaces
@@ -68,65 +48,7 @@ interface SalesInvoiceItem {
   item_mgmt: ItemMgmt;
 }
 
-interface SalesInvoiceViewData {
-  id: string;
-  invoice_number: string;
-  invoice_date: string;
-  invoice_amount: number;
-  discount_amount: number;
-  tax_amount: number;
-  net_amount: number;
-  customer_name?: string;
-  items: SalesInvoiceItem[];
-  total_items: number;
-  total_value: number;
-  billing_address: string;
-  email: string;
-  contact_number: string;
-}
 
-interface PurchaseOrder {
-  id: string;
-  po_number: string;
-  supplier_id: string;
-  order_date: string;
-  total_items: number;
-  total_value: number;
-  supplier_name?: string;
-  system_message_config?: {
-    sub_category_id: string;
-    id: string;
-  };
-}
-
-interface SalesInvoice {
-  id: string;
-  invoice_number: string;
-  invoice_date: string;
-  invoice_amount: number;
-  discount_amount: number;
-  tax_amount: number;
-  net_amount: number;
-  customer_name?: string;
-}
-
-type StockItem = {
-  id: string;
-  item_uuid: string;
-  item_id: string;
-  item_name: string;
-  item_category: string;
-  description: string;
-  selling_price: number;
-  unit_price: number;
-  total_quantity: number;
-  store_id: string;
-  store_name: string;
-  purchase_order_id: string;
-  stock_date: string;
-  expiry_date: string | null;
-  total_count: number;
-};
 
 type GroupedStockItem = {
   item_uuid: string;
@@ -151,7 +73,6 @@ const PrintPreview: React.FC = () => {
   const reportData = useSelector(selectPrintData);
   const selectedReportType = useSelector(selectSelectedReportType);
   const dateRange = useSelector(selectDateRange);
-  const statusMessages = useSelector(selectStatusMessages);
   const reportConfigs = useSelector(selectReportConfigs);
   // const userData = useSelector(selectUser);
   
@@ -172,14 +93,7 @@ const PrintPreview: React.FC = () => {
   // Local state
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
-  const [currentPurchaseOrder, setCurrentPurchaseOrder] = useState<PurchaseOrderViewData | null>(null);
-  const [allPurchaseOrders, setAllPurchaseOrders] = useState<PurchaseOrderViewData[]>([]);
-  const [currentSalesInvoice, setCurrentSalesInvoice] = useState<SalesInvoiceViewData | null>(null);
-  const [allSalesInvoices, setAllSalesInvoices] = useState<SalesInvoiceViewData[]>([]);
-  const [allInventoryStocks, setAllInventoryStocks] = useState<GroupedStockItem[]>([]);
-  const [totalStockQty, setTotalStockQty] = useState(0);
-  const [totalStockValue, setTotalStockValue] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   // Get the data array based on report type
   const getData = () => {
@@ -198,57 +112,56 @@ const PrintPreview: React.FC = () => {
     return [];
   };
 
-  // Declare data, totalPages, and currentItem before useEffect
+  // Get data from Redux state
   const data = getData();
-  console.log("Stock data =>", data);
-
   const totalPages = data.length;
   const currentItem = data[currentPage - 1];
+  
+  // For purchase order reports, group items by supplier and date for display
+  const purchaseOrderItems = selectedReportType === 'purchase-order' 
+    ? (data as PurchaseOrderItem[]) 
+    : [];
+  
+  // For stock reports, group by item
+  const stockItems = selectedReportType === 'stock' 
+    ? (data as any[]) 
+    : [];
+  
+  // Group stock items by item name
+  const allInventoryStocks = stockItems.reduce((acc: GroupedStockItem[], item: any) => {
+    const existingItem = acc.find(i => i.item_id === item.itemId);
+    if (existingItem) {
+      existingItem.stores.push({
+        store_id: item.storeName || 'default',
+        store_name: item.storeName || 'Default Store',
+        unit_price: item.unitPrice || 0,
+        quantity: item.quantity || 0,
+      });
+      existingItem.total_count += item.quantity || 0;
+    } else {
+      acc.push({
+        item_uuid: item._id || item.itemId,
+        item_id: item.itemId || item._id,
+        item_name: item.itemName || 'Unknown Item',
+        item_category: item.category || 'Uncategorized',
+        description: item.description || '',
+        selling_price: item.unitPrice || 0,
+        total_count: item.quantity || 0,
+        stores: [{
+          store_id: item.storeName || 'default',
+          store_name: item.storeName || 'Default Store',
+          unit_price: item.unitPrice || 0,
+          quantity: item.quantity || 0,
+        }],
+      });
+    }
+    return acc;
+  }, []);
+  
+  const totalStockQty = stockItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+  const totalStockValue = stockItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
 
-  // Group stock by item names
-  const groupStockByItem = (data: StockItem[]): GroupedStockItem[] => {
-    const grouped: Record<string, GroupedStockItem> = {};
-
-    data.forEach(item => {
-      if (!grouped[item.item_uuid]) {
-        grouped[item.item_uuid] = {
-          item_uuid: item.item_uuid,
-          item_id: item.item_id,
-          item_name: item.item_name,
-          item_category: item.item_category,
-          description: item.description,
-          selling_price: item.selling_price,
-          total_count: item.total_count,
-          stores: [],
-        };
-      }
-
-      // If same store exists, merge quantity instead of pushing duplicate
-      const existingStore = grouped[item.item_uuid].stores.find(
-        s => s.store_id === item.store_id && s.unit_price === item.unit_price
-      );
-
-      if (existingStore) {
-        existingStore.quantity += item.total_quantity;
-      } else {
-        grouped[item.item_uuid].stores.push({
-          store_id: item.store_id,
-          store_name: item.store_name,
-          unit_price: item.unit_price,
-          quantity: item.total_quantity,
-        });
-      }
-    });
-
-    return Object.values(grouped);
-  };
-
-  useEffect(() => {
-    const groupedData = groupStockByItem(data);
-    setAllInventoryStocks(groupedData);
-    setTotalStockQty(data.reduce((sum: number, stock: StockItem) => sum + (stock.total_quantity || 0), 0))
-    setTotalStockValue(data.reduce((sum: number, stock: StockItem) => sum + ((stock.total_quantity * stock.unit_price) || 0), 0))
-  }, [data]);
+  // Data is already processed above, no need for separate useEffect
 
   // Redirect if no data is available
   useEffect(() => {
@@ -259,15 +172,7 @@ const PrintPreview: React.FC = () => {
     }
   }, [reportData, selectedReportType, navigate]);
 
-  // Fetch all purchase orders for printing when component mounts
-  useEffect(() => {
-    if (selectedReportType === 'purchase-order' && data.length > 0 && allPurchaseOrders.length === 0) {
-      fetchAllPurchaseOrdersForPrint();
-    }
-    if (selectedReportType === 'sales' && data.length > 0 && allSalesInvoices.length === 0) {
-      fetchAllSalesInvoicesForPrint();
-    }
-  }, [data, selectedReportType]);
+  // Data is already available from Redux, no need to fetch
 
   // Format date helper function
   const formatDate = (date: Date | string) => {
@@ -278,221 +183,58 @@ const PrintPreview: React.FC = () => {
       year: 'numeric',
     });
   };
-
-  // Fetch detailed purchase order data when currentPage changes (for preview)
-  useEffect(() => {
-    if (selectedReportType === 'purchase-order') {
-      fetchPurchaseOrder();
-    } else if (selectedReportType === 'sales') {
-      fetchSalesInvoice();
-    }
-  }, [currentItem?.id, selectedReportType]);
-
-  const fetchPurchaseOrder = async () => {
-    if (!currentItem?.id || selectedReportType !== 'purchase-order') return;
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase
-        .from('purchase_order')
-        .select(`
-          *,
-          purchase_order_items (
-            *,
-            item_mgmt (item_name, description)
-          ),
-          supplier_mgmt (supplier_name, email, address),
-          store_mgmt (name, address),
-          system_message_config(sub_category_id)
-        `)
-        .eq('id', currentItem.id)
-        .single();
-
-      if (error) throw error;
-
-      setCurrentPurchaseOrder({
-        ...data,
-        items: data.purchase_order_items || [],
-        supplier: data.supplier_mgmt || null,
-        store: data.store_mgmt || null,
-        order_status: data.system_message_config?.sub_category_id || 'Unknown',
-      } as any);
-    } catch (error) {
-      console.error('Error fetching purchase order:', error);
-      toast.error('Failed to load purchase order details');
-      setCurrentPurchaseOrder(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSalesInvoice = async () => {
-    if (!currentItem?.id || selectedReportType !== 'sales') return;
-    setLoading(true);
-
-    try {
-      const { data: invoiceData, error } = await supabase
-        .from('sales_invoice_items')
-        .select(`
-          *,
-          item_mgmt (item_name, description)
-        `)
-        .eq('sales_invoice_id', currentItem.id);
-
-      if (error) throw error;
-
-      // Calculate totals from items
-      const items = invoiceData.map(item => {
-        const quantity = item.quantity || 0;
-        const unitPrice = item.unit_price || 0;
-        const discountPercentage = item.discount_percentage || 0;
-
-        const subtotal = quantity * unitPrice;
-        const discountAmount = (subtotal * discountPercentage) / 100;
-        const total = subtotal - discountAmount;
-
-        return {
-          id: item.id,
-          item_id: item.item_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount_percentage: item.discount_percentage,
-          total: total,
-          item_mgmt: item.item_mgmt
-        };
-      });
-
-      const totalItems = items.length;
-      const totalValue = items.reduce((sum, item) => sum + item.total, 0);
-
-      setCurrentSalesInvoice({
+  
+  const currentSalesInvoice = selectedReportType === 'sales' && currentItem
+    ? {
         ...currentItem,
-        items: items,
-        total_items: totalItems,
-        total_value: totalValue
-      } as SalesInvoiceViewData);
-
-    } catch (error) {
-      console.error('Error fetching sales invoice:', error);
-      toast.error('Failed to load sales invoice details');
-      setCurrentSalesInvoice(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch detailed purchase order data for printing
-  const fetchAllPurchaseOrdersForPrint = async () => {
-    if (data.length === 0 || selectedReportType !== 'purchase-order') {
-      console.log('No data to fetch for printing or not a purchase order report');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const purchaseOrderIds = data.map((item: PurchaseOrder) => item.id);
-
-      const { data: purchaseOrdersData, error } = await supabase
-        .from('purchase_order')
-        .select(`
-          *,
-          purchase_order_items (
-            *,
-            item_mgmt (item_name, description)
-          ),
-          supplier_mgmt (supplier_name, email, address),
-          store_mgmt (name, address),
-          system_message_config(sub_category_id)
-        `)
-        .in('id', purchaseOrderIds);
-
-      if (error) throw error;
-
-      const formattedPurchaseOrders = purchaseOrdersData.map((po: any) => ({
-        ...po,
-        items: po.purchase_order_items || [],
-        supplier: po.supplier_mgmt || null,
-        store: po.store_mgmt || null,
-        order_status: po.system_message_config?.sub_category_id || 'Unknown',
-      })) as PurchaseOrderViewData[];
-
-      setAllPurchaseOrders(formattedPurchaseOrders);
-    } catch (error) {
-      console.error('Error fetching all purchase orders:', error);
-      toast.error('Failed to load purchase orders for printing');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch detailed sales invoices data for printing
-  const fetchAllSalesInvoicesForPrint = async () => {
-    if (data.length === 0 || selectedReportType !== 'sales') {
-      console.log('No data to fetch for printing or not a sales report');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const salesInvoiceIds = data.map((item: SalesInvoice) => item.id);
-
-      const { data: salesInvoicesData, error } = await supabase
-        .from('sales_invoice_items')
-        .select(`
-          *,
-          item_mgmt (item_name, description)
-        `)
-        .in('sales_invoice_id', salesInvoiceIds);
-
-      if (error) throw error;
-
-      // Group items by sales_invoice_id
-      const groupedItems = salesInvoicesData.reduce((acc: any, item: any) => {
-        if (!acc[item.sales_invoice_id]) {
-          acc[item.sales_invoice_id] = [];
-        }
-
-        const quantity = item.quantity || 0;
-        const unitPrice = item.unit_price || 0;
-        const discountPercentage = item.discount_percentage || 0;
-
-        const subtotal = quantity * unitPrice;
-        const discountAmount = (subtotal * discountPercentage) / 100;
-        const total = subtotal - discountAmount;
-
-        acc[item.sales_invoice_id].push({
-          id: item.id,
-          item_id: item.item_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount_percentage: item.discount_percentage,
-          total: total,
-          item_mgmt: item.item_mgmt
-        });
-        return acc;
-      }, {});
-
-      const formattedSalesInvoices = data.map((invoice: SalesInvoice) => {
-        const items = groupedItems[invoice.id] || [];
-        const totalItems = items.length;
-        const totalValue = items.reduce((sum: number, item: any) => sum + item.total, 0);
-
-        return {
-          ...invoice,
-          items: items,
-          total_items: totalItems,
-          total_value: totalValue
-        };
-      }) as SalesInvoiceViewData[];
-
-      setAllSalesInvoices(formattedSalesInvoices);
-    } catch (error) {
-      console.error('Error fetching all sales invoices:', error);
-      toast.error('Failed to load sales invoices for printing');
-    } finally {
-      setLoading(false);
-    }
-  };
+        items: [],
+        total_items: 1,
+        total_value: (currentItem as any).net_amount || 0
+      }
+    : null;
+  
+  // For printing, use all purchase order items
+  const allPurchaseOrders = selectedReportType === 'purchase-order'
+    ? purchaseOrderItems.map(item => ({
+        id: item._id,
+        po_number: `PO-${item.itemId}`,
+        supplier_id: item.supplier._id,
+        order_date: item.orderDate,
+        total_items: 1,
+        total_value: item.totalValue,
+        payment_details: null,
+        remarks: null,
+        items: [{
+          id: item._id,
+          item_id: item.itemId,
+          order_qty: item.quantity,
+          order_price: item.totalValue,
+          item_mgmt: {
+            item_name: item.itemName,
+            description: item.description || null
+          }
+        }],
+        supplier: {
+          supplier_name: item.supplier.name,
+          email: null,
+          address: null
+        },
+        store: {
+          name: 'Default Store',
+          address: null
+        },
+        order_status: item.status
+      }))
+    : [];
+  
+  const allSalesInvoices = selectedReportType === 'sales'
+    ? (data as any[]).map(invoice => ({
+        ...invoice,
+        items: [],
+        total_items: 1,
+        total_value: invoice.net_amount || 0
+      }))
+    : [];
 
   const handleNext = () => {
     if (currentPage < totalPages) {
@@ -511,7 +253,7 @@ const PrintPreview: React.FC = () => {
   };
 
   // Simple print function that directly prints the current data
-  const handleSimplePrint = async () => {
+  const handleSimplePrint = () => {
     console.log('Simple print function called');
 
     if (data.length === 0) {
@@ -519,22 +261,10 @@ const PrintPreview: React.FC = () => {
       return;
     }
 
-    // For purchase orders, fetch detailed data if not already loaded
+    // For purchase orders, use data from Redux
     if (selectedReportType === 'purchase-order') {
       if (allPurchaseOrders.length === 0) {
-        setLoading(true);
-        try {
-          await fetchAllPurchaseOrdersForPrint(); // Wait for the fetch to complete
-        } catch (error) {
-          setLoading(false);
-          toast.error('Failed to load data for printing');
-          return; // Exit if the fetch fails
-        }
-        setLoading(false);
-      }
-
-      if (allPurchaseOrders.length === 0) {
-        toast.error('Failed to load data for printing');
+        toast.error('No purchase order data available');
         return;
       }
 
@@ -567,7 +297,9 @@ const PrintPreview: React.FC = () => {
             </style>
           </head>
           <body>
-            ${allPurchaseOrders.map((po) => `
+            ${allPurchaseOrders.map((po) => {
+              const item = purchaseOrderItems.find(i => i._id === po.id) || purchaseOrderItems[0];
+              return `
               <div class="page">
                 <div class="header">
                   <div>
@@ -578,11 +310,11 @@ const PrintPreview: React.FC = () => {
                     <p style="margin: 2px 0; color: #666;">Phone: ${companyData.phone}</p>
                   </div>
                   <div style="text-align: right;">
-                    <h2 style="color: #1e40af; margin: 0;">PURCHASE ORDER</h2>
-                    <p style="margin: 5px 0; color: #666;">PO #: ${po.po_number}</p>
-                    <p style="margin: 5px 0; color: #666;">Date: ${formatDate(po.order_date)}</p>
-                    <div class="status" style="background-color: ${getStatusColor(po.order_status || 'Unknown')}">
-                      ${po.order_status?.replace(/_/g, ' ').toLowerCase().replace(/\\b\\w/g, c => c.toUpperCase()) || 'Unknown'}
+                    <h2 style="color: #1e40af; margin: 0;">PURCHASE ORDER REPORT</h2>
+                    <p style="margin: 5px 0; color: #666;">Item ID: ${item?.itemId || 'N/A'}</p>
+                    <p style="margin: 5px 0; color: #666;">Date: ${formatDate(item?.orderDate || po.order_date)}</p>
+                    <div class="status" style="background-color: ${getStatusColor(item?.status || po.order_status || 'active')}">
+                      ${item?.status || po.order_status || 'Active'}
                     </div>
                   </div>
                 </div>
@@ -591,16 +323,15 @@ const PrintPreview: React.FC = () => {
                   <div>
                     <h3 style="margin: 0 0 10px 0;">Supplier:</h3>
                     <div style="border-left: 4px solid #2563eb; padding-left: 15px;">
-                      <p style="margin: 5px 0; font-weight: bold;">${po.supplier?.supplier_name || 'N/A'}</p>
-                      <p style="margin: 5px 0; color: #666;">${po.supplier?.address || 'N/A'}</p>
-                      <p style="margin: 5px 0; color: #666;">${po.supplier?.email || 'N/A'}</p>
+                      <p style="margin: 5px 0; font-weight: bold;">${item?.supplier?.name || po.supplier?.supplier_name || 'N/A'}</p>
+                      <p style="margin: 5px 0; color: #666;">Supplier ID: ${item?.supplier?._id || 'N/A'}</p>
                     </div>
                   </div>
                   <div style="text-align: right;">
-                    <h3 style="margin: 0 0 10px 0;">Delivery To:</h3>
+                    <h3 style="margin: 0 0 10px 0;">Item Details:</h3>
                     <div style="border-right: 4px solid #2563eb; padding-right: 15px;">
-                      <p style="margin: 5px 0; font-weight: bold;">${po.store?.name || 'N/A'}</p>
-                      <p style="margin: 5px 0; color: #666;">${po.store?.address || 'N/A'}</p>
+                      <p style="margin: 5px 0; font-weight: bold;">${item?.itemName || 'N/A'}</p>
+                      <p style="margin: 5px 0; color: #666;">${item?.description || 'No description'}</p>
                     </div>
                   </div>
                 </div>
@@ -609,33 +340,27 @@ const PrintPreview: React.FC = () => {
                   <thead>
                     <tr style="background-color: #eff6ff;">
                       <th>Item Name</th>
-                      <th>Description</th>
+                      <th>Supplier</th>
+                      <th>Order Date</th>
                       <th style="text-align: right;">Quantity</th>
                       <th style="text-align: right;">Unit Price</th>
-                      <th style="text-align: right;">Total</th>
+                      <th style="text-align: right;">Total Value</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${po.items?.length > 0 ? po.items.map(item => `
-                      <tr>
-                        <td>${item.item_mgmt.item_name || 'N/A'}</td>
-                        <td>${item.item_mgmt.description || '-'}</td>
-                        <td style="text-align: right;">${item.order_qty || 0}</td>
-                        <td style="text-align: right;">${formatCurrency(item.order_price && item.order_qty ? item.order_price / item.order_qty : 0)}</td>
-                        <td style="text-align: right;">${formatCurrency(item.order_price ?? 0)}</td>
-                      </tr>
-                    `).join('') : '<tr><td colspan="5" style="text-align: center; color: #666;">No items found</td></tr>'}
+                    <tr>
+                      <td>${item?.itemName || 'N/A'}</td>
+                      <td>${item?.supplier?.name || 'N/A'}</td>
+                      <td>${formatDate(item?.orderDate || po.order_date)}</td>
+                      <td style="text-align: right;">${item?.quantity || 0}</td>
+                      <td style="text-align: right;">${formatCurrency(item?.unitPrice || 0)}</td>
+                      <td style="text-align: right;">${formatCurrency(item?.totalValue || po.total_value || 0)}</td>
+                    </tr>
                   </tbody>
                   <tfoot>
-                    <tr>
-                      <td colspan="3"></td>
-                      <td style="text-align: right; font-weight: bold;">Total Items:</td>
-                      <td style="text-align: right; font-weight: bold;">${po.total_items || 0}</td>
-                    </tr>
                     <tr style="border-top: 2px solid #ddd;">
-                      <td colspan="3"></td>
-                      <td style="text-align: right; font-weight: bold; font-size: 16px;">Total:</td>
-                      <td style="text-align: right; font-weight: bold; font-size: 16px; color: #2563eb;">${formatCurrency(po.total_value ?? 0)}</td>
+                      <td colspan="5" style="text-align: right; font-weight: bold; font-size: 16px;">Total:</td>
+                      <td style="text-align: right; font-weight: bold; font-size: 16px; color: #2563eb;">${formatCurrency(item?.totalValue || (po.total_value ?? 0))}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -644,20 +369,21 @@ const PrintPreview: React.FC = () => {
                   <h3 style="margin: 0 0 10px 0;">Additional Details</h3>
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div>
-                      <p style="margin: 5px 0; color: #666;"><strong>Payment Details:</strong> ${reportConfigs['purchase-order']?.payment_details || po.payment_details || 'N/A'}</p>
+                      <p style="margin: 5px 0; color: #666;"><strong>Item ID:</strong> ${item?.itemId || 'N/A'}</p>
+                      <p style="margin: 5px 0; color: #666;"><strong>Status:</strong> ${item?.status || 'N/A'}</p>
                     </div>
                     <div>
-                      <p style="margin: 5px 0; color: #666;"><strong>Remarks:</strong> ${reportConfigs['purchase-order']?.remarks || po.remarks || 'N/A'}</p>
+                      <p style="margin: 5px 0; color: #666;"><strong>Description:</strong> ${item?.description || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
                 
                 <div class="footer">
-                  <p>${reportConfigs['purchase-order']?.report_footer}</p>
-      
+                  <p>${reportConfigs['purchase-order']?.report_footer || 'Generated by Inventory Management System'}</p>
                 </div>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </body>
         </html>
       `;
@@ -672,21 +398,9 @@ const PrintPreview: React.FC = () => {
       };
 
     } else if (selectedReportType === 'sales') {
-      // Handle sales invoices printing
+      // Handle sales invoices printing - use data from Redux
       if (allSalesInvoices.length === 0) {
-        setLoading(true);
-        try {
-          await fetchAllSalesInvoicesForPrint();
-        } catch (error) {
-          setLoading(false);
-          toast.error('Failed to load data for printing');
-          return;
-        }
-        setLoading(false);
-      }
-
-      if (allSalesInvoices.length === 0) {
-        toast.error('Failed to load data for printing');
+        toast.error('No sales invoice data available');
         return;
       }
 
@@ -873,7 +587,7 @@ const PrintPreview: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            ${invoice.items?.length > 0 ? invoice.items.map(item => `
+            ${invoice.items?.length > 0 ? invoice.items.map((item: SalesInvoiceItem) => `
               <tr>
                 <td>${item.item_mgmt.item_name || 'N/A'}</td>
                 <td>${item.item_mgmt.description || '-'}</td>
@@ -1268,7 +982,7 @@ const PrintPreview: React.FC = () => {
 
         {/* Content based on report type */}
         {selectedReportType === 'purchase-order' ? (
-          currentPurchaseOrder ? (
+          currentItem ? (
             <div className="space-y-8">
               <div className="relative">
                 <div className="bg-white rounded-lg shadow-lg border border-gray-200">
@@ -1283,12 +997,12 @@ const PrintPreview: React.FC = () => {
                         <p className="text-gray-600 text-sm">Phone: {companyData?.phone}</p>
                       </div>
                       <div className="text-right">
-                        <h2 className="text-xl font-bold text-blue-800">PURCHASE ORDER</h2>
-                        <p className="text-gray-600 mt-1 text-sm">PO #: {currentPurchaseOrder.po_number}</p>
-                        <p className="text-gray-600 text-sm">Date: {formatDate(currentPurchaseOrder.order_date)}</p>
+                        <h2 className="text-xl font-bold text-blue-800">PURCHASE ORDER REPORT</h2>
+                        <p className="text-gray-600 mt-1 text-sm">Item ID: {(currentItem as PurchaseOrderItem).itemId}</p>
+                        <p className="text-gray-600 text-sm">Date: {formatDate((currentItem as PurchaseOrderItem).orderDate)}</p>
                         <Badge
                           style={{
-                            backgroundColor: getStatusColor(currentPurchaseOrder.order_status || 'Unknown'),
+                            backgroundColor: getStatusColor((currentItem as PurchaseOrderItem).status || 'active'),
                             color: 'white',
                             padding: '0.4rem 0.8rem',
                             borderRadius: '0.25rem',
@@ -1296,30 +1010,25 @@ const PrintPreview: React.FC = () => {
                             fontSize: '0.75rem',
                           }}
                         >
-                          {statusMessages[currentPurchaseOrder.order_status || 'Unknown'] ||
-                            currentPurchaseOrder.order_status
-                              ?.replace(/_/g, ' ')
-                              .toLowerCase()
-                              .replace(/\b\w/g, (c) => c.toUpperCase()) || 'Unknown'}
+                          {(currentItem as PurchaseOrderItem).status || 'Active'}
                         </Badge>
                       </div>
                     </div>
 
-                    {/* Supplier and Store Section */}
+                    {/* Supplier Section */}
                     <div className="grid grid-cols-2 gap-8 mb-8 print:gap-6">
                       <div>
                         <h3 className="text-gray-800 font-semibold mb-2 text-sm">Supplier:</h3>
                         <div className="border-l-4 border-blue-600 pl-4">
-                          <p className="text-gray-800 font-medium text-base">{currentPurchaseOrder.supplier?.supplier_name || 'N/A'}</p>
-                          <p className="text-gray-600 text-sm">{currentPurchaseOrder.supplier?.address || 'N/A'}</p>
-                          <p className="text-gray-600 text-sm">{currentPurchaseOrder.supplier?.email || 'N/A'}</p>
+                          <p className="text-gray-800 font-medium text-base">{(currentItem as PurchaseOrderItem).supplier?.name || 'N/A'}</p>
+                          <p className="text-gray-600 text-sm">Supplier ID: {(currentItem as PurchaseOrderItem).supplier?._id || 'N/A'}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <h3 className="text-gray-800 font-semibold mb-2 text-sm">Delivery To:</h3>
+                        <h3 className="text-gray-800 font-semibold mb-2 text-sm">Item Details:</h3>
                         <div className="border-r-4 border-blue-600 pr-4">
-                          <p className="text-gray-800 font-medium text-base">{currentPurchaseOrder.store?.name || 'N/A'}</p>
-                          <p className="text-gray-600 text-sm">{currentPurchaseOrder.store?.address || 'N/A'}</p>
+                          <p className="text-gray-800 font-medium text-base">{(currentItem as PurchaseOrderItem).itemName || 'N/A'}</p>
+                          <p className="text-gray-600 text-sm">{(currentItem as PurchaseOrderItem).description || 'No description'}</p>
                         </div>
                       </div>
                     </div>
@@ -1330,48 +1039,32 @@ const PrintPreview: React.FC = () => {
                         <thead>
                           <tr className="bg-blue-50 border-y">
                             <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Item Name</th>
-                            <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Description</th>
+                            <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Supplier</th>
+                            <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Order Date</th>
                             <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Quantity</th>
                             <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Unit Price</th>
-                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Total</th>
+                            <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Total Value</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {loading ? (
-                            <tr>
-                              <td colSpan={5} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
-                            </tr>
-                          ) : currentPurchaseOrder?.items?.length > 0 ? (
-                            currentPurchaseOrder.items.map((item, index) => (
-                              <tr key={index} className="border-b">
-                                <td className="py-3 px-4 text-gray-800 text-sm">{item.item_mgmt.item_name || 'N/A'}</td>
-                                <td className="py-3 px-4 text-gray-600 text-sm">{item.item_mgmt.description || '-'}</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.order_qty || 0}</td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">
-                                  {formatCurrency(item.order_price && item.order_qty ? item.order_price / item.order_qty : 0)}
-                                </td>
-                                <td className="py-3 px-4 text-right text-gray-800 text-sm">
-                                  {formatCurrency(item.order_price ?? 0)}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={5} className="py-3 px-4 text-center text-gray-600">No items found</td>
-                            </tr>
-                          )}
+                          <tr className="border-b">
+                            <td className="py-3 px-4 text-gray-800 text-sm">{(currentItem as PurchaseOrderItem).itemName || 'N/A'}</td>
+                            <td className="py-3 px-4 text-gray-800 text-sm">{(currentItem as PurchaseOrderItem).supplier?.name || 'N/A'}</td>
+                            <td className="py-3 px-4 text-gray-800 text-sm">{formatDate((currentItem as PurchaseOrderItem).orderDate)}</td>
+                            <td className="py-3 px-4 text-right text-gray-800 text-sm">{(currentItem as PurchaseOrderItem).quantity || 0}</td>
+                            <td className="py-3 px-4 text-right text-gray-800 text-sm">
+                              {formatCurrency((currentItem as PurchaseOrderItem).unitPrice || 0)}
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-800 text-sm">
+                              {formatCurrency((currentItem as PurchaseOrderItem).totalValue || 0)}
+                            </td>
+                          </tr>
                         </tbody>
                         <tfoot>
-                          <tr>
-                            <td colSpan={3} className="py-3 px-4"></td>
-                            <td className="py-3 px-4 text-right font-semibold text-sm">Total Items:</td>
-                            <td className="py-3 px-4 text-right font-semibold text-sm">{currentPurchaseOrder?.total_items || 0}</td>
-                          </tr>
                           <tr className="border-t-2">
-                            <td colSpan={3} className="py-3 px-4"></td>
-                            <td className="py-3 px-4 text-right font-bold text-base">Total:</td>
+                            <td colSpan={5} className="py-3 px-4 text-right font-bold text-base">Total:</td>
                             <td className="py-3 px-4 text-right font-bold text-base text-blue-600">
-                              {formatCurrency(currentPurchaseOrder?.total_value ?? 0)}
+                              {formatCurrency((currentItem as PurchaseOrderItem).totalValue ?? 0)}
                             </td>
                           </tr>
                         </tfoot>
@@ -1383,10 +1076,11 @@ const PrintPreview: React.FC = () => {
                       <h3 className="text-gray-800 font-semibold mb-2 text-sm">Additional Details</h3>
                       <div className="grid grid-cols-2 gap-8">
                         <div>
-                          <p className="text-gray-600 text-sm"><strong>Payment Details:</strong> {reportConfigs['purchase-order']?.payment_details || currentPurchaseOrder?.payment_details || 'N/A'}</p>
+                          <p className="text-gray-600 text-sm"><strong>Item ID:</strong> {(currentItem as PurchaseOrderItem).itemId || 'N/A'}</p>
+                          <p className="text-gray-600 text-sm"><strong>Status:</strong> {(currentItem as PurchaseOrderItem).status || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="text-gray-600 text-sm"><strong>Remarks:</strong> {reportConfigs['purchase-order']?.remarks || currentPurchaseOrder?.remarks || 'N/A'}</p>
+                          <p className="text-gray-600 text-sm"><strong>Description:</strong> {(currentItem as PurchaseOrderItem).description || 'N/A'}</p>
                         </div>
                       </div>
                     </div>
@@ -1394,8 +1088,7 @@ const PrintPreview: React.FC = () => {
                     {/* Footer Section */}
                     <div className="mt-12 border-t pt-8 print:pt-6">
                       <div className="text-center text-gray-500 text-xs">
-                        <p>{reportConfigs['purchase-order']?.report_footer }</p>
-                        {/* <p>For any queries, please contact at {companyData?.email}</p> */}
+                        <p>{reportConfigs['purchase-order']?.report_footer || 'Generated by Inventory Management System'}</p>
                       </div>
                     </div>
                   </div>
@@ -1444,7 +1137,7 @@ const PrintPreview: React.FC = () => {
                       Page {currentPage} of {totalPages}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {currentPurchaseOrder?.po_number || `Item ${currentPage}`}
+                      {(currentItem as PurchaseOrderItem)?.itemId || `Item ${currentPage}`}
                     </div>
                   </div>
                   <button
@@ -1461,8 +1154,8 @@ const PrintPreview: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 text-center py-12">
               <div className="text-gray-500">
                 <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">Loading Purchase Order</h3>
-                <p className="text-sm">{loading ? 'Loading...' : 'No data available for the selected purchase order.'}</p>
+                <h3 className="text-lg font-medium mb-2">No Purchase Order Data</h3>
+                <p className="text-sm">No data available for the selected purchase order report.</p>
               </div>
             </div>
           )
@@ -1530,7 +1223,7 @@ const PrintPreview: React.FC = () => {
                               <td colSpan={6} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
                             </tr>
                           ) : currentSalesInvoice?.items?.length > 0 ? (
-                            currentSalesInvoice.items.map((item, index) => (
+                            currentSalesInvoice.items.map((item: SalesInvoiceItem, index: number) => (
                               <tr key={index} className="border-b">
                                 <td className="py-3 px-4 text-gray-800 text-sm">{item.item_mgmt.item_name || 'N/A'}</td>
                                 <td className="py-3 px-4 text-gray-600 text-sm">{item.item_mgmt.description || '-'}</td>

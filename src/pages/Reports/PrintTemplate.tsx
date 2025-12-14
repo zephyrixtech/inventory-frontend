@@ -1,5 +1,6 @@
 import { Package } from 'lucide-react';
 import type { JSX } from 'react';
+import { formatCurrency } from '@/Utils/formatters';
 
 interface PrintTemplateProps {
   reportData: any;
@@ -29,10 +30,98 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
     if (selectedReportType === 'purchase-order') {
       return reportData['purchase-order']?.data || [];
     }
+    if (selectedReportType === 'sales') {
+      return reportData['sales']?.data || [];
+    }
+    if (selectedReportType === 'stock') {
+      return reportData['stock']?.data || [];
+    }
     return [];
   };
 
   const data = getData();
+  
+  // Interface for PurchaseOrderItem from Reports.tsx
+  interface PurchaseOrderItem {
+    _id: string;
+    itemId: string;
+    itemName: string;
+    description?: string;
+    unitPrice: number;
+    quantity: number;
+    totalValue: number;
+    supplier: {
+      _id: string;
+      name: string;
+    };
+    orderDate: string;
+    status: string;
+  }
+
+  // Interface for SalesInvoice from Reports.tsx
+  interface SalesInvoice {
+    _id: string;
+    invoiceNumber?: string;
+    invoice_number?: string;
+    invoiceDate?: string;
+    invoice_date?: string;
+    invoiceAmount?: number;
+    invoice_amount?: number;
+    discountAmount?: number;
+    discount_amount?: number;
+    tax_amount?: number;
+    netAmount?: number;
+    net_amount?: number;
+    customer_name?: string;
+    billing_address?: string;
+    email?: string;
+    contact_number?: string;
+    items?: Array<{
+      id: string;
+      item_id: string;
+      quantity: number | null;
+      unit_price: number | null;
+      discount_percentage: number | null;
+      total: number;
+      item_mgmt: {
+        item_name: string;
+        description?: string | null;
+      };
+    }>;
+  }
+
+  // Helper function to get report title
+  const getReportTitle = () => {
+    switch (selectedReportType) {
+      case 'purchase-order':
+        return 'Purchase Order Report';
+      case 'sales':
+        return 'Sales Invoice Report';
+      case 'stock':
+        return 'Stock Report';
+      default:
+        return 'Report';
+    }
+  };
+
+  // Helper function to get report type label
+  const getReportTypeLabel = () => {
+    switch (selectedReportType) {
+      case 'purchase-order':
+        return 'Purchase Orders';
+      case 'sales':
+        return 'Sales Invoices';
+      case 'stock':
+        return 'Stock';
+      default:
+        return 'Report';
+    }
+  };
+
+  // Helper function to get invoice property (handles both camelCase and snake_case)
+  const getInvoiceProp = (invoice: SalesInvoice, camelCase: string, snakeCase: string) => {
+    return (invoice as any)[camelCase] ?? (invoice as any)[snakeCase] ?? '';
+  };
 
   return (
     <div className="print-template min-h-screen bg-gray-50 print:bg-white">
@@ -62,12 +151,12 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  Purchase Order Report
+                  {getReportTitle()}
                 </h2>
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <span className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    Report Type: Purchase Orders
+                    Report Type: {getReportTypeLabel()}
                   </span>
                   <span className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -94,28 +183,28 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
         {/* Purchase Order Report Content */}
         {selectedReportType === 'purchase-order' && data.length > 0 && (
           <div className="space-y-8">
-            {data.map((currentItem: any, index: number) => (
+            {(data as PurchaseOrderItem[]).map((currentItem: PurchaseOrderItem, index: number) => (
               <div
-                key={currentItem.id || index}
+                key={currentItem._id || index}
                 className="bg-white border border-gray-200 rounded-lg p-6 break-inside-avoid print:mb-8"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                      Purchase Order: {currentItem.id}
+                      Purchase Order Item: {currentItem.itemId}
                     </h3>
                     <div className="space-y-2 text-sm">
                       <p>
                         <span className="font-medium">Supplier:</span>{' '}
-                        {currentItem.supplier}
+                        {currentItem.supplier?.name || 'N/A'}
                       </p>
                       <p>
-                        <span className="font-medium">Purchase Date:</span>{' '}
-                        {formatDate(currentItem.purchaseDate)}
+                        <span className="font-medium">Order Date:</span>{' '}
+                        {formatDate(currentItem.orderDate)}
                       </p>
                       <p>
-                        <span className="font-medium">Delivery Date:</span>{' '}
-                        {formatDate(currentItem.deliveryDate)}
+                        <span className="font-medium">Item Name:</span>{' '}
+                        {currentItem.itemName}
                       </p>
                     </div>
                   </div>
@@ -125,8 +214,8 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                     </div>
                     <div className="space-y-2 text-sm">
                       <p>
-                        <span className="font-medium">Total Cost:</span>{' '}
-                        {currentItem.totalCost}
+                        <span className="font-medium">Total Value:</span>{' '}
+                        {formatCurrency(currentItem.totalValue || 0)}
                       </p>
                     </div>
                   </div>
@@ -137,10 +226,13 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left font-medium text-gray-700">
-                            Item Code
+                            Item ID
                           </th>
                           <th className="px-4 py-3 text-left font-medium text-gray-700">
                             Item Name
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-gray-700">
+                            Supplier
                           </th>
                           <th className="px-4 py-3 text-center font-medium text-gray-700">
                             Quantity
@@ -149,33 +241,186 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                             Unit Price
                           </th>
                           <th className="px-4 py-3 text-right font-medium text-gray-700">
-                            Line Total
+                            Total Value
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {currentItem.itemBreakdown?.map(
-                          (item: any, itemIndex: number) => (
-                            <tr
-                              key={itemIndex}
-                              className={itemIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                            >
-                              <td className="px-4 py-3 font-medium">{item.itemCode}</td>
-                              <td className="px-4 py-3">{item.itemName}</td>
-                              <td className="px-4 py-3 text-center">{item.quantity}</td>
-                              <td className="px-4 py-3 text-right">{item.unitPrice}</td>
-                              <td className="px-4 py-3 text-right font-medium">
-                                {item.lineTotal}
-                              </td>
-                            </tr>
-                          )
-                        )}
+                        <tr className="bg-white">
+                          <td className="px-4 py-3 font-medium">{currentItem.itemId}</td>
+                          <td className="px-4 py-3">{currentItem.itemName}</td>
+                          <td className="px-4 py-3">{currentItem.supplier?.name || 'N/A'}</td>
+                          <td className="px-4 py-3 text-center">{currentItem.quantity || 0}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(currentItem.unitPrice || 0)}</td>
+                          <td className="px-4 py-3 text-right font-medium">
+                            {formatCurrency(currentItem.totalValue || 0)}
+                          </td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Sales Invoice Report Content */}
+        {selectedReportType === 'sales' && data.length > 0 && (
+          <div className="space-y-8">
+            {(data as SalesInvoice[]).map((invoice: SalesInvoice, index: number) => {
+              const invoiceNumber = getInvoiceProp(invoice, 'invoiceNumber', 'invoice_number');
+              const invoiceDate = getInvoiceProp(invoice, 'invoiceDate', 'invoice_date');
+              const invoiceAmount = getInvoiceProp(invoice, 'invoiceAmount', 'invoice_amount') || 0;
+              const discountAmount = getInvoiceProp(invoice, 'discountAmount', 'discount_amount') || 0;
+              const taxAmount = invoice.tax_amount || 0;
+              const netAmount = getInvoiceProp(invoice, 'netAmount', 'net_amount') || 0;
+
+              return (
+                <div
+                  key={invoice._id || index}
+                  className="bg-white border border-gray-200 rounded-lg p-6 break-inside-avoid print:mb-8"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                        Sales Invoice: {invoiceNumber || `INV-${index + 1}`}
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="font-medium">Invoice Date:</span>{' '}
+                          {invoiceDate ? formatDate(invoiceDate) : 'N/A'}
+                        </p>
+                        {invoice.customer_name && (
+                          <p>
+                            <span className="font-medium">Customer:</span>{' '}
+                            {invoice.customer_name}
+                          </p>
+                        )}
+                        {invoice.billing_address && (
+                          <p>
+                            <span className="font-medium">Billing Address:</span>{' '}
+                            {invoice.billing_address}
+                          </p>
+                        )}
+                        {invoice.contact_number && (
+                          <p>
+                            <span className="font-medium">Contact:</span>{' '}
+                            {invoice.contact_number}
+                          </p>
+                        )}
+                        {invoice.email && (
+                          <p>
+                            <span className="font-medium">Email:</span>{' '}
+                            {invoice.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="font-medium">Gross Amount:</span>{' '}
+                          {formatCurrency(invoiceAmount)}
+                        </p>
+                        <p>
+                          <span className="font-medium">Discount:</span>{' '}
+                          {formatCurrency(discountAmount)}
+                        </p>
+                        <p>
+                          <span className="font-medium">Tax Amount:</span>{' '}
+                          {formatCurrency(taxAmount)}
+                        </p>
+                        <p className="pt-2 border-t border-gray-200">
+                          <span className="font-bold text-base">Net Amount:</span>{' '}
+                          <span className="font-bold text-base text-blue-600">
+                            {formatCurrency(netAmount)}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto print:overflow-visible">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">
+                              Item Name
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-700">
+                              Description
+                            </th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-700">
+                              Quantity
+                            </th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-700">
+                              Unit Price
+                            </th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-700">
+                              Discount %
+                            </th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-700">
+                              Total
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {invoice.items && invoice.items.length > 0 ? (
+                            invoice.items.map((item, itemIndex) => (
+                              <tr key={item.id || itemIndex} className="bg-white">
+                                <td className="px-4 py-3 font-medium">
+                                  {item.item_mgmt?.item_name || 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {item.item_mgmt?.description || '-'}
+                                </td>
+                                <td className="px-4 py-3 text-right">{item.quantity || 0}</td>
+                                <td className="px-4 py-3 text-right">
+                                  {formatCurrency(item.unit_price || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {item.discount_percentage || 0}%
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {formatCurrency(item.total || 0)}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-3 text-center text-gray-500">
+                                No items found
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-gray-50">
+                          <tr>
+                            <td colSpan={4} className="px-4 py-3"></td>
+                            <td className="px-4 py-3 text-right font-semibold">
+                              Tax Amount:
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold">
+                              {formatCurrency(taxAmount)}
+                            </td>
+                          </tr>
+                          <tr className="border-t-2 border-gray-300">
+                            <td colSpan={4} className="px-4 py-3"></td>
+                            <td className="px-4 py-3 text-right font-bold text-base">
+                              Net Total:
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-base text-blue-600">
+                              {formatCurrency(netAmount)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 

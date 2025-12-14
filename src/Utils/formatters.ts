@@ -5,7 +5,7 @@
  * @param {number} [decimals=2] - Number of decimal places
  * @returns {string}
  */
-export const formatCurrency = (amount :number, currency: string = '$', decimals = 2) => {
+export const formatCurrency = (amount: number | undefined | null, currency: string = '$', decimals = 2) => {
   const userData = !currency ? JSON.parse(localStorage.getItem('userData') || '{}') : undefined;
   const currencySymbol =
     currency ??
@@ -13,11 +13,20 @@ export const formatCurrency = (amount :number, currency: string = '$', decimals 
     userData?.company_data?.currency ??
     '$';
 
-  if (Number.isNaN(amount)) {
+  // Handle undefined, null, or NaN values
+  if (amount === undefined || amount === null || Number.isNaN(amount)) {
     return `${currencySymbol}0.00`;
   }
 
-  return `${currencySymbol}${amount.toLocaleString('en-US', {
+  // Convert to number if it's a string
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  // Check again after conversion
+  if (Number.isNaN(numAmount)) {
+    return `${currencySymbol}0.00`;
+  }
+
+  return `${currencySymbol}${numAmount.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })}`;
@@ -29,12 +38,21 @@ export const formatCurrency = (amount :number, currency: string = '$', decimals 
  * @param {number} [decimals=0] - Number of decimal places
  * @returns {string}
  */
-export const formatNumber = (value  :number, decimals = 0) => {
-  if (Number.isNaN(value)) {
+export const formatNumber = (value: number | undefined | null, decimals = 0) => {
+  // Handle undefined, null, or NaN values
+  if (value === undefined || value === null || Number.isNaN(value)) {
     return '0';
   }
 
-  return value.toLocaleString('en-US', {
+  // Convert to number if it's a string
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  // Check again after conversion
+  if (Number.isNaN(numValue)) {
+    return '0';
+  }
+
+  return numValue.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });

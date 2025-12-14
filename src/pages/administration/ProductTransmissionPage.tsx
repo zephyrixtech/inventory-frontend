@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRightLeft, Package, Calculator, DollarSign, TrendingUp, Save, RefreshCcw } from 'lucide-react';
+import { ArrowRightLeft, Package, Calculator, TrendingUp, RefreshCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import toast from 'react-hot-toast';
 import { packingListService, type PackingList } from '@/services/packingListService';
 import { storeStockService } from '@/services/storeStockService';
-import { currencyService, type CurrencyRate } from '@/services/currencyService';
+import { currencyService } from '@/services/currencyService';
 import { storeService, type Store } from '@/services/storeService';
 import type { PaginationMeta } from '@/types/backend';
 
@@ -57,7 +57,6 @@ const ProductTransmissionPage = () => {
   const [billerStores, setBillerStores] = useState<Store[]>([]);
   
   // Currency rates
-  const [currencyRates, setCurrencyRates] = useState<CurrencyRate[]>([]);
   const [customExchangeRate, setCustomExchangeRate] = useState<string>('');
   
   // Transmission dialog
@@ -118,7 +117,6 @@ const ProductTransmissionPage = () => {
   const loadCurrencyRates = useCallback(async () => {
     try {
       const response = await currencyService.list();
-      setCurrencyRates(response.data);
       
       // Set default exchange rate (INR to AED)
       const inrToAedRate = response.data.find(rate => 
@@ -282,21 +280,7 @@ const ProductTransmissionPage = () => {
     }));
   };
 
-  // Save currency rate
-  const handleSaveCurrencyRate = async () => {
-    try {
-      await currencyService.upsert({
-        fromCurrency: 'INR',
-        toCurrency: 'AED',
-        rate: parseFloat(customExchangeRate) || 0
-      });
-      toast.success('Currency rate saved');
-      loadCurrencyRates();
-    } catch (error) {
-      console.error('Failed to save currency rate', error);
-      toast.error('Unable to save currency rate');
-    }
-  };
+
 
   // Execute transmission
   const handleExecuteTransmission = async () => {
