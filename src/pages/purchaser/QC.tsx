@@ -31,9 +31,10 @@ const QualityControlPage = () => {
   const [dialogStatus, setDialogStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [dialogRemarks, setDialogRemarks] = useState('');
   const [dialogDamagedQuantity, setDialogDamagedQuantity] = useState('0');
+  const [dialogInspectorName, setDialogInspectorName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [supplierMap, setSupplierMap] = useState<Record<string, { name: string; contactPerson?: string }>>({});
-  const [currentUserName, setCurrentUserName] = useState('');
+  const [totalPendingCount, setTotalPendingCount] = useState(0);
 
   const getItemId = (item: Item) => item.id ?? (item as { _id?: string })._id ?? '';
 
@@ -70,6 +71,11 @@ const QualityControlPage = () => {
     try {
       const response = await inventoryService.getItems({ qcStatus: 'pending', isActive: true, limit: 50 });
       setItems(response.data);
+      if (response.meta?.total) {
+        setTotalPendingCount(response.meta.total);
+      } else {
+        setTotalPendingCount(response.data.length);
+      }
       await hydrateSupplierNames(response.data);
     } catch (error) {
       console.error('Failed to load QC items', error);
@@ -85,25 +91,14 @@ const QualityControlPage = () => {
     fetchItems();
   }, []);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem('userData');
-    if (!storedUser) return;
-    try {
-      const parsed = JSON.parse(storedUser);
-      const firstName = parsed?.first_name ?? parsed?.firstName ?? '';
-      const lastName = parsed?.last_name ?? parsed?.lastName ?? '';
-      const fullName = `${firstName} ${lastName}`.trim();
-      setCurrentUserName(fullName || parsed?.email || '');
-    } catch (error) {
-      console.error('Failed to parse userData', error);
-    }
-  }, []);
+
 
   const openDialog = (item: Item) => {
     setDialogItem(item);
     setDialogStatus(item.qcStatus ?? 'pending');
     setDialogRemarks(item.qcRemarks ?? '');
     setDialogDamagedQuantity(String(item.damagedQuantity ?? 0));
+    setDialogInspectorName(item.inspectorName ?? '');
     setDialogOpen(true);
   };
 
@@ -112,6 +107,7 @@ const QualityControlPage = () => {
     setDialogOpen(false);
     setDialogItem(null);
     setDialogRemarks('');
+    setDialogInspectorName('');
   };
 
   const handleDialogSubmit = async () => {
@@ -133,7 +129,8 @@ const QualityControlPage = () => {
         productId,
         status: dialogStatus,
         remarks: dialogRemarks,
-        damagedQuantity: parsedDamage
+        damagedQuantity: parsedDamage,
+        inspectorName: dialogInspectorName
       });
       toast.success('Quality check updated successfully');
       closeDialog();
@@ -146,7 +143,6 @@ const QualityControlPage = () => {
     }
   };
 
-  const pendingCount = items.length;
   const criticalItems = useMemo(() => items.filter((item) => (item.quantity ?? 0) === 0).length, [items]);
 
   return (
@@ -166,7 +162,7 @@ const QualityControlPage = () => {
                 <CardTitle className="text-sm text-muted-foreground">Pending QC Items</CardTitle>
               </CardHeader>
               <CardContent className="text-3xl font-semibold">
-                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : pendingCount}
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalPendingCount}
               </CardContent>
             </Card>
             <Card>
@@ -244,7 +240,7 @@ const QualityControlPage = () => {
             </Table>
           </div>
         </CardContent>
-      </Card>
+      </Card >
 
       <Dialog open={dialogOpen} onOpenChange={(next) => (next ? setDialogOpen(true) : closeDialog())}>
         <DialogContent>
@@ -253,9 +249,6 @@ const QualityControlPage = () => {
             <DialogDescription>
               {dialogItem ? `${dialogItem.name} • ${dialogItem.code}` : 'Select an item to continue.'}
             </DialogDescription>
-            {currentUserName && (
-              <p className="text-xs text-muted-foreground">Logged in as {currentUserName}</p>
-            )}
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -282,6 +275,15 @@ const QualityControlPage = () => {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="inspector-name">Inspector Name</Label>
+              <Input
+                id="inspector-name"
+                placeholder="Enter inspector name"
+                value={dialogInspectorName}
+                onChange={(event) => setDialogInspectorName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="qc-remarks">Remarks</Label>
               <Textarea
                 id="qc-remarks"
@@ -303,7 +305,7 @@ const QualityControlPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 };
 export default QualityControlPage;

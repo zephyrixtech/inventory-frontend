@@ -64,6 +64,7 @@ export interface Item {
   damagedQuantity?: number;
   qcRemarks?: string;
   qcCheckedByName?: string | null;
+  inspectorName?: string | null;
   qcSubmittedByName?: string | null;
   availableQuantity?: number;
   availableStock?: number;

@@ -6,6 +6,7 @@ export interface QualityCheckPayload {
   status: 'approved' | 'rejected' | 'pending';
   remarks?: string;
   damagedQuantity?: number;
+  inspectorName?: string;
 }
 
 export const qualityCheckService = {
