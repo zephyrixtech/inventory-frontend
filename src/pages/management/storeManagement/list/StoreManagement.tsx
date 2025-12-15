@@ -119,16 +119,16 @@ export const StoreManagement = () => {
         setIsLoading(true);
         const userRole = getUserRole();
         const userId = getUserId();
-        
+
         // Prepare params for the API call
         const params: any = {};
-        
+
         // Only pass userId and userRole if the user is purchaser or biller
         if (userRole && (userRole === 'purchaser' || userRole === 'biller')) {
           params.userId = userId;
           params.userRole = userRole;
         }
-        
+
         const response = await storeService.listStores(params);
         setStores(response.data || []);
       } catch (error: any) {
@@ -270,9 +270,8 @@ export const StoreManagement = () => {
     return (
       <div key={node._id} className="select-none">
         <div
-          className={`flex items-center py-2 px-3 hover:bg-gray-50 rounded-md cursor-pointer ${
-            level > 0 ? 'ml-6 border-l-2 border-gray-200 pl-4' : ''
-          }`}
+          className={`flex items-center py-2 px-3 hover:bg-gray-50 rounded-md cursor-pointer ${level > 0 ? 'ml-6 border-l-2 border-gray-200 pl-4' : ''
+            }`}
           onClick={() => hasChildren && toggleNode(node._id)}
         >
           <div className="flex items-center space-x-2 flex-1">
@@ -343,14 +342,12 @@ export const StoreManagement = () => {
 
   // === Export CSV ===
   const exportStoresToCSV = () => {
-    const headers = ['Store ID', 'Store Name', 'Address', 'Store Manager', 'Purchaser', 'Biller'];
+    const headers = ['Store ID', 'Store Name', 'Address', 'Store Manager'];
     const rows = filteredAndSortedStores.map((store) => [
       `"${store.code}"`,
       `"${store.name}"`,
       `"${store.address || ''}"`,
-      `"${store.manager || ''}"`,
-      `"${store.purchaser || ''}"`,
-      `"${store.biller || ''}"`,
+      `"${store.purchaser === 'ROLE_PURCHASER' ? 'Purchaser' : store.biller === 'ROLE_BILLER' ? 'Biller' : 'None'}"`,
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -382,16 +379,16 @@ export const StoreManagement = () => {
       // Refresh stores list
       const userRole = getUserRole();
       const userId = getUserId();
-      
+
       // Prepare params for the API call
       const params: any = {};
-      
+
       // Only pass userId and userRole if the user is purchaser or biller
       if (userRole && (userRole === 'purchaser' || userRole === 'biller')) {
         params.userId = userId;
         params.userRole = userRole;
       }
-      
+
       const response = await storeService.listStores(params);
       setStores(response.data || []);
     } catch (error: any) {
@@ -442,7 +439,7 @@ export const StoreManagement = () => {
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
                   </Button>
-                  <Button 
+                  <Button
                     className="transition-colors"
                     onClick={() => navigate('/dashboard/store/add')}
                   >
@@ -527,23 +524,13 @@ export const StoreManagement = () => {
                           Store Manager {getSortIcon('store_manager')}
                         </p>
                       </TableHead>
-                      <TableHead className="font-semibold">
-                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600">
-                          Purchaser
-                        </p>
-                      </TableHead>
-                      <TableHead className="font-semibold">
-                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600">
-                          Biller
-                        </p>
-                      </TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
                             <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
                             <p className="text-base font-medium">Loading stores...</p>
@@ -552,7 +539,7 @@ export const StoreManagement = () => {
                       </TableRow>
                     ) : paginatedStores.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
                             <p className="text-base font-medium">No stores found</p>
                             <p className="text-sm text-gray-500">Try adjusting your search or filter</p>
@@ -571,17 +558,13 @@ export const StoreManagement = () => {
                             <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address || ''}>
                               {store.address || 'No address'}
                             </TableCell>
-                            <TableCell>{store.manager || 'None'}</TableCell>
                             <TableCell>
-                              {store.purchaser === 'ROLE_PURCHASER' ? 'Purchaser Role Assigned' : 'None'}
-                            </TableCell>
-                            <TableCell>
-                              {store.biller === 'ROLE_BILLER' ? 'Biller Role Assigned' : 'None'}
+                              {store.purchaser === 'ROLE_PURCHASER' ? 'Purchaser' : store.biller === 'ROLE_BILLER' ? 'Biller' : 'None'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-center gap-2">
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="icon"
                                   onClick={() => navigate(`/dashboard/store/edit/${store._id}`)}
                                 >
@@ -669,7 +652,7 @@ export const StoreManagement = () => {
             </CardContent>
           </Card>
 
-        
+
 
           {/* Delete Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
