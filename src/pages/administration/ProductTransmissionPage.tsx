@@ -24,8 +24,8 @@ interface TransmissionItem {
   originalPrice: number; // INR price from purchaser store
   margin: string; // Percentage as string
   unitPrice: number; // INR unit price after margin
+  unitPriceAED: number; // AED unit price after margin and exchange rate conversion
   dpPrice: string; // Dealer Price in AED as string
-  maxMRP: string; // Maximum MRP in AED as string
   finalPrice: number; // Final price in AED
 }
 
@@ -51,14 +51,14 @@ const ProductTransmissionPage = () => {
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Stores
   const [purchaserStores, setPurchaserStores] = useState<Store[]>([]);
   const [billerStores, setBillerStores] = useState<Store[]>([]);
-  
+
   // Currency rates
   const [customExchangeRate, setCustomExchangeRate] = useState<string>('');
-  
+
   // Transmission dialog
   const [showTransmissionDialog, setShowTransmissionDialog] = useState(false);
   const [transmissionForm, setTransmissionForm] = useState<TransmissionFormState>({
@@ -99,11 +99,11 @@ const ProductTransmissionPage = () => {
     try {
       const response = await storeService.listStores();
       const allStores = response.data || [];
-      
+
       // Filter stores with ROLE_PURCHASER for "From Store"
       const purchaserFilteredStores = allStores.filter(store => store.purchaser === 'ROLE_PURCHASER');
       setPurchaserStores(purchaserFilteredStores);
-      
+
       // Filter stores with ROLE_BILLER for "To Store"
       const billerFilteredStores = allStores.filter(store => store.biller === 'ROLE_BILLER');
       setBillerStores(billerFilteredStores);
@@ -117,9 +117,9 @@ const ProductTransmissionPage = () => {
   const loadCurrencyRates = useCallback(async () => {
     try {
       const response = await currencyService.list();
-      
+
       // Set default exchange rate (INR to AED)
-      const inrToAedRate = response.data.find(rate => 
+      const inrToAedRate = response.data.find(rate =>
         rate.fromCurrency === 'INR' && rate.toCurrency === 'AED'
       );
       if (inrToAedRate) {
@@ -173,7 +173,6 @@ const ProductTransmissionPage = () => {
         const margin = ''; // Default margin as empty string
         const unitPrice = originalPrice;
         const dpPrice = ''; // Manual entry - no auto calculation
-        const maxMRP = ''; // Default value as empty string
         const finalPrice = 0; // Will be set when DP price is entered
 
         return {
@@ -185,8 +184,8 @@ const ProductTransmissionPage = () => {
           originalPrice,
           margin,
           unitPrice,
+          unitPriceAED: 0, // Will be calculated when exchange rate is set
           dpPrice,
-          maxMRP,
           finalPrice
         };
       });
@@ -208,23 +207,27 @@ const ProductTransmissionPage = () => {
     }
   };
 
-  // Update exchange rate - no automatic DP price calculation
+  // Update exchange rate and convert unit prices to AED
   const handleExchangeRateChange = (newRate: string) => {
+    const exchangeRateNum = parseFloat(newRate) || 0;
     setTransmissionForm(prev => ({
       ...prev,
       exchangeRate: newRate,
       items: prev.items.map(item => {
+        // Convert INR unit price to AED using exchange rate
+        const unitPriceAED = exchangeRateNum > 0 ? item.unitPrice * exchangeRateNum : 0;
         // Keep existing DP price, only update finalPrice if DP price exists
         const finalPrice = item.dpPrice ? parseFloat(item.dpPrice) : 0;
         return {
           ...item,
+          unitPriceAED,
           finalPrice
         };
       })
     }));
   };
 
-  // Update item margin and recalculate unit price only
+  // Update item margin and recalculate unit price in both INR and AED
   const handleItemMarginChange = (index: number, margin: string) => {
     setTransmissionForm(prev => ({
       ...prev,
@@ -232,12 +235,16 @@ const ProductTransmissionPage = () => {
         if (i === index) {
           const marginNum = parseFloat(margin) || 0;
           const unitPrice = item.originalPrice * (1 + marginNum / 100);
+          // Convert to AED using current exchange rate
+          const exchangeRateNum = parseFloat(prev.exchangeRate) || 0;
+          const unitPriceAED = exchangeRateNum > 0 ? unitPrice * exchangeRateNum : 0;
           // Keep existing DP price, only update finalPrice if DP price exists
           const finalPrice = item.dpPrice ? parseFloat(item.dpPrice) : 0;
           return {
             ...item,
             margin,
             unitPrice,
+            unitPriceAED,
             finalPrice
           };
         }
@@ -264,21 +271,7 @@ const ProductTransmissionPage = () => {
     }));
   };
 
-  // Update item Max MRP
-  const handleItemMaxMRPChange = (index: number, maxMRP: string) => {
-    setTransmissionForm(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => {
-        if (i === index) {
-          return {
-            ...item,
-            maxMRP
-          };
-        }
-        return item;
-      })
-    }));
-  };
+
 
 
 
@@ -295,47 +288,64 @@ const ProductTransmissionPage = () => {
       // Create store stock entries for each item in the biller store
       for (const item of transmissionForm.items) {
         // Check if product already exists in the destination store
-        const existingStockResponse = await storeStockService.list({ 
+        const existingStockResponse = await storeStockService.list({
           storeId: transmissionForm.toStoreId,
-          limit: 1000 
+          limit: 1000
         });
-        
+
         const existingStock = existingStockResponse.data.find(stock => {
           const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
           return stockProductId === item.productId;
         });
 
+        // Debug logging to understand the stock structure
+        if (existingStock) {
+          console.log('Found existing stock:', existingStock);
+          console.log('Stock keys:', Object.keys(existingStock));
+        }
+
+        // Validate required fields before creating transmission data
+        if (!item.productId || !transmissionForm.toStoreId || item.quantity <= 0) {
+          toast.error(`Invalid data for ${item.productName}: missing required fields`);
+          continue;
+        }
+
+        // Create transmission data with only fields that exist in the StoreStock model
         const transmissionData = {
           productId: item.productId,
-          storeId: transmissionForm.toStoreId || '',
+          storeId: transmissionForm.toStoreId,
           quantity: item.quantity,
-          margin: parseFloat(item.margin) || 0,
-          currency: 'AED' as const,
-          // Additional transmission data - we'll store these in a metadata object
-          unitPrice: item.finalPrice, // Use final AED price as unit price
-          transmissionData: {
-            originalPriceINR: item.originalPrice,
-            marginPercent: parseFloat(item.margin) || 0,
-            unitPriceINR: item.unitPrice,
-            dpPriceAED: parseFloat(item.dpPrice) || 0,
-            maxMRPAED: parseFloat(item.maxMRP) || 0,
-            exchangeRate: parseFloat(transmissionForm.exchangeRate) || 0,
-            transmissionDate: new Date().toISOString(),
-            fromStoreId: transmissionForm.fromStoreId,
-            packingListId: transmissionForm.packingListId
-          }
+          margin: parseFloat(item.margin) || 0, // This will be saved
+          currency: 'AED' as const, // This will be saved
+          unitPrice: item.unitPriceAED, // This will be saved as the AED unit price
+          packingListId: transmissionForm.packingListId,
+          dpPrice: parseFloat(item.dpPrice),
+          exchangeRate: parseFloat(transmissionForm.exchangeRate),
+          finalPrice: item.finalPrice
         };
 
+        console.log('Transmission data for', item.productName, ':', transmissionData);
+
         if (existingStock) {
-          // Update existing stock - add to existing quantity
-          const newQuantity = existingStock.quantity + item.quantity;
-          await storeStockService.update(existingStock.id, {
-            ...transmissionData,
-            quantity: newQuantity
-          });
+          // Product already exists in destination store
+          // Since we can't update with full data, we'll create a new stock entry with AED pricing
+          // This means the store will have separate entries for different currencies/transmissions
+
+          console.log('Found existing stock for:', item.productName);
+          console.log('Creating new AED stock entry (separate from existing stock)');
+
+          await storeStockService.save(transmissionData);
+
+          console.log('Successfully created new AED stock entry for:', item.productName);
+          console.log('Store now has multiple stock entries for this product (existing + new AED entry)');
         } else {
           // Create new stock entry
+          console.log('Creating new stock entry for:', item.productName);
+          console.log('Create payload:', transmissionData);
+
           await storeStockService.save(transmissionData);
+
+          console.log('Successfully created stock for:', item.productName);
         }
       }
 
@@ -357,7 +367,21 @@ const ProductTransmissionPage = () => {
       loadPackingLists(pagination.page);
     } catch (error) {
       console.error('Failed to execute transmission', error);
-      toast.error('Unable to execute transmission. Please check if all required fields are filled.');
+
+      // Show more specific error message
+      let errorMessage = 'Unable to execute transmission.';
+      if (error instanceof Error) {
+        errorMessage = `Transmission failed: ${error.message}`;
+      } else if (typeof error === 'object' && error !== null) {
+        const errorObj = error as any;
+        if (errorObj.response?.data?.message) {
+          errorMessage = `API Error: ${errorObj.response.data.message}`;
+        } else if (errorObj.message) {
+          errorMessage = `Error: ${errorObj.message}`;
+        }
+      }
+
+      toast.error(errorMessage);
     } finally {
       setTransmissionLoading(false);
     }
@@ -482,7 +506,7 @@ const ProductTransmissionPage = () => {
                       </TableCell>
                       <TableCell>{packingList.items?.length || 0}</TableCell>
                       <TableCell>
-                        {packingList.packingDate 
+                        {packingList.packingDate
                           ? new Date(packingList.packingDate).toLocaleDateString()
                           : '-'
                         }
@@ -522,18 +546,18 @@ const ProductTransmissionPage = () => {
               Showing page {pagination.page} of {pagination.totalPages}
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handlePageChange('prev')} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('prev')}
                 disabled={!pagination.hasPrevPage}
               >
                 Previous
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handlePageChange('next')} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('next')}
                 disabled={!pagination.hasNextPage}
               >
                 Next
@@ -577,8 +601,8 @@ const ProductTransmissionPage = () => {
 
               <div>
                 <Label>To Store (Biller) *</Label>
-                <Select 
-                  value={transmissionForm.toStoreId} 
+                <Select
+                  value={transmissionForm.toStoreId}
                   onValueChange={(value) => setTransmissionForm(prev => ({ ...prev, toStoreId: value }))}
                 >
                   <SelectTrigger>
@@ -627,7 +651,7 @@ const ProductTransmissionPage = () => {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total Value (AED):</span>
-                  <div className="font-medium">د.إ{transmissionForm.items.reduce((sum, item) => sum + ((parseFloat(item.dpPrice) || 0) * item.quantity), 0).toFixed(2)}</div>
+                  <div className="font-medium">د.إ{transmissionForm.items.reduce((sum, item) => sum + (item.unitPriceAED * item.quantity), 0).toFixed(2)}</div>
                 </div>
               </div>
             </div>
@@ -641,9 +665,9 @@ const ProductTransmissionPage = () => {
                 Product Pricing Configuration
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                <strong>Note:</strong> DP Price (AED) must be entered manually for each product. Margin % will only affect the Unit Price (INR).
+                <strong>Note:</strong> DP Price (AED) must be entered manually for each product. Unit Price (AED) is automatically calculated from INR price using the exchange rate.
               </p>
-              
+
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -653,8 +677,8 @@ const ProductTransmissionPage = () => {
                       <TableHead>Original Price (INR)</TableHead>
                       <TableHead>Margin %</TableHead>
                       <TableHead>Unit Price (INR)</TableHead>
+                      <TableHead>Unit Price (AED)</TableHead>
                       <TableHead>DP Price (AED) *</TableHead>
-                      <TableHead>Max MRP (AED)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -679,6 +703,11 @@ const ProductTransmissionPage = () => {
                         </TableCell>
                         <TableCell>₹{item.unitPrice.toFixed(2)}</TableCell>
                         <TableCell>
+                          <div className="font-medium text-blue-600">
+                            د.إ{item.unitPriceAED.toFixed(4)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <Input
                             type="text"
                             value={item.dpPrice}
@@ -687,17 +716,6 @@ const ProductTransmissionPage = () => {
                             }}
                             className="w-24 border-blue-300 focus:border-blue-500"
                             placeholder="Enter manually"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="text"
-                            value={item.maxMRP}
-                            onChange={(e) => {
-                              handleItemMaxMRPChange(index, e.target.value);
-                            }}
-                            className="w-24"
-                            placeholder="0.00"
                           />
                         </TableCell>
                       </TableRow>
@@ -721,16 +739,16 @@ const ProductTransmissionPage = () => {
                 <div className="text-amber-600">⚠ Some items have missing or zero DP prices</div>
               )}
             </div>
-            
+
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowTransmissionDialog(false)}
                 disabled={transmissionLoading}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowConfirmDialog(true)}
                 disabled={transmissionLoading || !transmissionForm.toStoreId || !transmissionForm.exchangeRate}
               >
@@ -760,7 +778,7 @@ const ProductTransmissionPage = () => {
               Are you sure you want to transmit these products? This action will:
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-3">
             <ul className="list-disc list-inside space-y-1 text-sm">
               <li>Add {transmissionForm.items.length} products to {billerStores.find(s => s._id === transmissionForm.toStoreId)?.name || 'the selected store'}</li>
@@ -768,7 +786,7 @@ const ProductTransmissionPage = () => {
               <li>Convert prices from INR to AED using rate: {transmissionForm.exchangeRate}</li>
               <li>Apply the configured margins and pricing</li>
             </ul>
-            
+
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <p className="text-sm text-amber-800">
                 <strong>Note:</strong> If products already exist in the destination store, the quantities will be added to existing stock.
@@ -780,7 +798,7 @@ const ProductTransmissionPage = () => {
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 setShowConfirmDialog(false);
                 handleExecuteTransmission();

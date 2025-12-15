@@ -36,6 +36,9 @@ interface PackingListFormState {
   // New fields
   cargoNumber?: string;
   fabricDetails?: string;
+  // Only needed fields
+  size?: string; // Packing list level size
+  description?: string; // Packing list level description
 }
 
 const DEFAULT_FORM: PackingListFormState = {
@@ -52,7 +55,10 @@ const DEFAULT_FORM: PackingListFormState = {
   approvalStatus: 'draft', // Default to draft
   // New fields
   cargoNumber: '',
-  fabricDetails: ''
+  fabricDetails: '',
+  // Only needed fields
+  size: '',
+  description: ''
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -84,7 +90,7 @@ export const PackingListsPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [packingListToDelete, setPackingListToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<{image1?: string}>({image1: ''});
+  const [imagePreviews, setImagePreviews] = useState<{ image1?: string }>({ image1: '' });
 
   const loadPackingLists = useCallback(async (page?: number) => {
     setLoading(true);
@@ -114,13 +120,13 @@ export const PackingListsPage = () => {
       const response = await storeService.listStores();
       const allStores = response.data || [];
       setStores(allStores);
-      
+
       // Filter stores with ROLE_PURCHASER for "From Store"
-      const purchaserFilteredStores = allStores.filter(store => store.purchaser === 'ROLE_PURCHASER');
+      const purchaserFilteredStores = allStores.filter(store => store.purchaser);
       setPurchaserStores(purchaserFilteredStores);
-      
+
       // Filter stores with ROLE_BILLER for "To Store"
-      const billerFilteredStores = allStores.filter(store => store.biller === 'ROLE_BILLER');
+      const billerFilteredStores = allStores.filter(store => store.biller);
       setBillerStores(billerFilteredStores);
     } catch (error) {
       console.error('Failed to load stores', error);
@@ -235,37 +241,6 @@ export const PackingListsPage = () => {
       const response = await packingListService.get(id);
       const packingList = response.data;
 
-      const productIds = packingList.items?.map((item: any) => {
-        const productId = (item.product as any)?._id || (item.product as any)?.id || item.product;
-        return typeof productId === 'string' ? productId : productId?.toString();
-      }).filter(Boolean) || [];
-
-      let foundStoreId = '';
-      if (productIds.length > 0) {
-        for (const store of stores) {
-          const storeId = store._id || store.id;
-          if (!storeId) continue;
-
-          try {
-            const stockResponse = await storeStockService.list({ storeId, limit: 1000 });
-            const stockItems = stockResponse.data || [];
-
-            const hasAllProducts = productIds.every((pid: string) =>
-              stockItems.some((stock: StoreStock) => {
-                const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
-                return stockProductId?.toString() === pid;
-              })
-            );
-
-            if (hasAllProducts) {
-              foundStoreId = storeId;
-              break;
-            }
-          } catch (err) {
-            continue;
-          }
-        }
-      }
 
       const itemsWithProductInfo = packingList.items?.map((item: any) => {
         const product = item.product;
@@ -273,8 +248,9 @@ export const PackingListsPage = () => {
         const productIdStr = typeof productId === 'string' ? productId : productId?.toString();
         const productName = product?.name || '';
         const productCode = product?.code || '';
-        const description = product?.description || '';
-        const unitOfMeasure = product?.unitOfMeasure || '';
+        // Get description and unitOfMeasure from the item itself, not the product
+        const description = item.description || product?.description || '';
+        const unitOfMeasure = item.unitOfMeasure || product?.unitOfMeasure || '';
 
         return {
           productId: productIdStr || '',
@@ -291,7 +267,7 @@ export const PackingListsPage = () => {
       let boxOrBora: 'box' | 'bora' = 'box';
       let boxNumber = '';
       let boraNumber = '';
-      
+
       if (packingList.boxNumber) {
         if (packingList.boxNumber.startsWith('BOX-')) {
           boxOrBora = 'box';
@@ -305,9 +281,17 @@ export const PackingListsPage = () => {
         }
       }
 
+      // Extract store IDs - handle both string and object formats
+      // Extract store IDs - handle both string and object formats
+      const extractedStoreId = typeof packingList.store === 'string' ? packingList.store :
+        (packingList.store as any)?._id || (packingList.store as any)?.id || '';
+
+      const extractedToStoreId = typeof packingList.toStore === 'string' ? packingList.toStore :
+        (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || '';
+
       const formData: PackingListFormState = {
-        storeId: foundStoreId,
-        toStoreId: (packingList.toStore as any)?._id || (packingList.toStore as any)?.id || packingList.toStore || '',
+        storeId: extractedStoreId,
+        toStoreId: extractedToStoreId,
         boxOrBora, // New field
         boxNumber, // Box number without prefix
         boraNumber, // Bora number without prefix
@@ -319,17 +303,21 @@ export const PackingListsPage = () => {
         approvalStatus: packingList.approvalStatus || 'draft',
         // New fields
         cargoNumber: (packingList as any).cargoNumber || '',
-        fabricDetails: (packingList as any).fabricDetails || ''
+        fabricDetails: (packingList as any).fabricDetails || '',
+        // Only needed fields
+        size: (packingList as any).size || '',
+        description: (packingList as any).description || ''
       };
 
       setFormState(formData);
-      setImagePreviews({image1: formData.image1});
+      setImagePreviews({ image1: formData.image1 });
       setEditingId(id);
       setShowDialog(true);
 
-      if (foundStoreId) {
+      const storeIdToUse = formData.storeId;
+      if (storeIdToUse) {
         try {
-          const stockResponse = await storeStockService.list({ storeId: foundStoreId, limit: 1000 });
+          const stockResponse = await storeStockService.list({ storeId: storeIdToUse, limit: 1000 });
           const stockData = stockResponse.data || [];
           setStoreStock(stockData);
 
@@ -447,7 +435,7 @@ export const PackingListsPage = () => {
       toast.error('Please enter a box number');
       return;
     }
-    
+
     if (formState.boxOrBora === 'bora' && !formState.boraNumber) {
       toast.error('Please enter a bora number');
       return;
@@ -455,8 +443,8 @@ export const PackingListsPage = () => {
 
     try {
       // Determine the boxNumber based on selection
-      const boxNumber = formState.boxOrBora === 'box' 
-        ? `BOX-${formState.boxNumber}` 
+      const boxNumber = formState.boxOrBora === 'box'
+        ? `BOX-${formState.boxNumber}`
         : `BORA-${formState.boraNumber}`;
 
       if (editingId) {
@@ -465,11 +453,11 @@ export const PackingListsPage = () => {
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
-          items: validItems.map((item) => ({ 
-            productId: item.productId, 
+          items: validItems.map((item) => ({
+            productId: item.productId,
             quantity: item.quantity,
-            description: item.description || undefined,
-            unitOfMeasure: item.unitOfMeasure || undefined
+            description: item.description,
+            unitOfMeasure: item.unitOfMeasure
           })),
           storeId: formState.storeId,
           toStoreId: formState.toStoreId || undefined,
@@ -477,7 +465,10 @@ export const PackingListsPage = () => {
           approvalStatus: formState.approvalStatus,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
-          fabricDetails: formState.fabricDetails || undefined
+          fabricDetails: formState.fabricDetails || undefined,
+          // Only needed fields
+          size: formState.size || undefined,
+          description: formState.description || undefined
         });
         toast.success('Packing list updated successfully');
       } else {
@@ -487,18 +478,21 @@ export const PackingListsPage = () => {
           shipmentDate: formState.shipmentDate || undefined,
           packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
-          items: validItems.map((item) => ({ 
-            productId: item.productId, 
+          items: validItems.map((item) => ({
+            productId: item.productId,
             quantity: item.quantity,
-            description: item.description || undefined,
-            unitOfMeasure: item.unitOfMeasure || undefined
+            description: item.description,
+            unitOfMeasure: item.unitOfMeasure
           })),
           toStoreId: formState.toStoreId || undefined,
           status: formState.status,
           approvalStatus: formState.approvalStatus,
           // New fields
           cargoNumber: formState.cargoNumber || undefined,
-          fabricDetails: formState.fabricDetails || undefined
+          fabricDetails: formState.fabricDetails || undefined,
+          // Only needed fields
+          size: formState.size || undefined,
+          description: formState.description || undefined
         });
         toast.success('Packing list created and stock updated');
         if (formState.storeId) {
@@ -507,7 +501,7 @@ export const PackingListsPage = () => {
       }
       setShowDialog(false);
       setFormState(DEFAULT_FORM);
-      setImagePreviews({image1: ''});
+      setImagePreviews({ image1: '' });
       setEditingId(null);
       await loadPackingLists(pagination.page);
     } catch (error: any) {
@@ -527,7 +521,7 @@ export const PackingListsPage = () => {
               Packing Lists
             </CardTitle>
             <CardDescription>
-              Convert approved inventory into shipment-ready packing lists. 
+              Convert approved inventory into shipment-ready packing lists.
               Creating a packing list reduces stock from the source store. Items are considered shipped/in-transit.
             </CardDescription>
           </div>
@@ -617,11 +611,10 @@ export const PackingListsPage = () => {
                         <TableCell className="capitalize">{packing.status}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              packing.approvalStatus === 'approved' 
-                                ? 'bg-green-100 text-green-800' 
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${packing.approvalStatus === 'approved'
+                                ? 'bg-green-100 text-green-800'
                                 : 'bg-yellow-100 text-yellow-800'
-                            }`}>
+                              }`}>
                               {packing.approvalStatus === 'approved' ? (
                                 <>
                                   <CheckCircle className="h-3 w-3 mr-1" />
@@ -926,174 +919,174 @@ export const PackingListsPage = () => {
                   {!editingId && formState.storeId && (
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
                       <p className="text-sm text-blue-800">
-                        <strong>Stock Impact:</strong> Creating this packing list will immediately reduce the selected quantities from "{stores.find(s => (s._id || s.id) === formState.storeId)?.name}" store. 
+                        <strong>Stock Impact:</strong> Creating this packing list will immediately reduce the selected quantities from "{stores.find(s => (s._id || s.id) === formState.storeId)?.name}" store.
                         Items will be considered shipped/in-transit and won't be added to any destination store.
                       </p>
                     </div>
                   )}
                   <div className="border rounded-lg overflow-hidden bg-white">
-                  <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
-                    <div className="font-semibold text-sm">Product</div>
-                    <div className="font-semibold text-sm text-center">Available Stock</div>
-                    <div className="font-semibold text-sm text-center">Quantity</div>
-                    <div className="font-semibold text-sm text-center">Action</div>
-                  </div>
+                    <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
+                      <div className="font-semibold text-sm">Product</div>
+                      <div className="font-semibold text-sm text-center">Available Stock</div>
+                      <div className="font-semibold text-sm text-center">Quantity</div>
+                      <div className="font-semibold text-sm text-center">Action</div>
+                    </div>
 
-                  <div className="divide-y max-h-[400px] overflow-y-auto">
-                    {formState.items.map((item, index) => {
-                      const stockItem = storeStock.find(s => {
-                        const productId = (s.product as any)?._id || (s.product as any)?.id || s.product;
-                        return productId?.toString() === item.productId;
-                      });
-                      const availableQty = stockItem?.quantity || item.availableQuantity || 0;
-                      const exceedsStock = !editingId && item.quantity > availableQty && formState.storeId;
-                      const selectedProduct = stockItem?.product as any;
-                      const productName = selectedProduct?.name || item.productName || '';
-                      const productCode = selectedProduct?.code || item.productCode || '';
-                      const description = selectedProduct?.description || item.description || '';
-                      const unitOfMeasure = selectedProduct?.unitOfMeasure || item.unitOfMeasure || '';
+                    <div className="divide-y max-h-[400px] overflow-y-auto">
+                      {formState.items.map((item, index) => {
+                        const stockItem = storeStock.find(s => {
+                          const productId = (s.product as any)?._id || (s.product as any)?.id || s.product;
+                          return productId?.toString() === item.productId;
+                        });
+                        const availableQty = stockItem?.quantity || item.availableQuantity || 0;
+                        const exceedsStock = !editingId && item.quantity > availableQty && formState.storeId;
+                        const selectedProduct = stockItem?.product as any;
+                        const productName = selectedProduct?.name || item.productName || '';
+                        const productCode = selectedProduct?.code || item.productCode || '';
+                        const description = selectedProduct?.description || item.description || '';
+                        const unitOfMeasure = selectedProduct?.unitOfMeasure || item.unitOfMeasure || '';
 
-                      return (
-                        <div key={index} className="border-b last:border-0">
-                          <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
-                            <div className="min-w-0">
-                              {editingId && !formState.storeId ? (
-                                <div className="space-y-1">
-                                  <div className="font-medium">{productName || item.productId || 'Product'}</div>
-                                  <div className="text-xs space-y-1">
-                                    {productCode && (
-                                      <div className="text-muted-foreground">
-                                        Code: <span className="font-medium">{productCode}</span>
-                                      </div>
-                                    )}
-                                    {description && (
-                                      <div className="text-muted-foreground">
-                                        Description: <span className="font-medium">{description}</span>
-                                      </div>
-                                    )}
-                                    {unitOfMeasure && (
-                                      <div className="text-muted-foreground">
-                                        Size: <span className="font-medium">{unitOfMeasure}</span>
-                                      </div>
-                                    )}
+                        return (
+                          <div key={index} className="border-b last:border-0">
+                            <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
+                              <div className="min-w-0">
+                                {editingId && !formState.storeId ? (
+                                  <div className="space-y-1">
+                                    <div className="font-medium">{productName || item.productId || 'Product'}</div>
+                                    <div className="text-xs space-y-1">
+                                      {productCode && (
+                                        <div className="text-muted-foreground">
+                                          Code: <span className="font-medium">{productCode}</span>
+                                        </div>
+                                      )}
+                                      {description && (
+                                        <div className="text-muted-foreground">
+                                          Description: <span className="font-medium">{description}</span>
+                                        </div>
+                                      )}
+                                      {unitOfMeasure && (
+                                        <div className="text-muted-foreground">
+                                          Size: <span className="font-medium">{unitOfMeasure}</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ) : (
-                                <select
-                                  className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
-                                  value={item.productId}
-                                  onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
-                                >
-                                  <option value="">Select Product</option>
-                                  {storeStock.map((stock) => {
-                                    const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
-                                    const prodName = (stock.product as any)?.name || 'Unknown';
-                                    const prodCode = (stock.product as any)?.code || '';
-                                    const prodDesc = (stock.product as any)?.description || '';
-                                    const prodSize = (stock.product as any)?.unitOfMeasure || '';
-                                    return (
-                                      <option key={productId} value={productId}>
-                                        {prodName} {prodCode && `(${prodCode})`} {prodDesc && `- ${prodDesc}`} {prodSize && `[${prodSize}]`}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              )}
-                            </div>
+                                ) : (
+                                  <select
+                                    className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
+                                    value={item.productId}
+                                    onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
+                                  >
+                                    <option value="">Select Product</option>
+                                    {storeStock.map((stock) => {
+                                      const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
+                                      const prodName = (stock.product as any)?.name || 'Unknown';
+                                      const prodCode = (stock.product as any)?.code || '';
+                                      const prodDesc = (stock.product as any)?.description || '';
+                                      const prodSize = (stock.product as any)?.unitOfMeasure || '';
+                                      return (
+                                        <option key={productId} value={productId}>
+                                          {prodName} {prodCode && `(${prodCode})`} {prodDesc && `- ${prodDesc}`} {prodSize && `[${prodSize}]`}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                )}
+                              </div>
 
-                            <div className="flex justify-center">
-                              <Input
-                                type="number"
-                                value={item.productId && formState.storeId ? availableQty : (editingId && !formState.storeId ? '' : '')}
-                                disabled
-                                className="bg-muted text-center font-medium w-28 h-10 text-sm"
-                                readOnly
-                                placeholder={editingId && !formState.storeId ? 'N/A' : '-'}
-                              />
-                            </div>
-
-                            <div className="flex justify-center">
-                              <div className="space-y-1 w-28">
+                              <div className="flex justify-center">
                                 <Input
                                   type="number"
-                                  min={1}
-                                  max={formState.storeId ? availableQty : undefined}
-                                  value={item.quantity || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value === '' ? 0 : Number(e.target.value);
-                                    handleUpdateItem(index, 'quantity', val);
-                                  }}
-                                  className={`w-full h-10 text-sm text-center ${exceedsStock ? 'border-red-500 focus:border-red-500' : ''}`}
-                                  placeholder="0"
-                                  disabled={!item.productId}
+                                  value={item.productId && formState.storeId ? availableQty : (editingId && !formState.storeId ? '' : '')}
+                                  disabled
+                                  className="bg-muted text-center font-medium w-28 h-10 text-sm"
+                                  readOnly
+                                  placeholder={editingId && !formState.storeId ? 'N/A' : '-'}
                                 />
-                                {exceedsStock && (
-                                  <p className="text-xs text-red-500 text-center">Exceeds stock</p>
-                                )}
-                                {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
-                                  <p className="text-xs text-muted-foreground text-center">
-                                    {availableQty - item.quantity} will remain in store
-                                  </p>
-                                )}
+                              </div>
+
+                              <div className="flex justify-center">
+                                <div className="space-y-1 w-28">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={formState.storeId ? availableQty : undefined}
+                                    value={item.quantity || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      handleUpdateItem(index, 'quantity', val);
+                                    }}
+                                    className={`w-full h-10 text-sm text-center ${exceedsStock ? 'border-red-500 focus:border-red-500' : ''}`}
+                                    placeholder="0"
+                                    disabled={!item.productId}
+                                  />
+                                  {exceedsStock && (
+                                    <p className="text-xs text-red-500 text-center">Exceeds stock</p>
+                                  )}
+                                  {!exceedsStock && item.quantity > 0 && availableQty > 0 && item.productId && formState.storeId && (
+                                    <p className="text-xs text-muted-foreground text-center">
+                                      {availableQty - item.quantity} will remain in store
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex justify-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setFormState(prev => ({
+                                      ...prev,
+                                      items: prev.items.filter((_, i) => i !== index)
+                                    }));
+                                  }}
+                                  className="h-10 w-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  title="Remove item"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
 
-                            <div className="flex justify-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setFormState(prev => ({
-                                    ...prev,
-                                    items: prev.items.filter((_, i) => i !== index)
-                                  }));
-                                }}
-                                className="h-10 w-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                title="Remove item"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            {/* Description and Size fields outside the grid row */}
+                            {item.productId && (
+                              <div className="px-6 pb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <Label htmlFor={`description-${index}`} className="text-sm font-medium">Description</Label>
+                                  <Input
+                                    id={`description-${index}`}
+                                    value={item.description || ''}
+                                    onChange={(e) => setFormState(prev => {
+                                      const updated = [...prev.items];
+                                      updated[index] = { ...updated[index], description: e.target.value };
+                                      return { ...prev, items: updated };
+                                    })}
+                                    className="mt-1 h-10 text-sm"
+                                    placeholder="Enter description"
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor={`size-${index}`} className="text-sm font-medium">Size</Label>
+                                  <Input
+                                    id={`size-${index}`}
+                                    value={item.unitOfMeasure || ''}
+                                    onChange={(e) => setFormState(prev => {
+                                      const updated = [...prev.items];
+                                      updated[index] = { ...updated[index], unitOfMeasure: e.target.value };
+                                      return { ...prev, items: updated };
+                                    })}
+                                    className="mt-1 h-10 text-sm"
+                                    placeholder="Enter size"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          
-                          {/* Description and Size fields outside the grid row */}
-                          {item.productId && (
-                            <div className="px-6 pb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <Label htmlFor={`description-${index}`} className="text-sm font-medium">Description</Label>
-                                <Input
-                                  id={`description-${index}`}
-                                  value={item.description || ''}
-                                  onChange={(e) => setFormState(prev => {
-                                    const updated = [...prev.items];
-                                    updated[index] = { ...updated[index], description: e.target.value };
-                                    return { ...prev, items: updated };
-                                  })}
-                                  className="mt-1 h-10 text-sm"
-                                  placeholder="Enter description"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`size-${index}`} className="text-sm font-medium">Size</Label>
-                                <Input
-                                  id={`size-${index}`}
-                                  value={item.unitOfMeasure || ''}
-                                  onChange={(e) => setFormState(prev => {
-                                    const updated = [...prev.items];
-                                    updated[index] = { ...updated[index], unitOfMeasure: e.target.value };
-                                    return { ...prev, items: updated };
-                                  })}
-                                  className="mt-1 h-10 text-sm"
-                                  placeholder="Enter size"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
                 </>
               )}
             </div>

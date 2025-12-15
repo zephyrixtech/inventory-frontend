@@ -1,26 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Warehouse, RefreshCcw, Pen } from 'lucide-react';
+import { Warehouse, RefreshCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import toast from 'react-hot-toast';
 import { storeStockService } from '@/services/storeStockService';
-import { getItems } from '@/services/itemService';
-import { storeService } from '@/services/storeService';
+// import { getItems } from '@/services/itemService';
+// import { storeService } from '@/services/storeService';
 import type { StoreStock, PaginationMeta } from '@/types/backend';
 
 // Define the item type based on the actual API response
-interface ItemType {
-  id: string;
-  name?: string;
-  code?: string;
-  item_name?: string;
-  [key: string]: any; // Allow other properties
-}
+// interface ItemType {
+//   id: string;
+//   name?: string;
+//   code?: string;
+//   item_name?: string;
+//   [key: string]: any; // Allow other properties
+// }
 
 const DEFAULT_PAGINATION: PaginationMeta = {
   page: 1,
@@ -31,11 +28,11 @@ const DEFAULT_PAGINATION: PaginationMeta = {
   hasPrevPage: false,
 };
 
-interface Store {
-  _id: string;
-  name: string;
-  code: string;
-}
+// interface Store {
+//   _id: string;
+//   name: string;
+//   code: string;
+// }
 
 export const StoreStockPage = () => {
   const [records, setRecords] = useState<StoreStock[]>([]);
@@ -44,20 +41,20 @@ export const StoreStockPage = () => {
   // const [editingQuantity, setEditingQuantity] = useState<Record<string, number>>({});
 
   // Add/Edit stock modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingStockId, setEditingStockId] = useState<string | null>(null);
-  const [items, setItems] = useState<ItemType[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [stockForm, setStockForm] = useState({
-    productId: '',
-    storeId: '',
-    quantity: 1,
-    margin: 0,
-    currency: 'INR'
-  });
-  const [itemLoading, setItemLoading] = useState(false);
-  const [storeLoading, setStoreLoading] = useState(false);
+  // const [isModalOpen, setIsModalOpen] = useState(false);
+  // const [isEditMode, setIsEditMode] = useState(false);
+  // const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  // const [items, setItems] = useState<ItemType[]>([]);
+  // const [stores, setStores] = useState<Store[]>([]);
+  // const [stockForm, setStockForm] = useState({
+  //   productId: '',
+  //   storeId: '',
+  //   quantity: 1,
+  //   margin: 0,
+  //   currency: 'INR'
+  // });
+  // const [itemLoading, setItemLoading] = useState(false);
+  // const [storeLoading, setStoreLoading] = useState(false);
 
   const fetchStock = useCallback(async (page?: number) => {
     setLoading(true);
@@ -79,50 +76,49 @@ export const StoreStockPage = () => {
     fetchStock(1);
   }, [fetchStock]);
 
-  // Fetch items and stores for the modal
-  const fetchItemsAndStores = async () => {
-    setItemLoading(true);
-    setStoreLoading(true);
+  // const fetchItemsAndStores = async () => {
+  //   setItemLoading(true);
+  //   setStoreLoading(true);
 
-    try {
-      // Fetch items with 'approved' QC status
-      const itemsResponse = await getItems(1, 100, { qcStatus: 'approved' });
-      // Map the items to our ItemType interface
-      const mappedItems = itemsResponse.data.map(item => ({
-        ...item,
-        id: item.id
-      }));
-      setItems(mappedItems);
-    } catch (error) {
-      console.error('Failed to load items', error);
-      toast.error('Unable to load items');
-    } finally {
-      setItemLoading(false);
-    }
+  //   try {
+  //     // Fetch items with 'approved' QC status
+  //     const itemsResponse = await getItems(1, 100, { qcStatus: 'approved' });
+  //     // Map the items to our ItemType interface
+  //     const mappedItems = itemsResponse.data.map(item => ({
+  //       ...item,
+  //       id: item.id
+  //     }));
+  //     setItems(mappedItems);
+  //   } catch (error) {
+  //     console.error('Failed to load items', error);
+  //     toast.error('Unable to load items');
+  //   } finally {
+  //     setItemLoading(false);
+  //   }
 
-    try {
-      // Fetch active stores - filtered by user role
-      const userData = localStorage.getItem('userData');
-      const user = userData ? JSON.parse(userData) : null;
-      
-      const params: any = {};
-      
-      // If user has a specific role, pass it to filter stores
-      const userRole = user?.role || user?.role_name; // Handle both possible field names
-      if (user?.id && userRole) {
-        params.userId = user.id;
-        params.userRole = userRole;
-      }
+  //   try {
+  //     // Fetch active stores - filtered by user role
+  //     const userData = localStorage.getItem('userData');
+  //     const user = userData ? JSON.parse(userData) : null;
 
-      const storesResponse = await storeService.listStores(params);
-      setStores(storesResponse.data);
-    } catch (error) {
-      console.error('Failed to load stores', error);
-      toast.error('Unable to load stores');
-    } finally {
-      setStoreLoading(false);
-    }
-  };
+  //     const params: any = {};
+
+  //     // If user has a specific role, pass it to filter stores
+  //     const userRole = user?.role || user?.role_name; // Handle both possible field names
+  //     if (user?.id && userRole) {
+  //       params.userId = user.id;
+  //       params.userRole = userRole;
+  //     }
+
+  //     const storesResponse = await storeService.listStores(params);
+  //     setStores(storesResponse.data);
+  //   } catch (error) {
+  //     console.error('Failed to load stores', error);
+  //     toast.error('Unable to load stores');
+  //   } finally {
+  //     setStoreLoading(false);
+  //   }
+  // };
 
   // const handleAdjustQuantity = async (stock: StoreStock) => {
   //   const newQuantity = editingQuantity[stock.id];
@@ -161,71 +157,71 @@ export const StoreStockPage = () => {
   // };
 
   // Open modal for editing existing stock
-  const handleOpenEditModal = (stock: StoreStock) => {
-    setIsEditMode(true);
-    setEditingStockId(stock.id);
-    setStockForm({
-      productId: stock.product?.id || '',
-      storeId: stock.store?._id || '',
-      quantity: stock.quantity,
-      margin: stock.margin,
-      currency: stock.currency
-    });
-    setIsModalOpen(true);
-    fetchItemsAndStores();
-  };
+  // const handleOpenEditModal = (stock: StoreStock) => {
+  //   setIsEditMode(true);
+  //   setEditingStockId(stock.id);
+  //   setStockForm({
+  //     productId: stock.product?.id || '',
+  //     storeId: stock.store?._id || '',
+  //     quantity: stock.quantity,
+  //     margin: stock.margin,
+  //     currency: stock.currency
+  //   });
+  //   setIsModalOpen(true);
+  //   fetchItemsAndStores();
+  // };
 
   // Handle submit for both add and edit
-  const handleSubmitStock = async () => {
-    if (!stockForm.productId || !stockForm.storeId) {
-      toast.error('Please select both item and store');
-      return;
-    }
+  // const handleSubmitStock = async () => {
+  //   if (!stockForm.productId || !stockForm.storeId) {
+  //     toast.error('Please select both item and store');
+  //     return;
+  //   }
 
-    if (stockForm.quantity <= 0) {
-      toast.error('Quantity must be greater than 0');
-      return;
-    }
+  //   if (stockForm.quantity <= 0) {
+  //     toast.error('Quantity must be greater than 0');
+  //     return;
+  //   }
 
-    try {
-      if (isEditMode && editingStockId) {
-        // Update existing stock
-        await storeStockService.update(editingStockId, {
-          productId: stockForm.productId,
-          storeId: stockForm.storeId,
-          quantity: stockForm.quantity,
-          margin: stockForm.margin,
-          currency: stockForm.currency as 'INR' | 'AED'
-        });
-        toast.success('Stock updated successfully');
-      } else {
-        // Add new stock
-        await storeStockService.save({
-          productId: stockForm.productId,
-          storeId: stockForm.storeId,
-          quantity: stockForm.quantity,
-          margin: stockForm.margin,
-          currency: stockForm.currency as 'INR' | 'AED'
-        });
-        toast.success('Stock added successfully');
-      }
+  //   try {
+  //     if (isEditMode && editingStockId) {
+  //       // Update existing stock
+  //       await storeStockService.update(editingStockId, {
+  //         productId: stockForm.productId,
+  //         storeId: stockForm.storeId,
+  //         quantity: stockForm.quantity,
+  //         margin: stockForm.margin,
+  //         currency: stockForm.currency as 'INR' | 'AED'
+  //       });
+  //       toast.success('Stock updated successfully');
+  //     } else {
+  //       // Add new stock
+  //       await storeStockService.save({
+  //         productId: stockForm.productId,
+  //         storeId: stockForm.storeId,
+  //         quantity: stockForm.quantity,
+  //         margin: stockForm.margin,
+  //         currency: stockForm.currency as 'INR' | 'AED'
+  //       });
+  //       toast.success('Stock added successfully');
+  //     }
 
-      setIsModalOpen(false);
-      setStockForm({
-        productId: '',
-        storeId: '',
-        quantity: 1,
-        margin: 0,
-        currency: 'INR'
-      });
-      setIsEditMode(false);
-      setEditingStockId(null);
-      fetchStock(pagination.page);
-    } catch (error) {
-      console.error(`Failed to ${isEditMode ? 'update' : 'add'} stock`, error);
-      toast.error(`Unable to ${isEditMode ? 'update' : 'add'} stock`);
-    }
-  };
+  //     setIsModalOpen(false);
+  //     setStockForm({
+  //       productId: '',
+  //       storeId: '',
+  //       quantity: 1,
+  //       margin: 0,
+  //       currency: 'INR'
+  //     });
+  //     setIsEditMode(false);
+  //     setEditingStockId(null);
+  //     fetchStock(pagination.page);
+  //   } catch (error) {
+  //     console.error(`Failed to ${isEditMode ? 'update' : 'add'} stock`, error);
+  //     toast.error(`Unable to ${isEditMode ? 'update' : 'add'} stock`);
+  //   }
+  // };
 
   return (
     <div className="space-y-6">
@@ -237,7 +233,7 @@ export const StoreStockPage = () => {
               Store Stock
             </CardTitle>
             <CardDescription>
-              Monitor approved products and apply margin adjustments before billing. 
+              Monitor approved products and apply margin adjustments before billing.
               Items are automatically added to purchaser stores when QC status becomes "approved".
             </CardDescription>
           </div>
@@ -248,8 +244,8 @@ export const StoreStockPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-        
-          
+
+
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -261,7 +257,7 @@ export const StoreStockPage = () => {
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {/* <TableHead className="text-right">Actions</TableHead> */}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -297,7 +293,7 @@ export const StoreStockPage = () => {
                           Auto QC
                         </span>
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
+                      {/* <TableCell className="text-right space-x-2">
 
                         <Button
                           size="sm"
@@ -306,7 +302,7 @@ export const StoreStockPage = () => {
                         >
                           <Pen className="h-4 w-4" />
                         </Button>
-                      </TableCell>
+                      </TableCell> */}
                     </TableRow>
                   ))
                 )}
@@ -331,7 +327,7 @@ export const StoreStockPage = () => {
       </Card>
 
       {/* Add/Edit Stock Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Stock' : 'Add Stock'}</DialogTitle>
@@ -443,7 +439,7 @@ export const StoreStockPage = () => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </div>
   );
 };

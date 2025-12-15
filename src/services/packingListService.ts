@@ -21,6 +21,8 @@ export interface PackingListInput {
   // New fields
   cargoNumber?: string;
   fabricDetails?: string;
+  size?: string;
+  description?: string;
 }
 
 export interface PackingList {
