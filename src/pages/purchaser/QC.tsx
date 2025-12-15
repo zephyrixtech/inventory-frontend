@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ShieldAlert, Loader2 } from 'lucide-react';
+import { ShieldAlert, Loader2, Edit, Eye } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -228,8 +228,18 @@ const QualityControlPage = () => {
                           {item.qcRemarks?.length ? item.qcRemarks : '—'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => openDialog(item)}>
-                            <Loader2 className="h-4 w-4" />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => openDialog(item)}
+                            disabled={item.qcStatus === 'approved'}
+                            title={item.qcStatus === 'approved' ? 'Approved items cannot be edited' : 'Edit QC details'}
+                          >
+                            {item.qcStatus === 'approved' ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <Edit className="h-4 w-4" />
+                            )}
                           </Button>
                         </TableCell>
                       </TableRow>
