@@ -23,7 +23,7 @@ import { ArrowLeft, CheckCircle, Loader2, Store, AlertCircle, Phone, Mail, MapPi
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
-import {  IStore } from "@/Utils/constants";
+import { IStore } from "@/Utils/constants";
 import { storeService } from "@/services/storeService";
 import { userService } from "@/services/userService";
 
@@ -245,10 +245,10 @@ export default function AddStoreForm() {
     try {
       // Use storeService to check if a central store exists
       const response = await storeService.listStores();
-      
+
       // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
       const data = response.data;
-      
+
       const exists = data && data.length > 0;
       setCentralStoreExists(exists);
       setInitialCheckComplete(true);
@@ -293,10 +293,10 @@ export default function AddStoreForm() {
     try {
       // Use storeService to check if store code exists
       const response = await storeService.listStores({ search: storeCode });
-      
+
       // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
       const data = response.data;
-      
+
       // Check if any store in the response has the same code (case-sensitive comparison)
       const exists = data && data.some(store => store.code === storeCode);
 
@@ -363,11 +363,11 @@ export default function AddStoreForm() {
       try {
         // Use storeService to fetch store data
         const response = await storeService.getStore(id);
-        
+
         // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
         const data = response.data;
         setStore(data as any as IStore); // Type assertion to match the existing IStore type
-        
+
         if (data) {
           reset({
             code: data.code || "",
@@ -384,7 +384,7 @@ export default function AddStoreForm() {
             bank_ifsc_code: data.ifscCode || "",
             bank_iban_code: data.ibanCode || "",
             tax_code: data.taxCode || "",
-            store_manager_id: data.manager || "",
+            store_manager_id: (data as any).purchaser === 'ROLE_PURCHASER' ? 'purchaser' : (data as any).biller === 'ROLE_BILLER' ? 'biller' : "",
           });
         }
       } catch (error: any) {
@@ -403,23 +403,23 @@ export default function AddStoreForm() {
       try {
         // Use storeService to fetch all stores (both Central and Branch)
         const response = await storeService.listStores();
-        
+
         // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
         let filteredStores = response.data || [];
-        
+
         if (isEditing && store) {
           // Filter out the current store from the parent store list
           filteredStores = filteredStores.filter(
             (parent) => parent._id !== (store as any)._id
           );
         }
-        
+
         // Convert to IStore type for compatibility with existing code
         const convertedStores = filteredStores.map(store => ({
           id: store._id,
           ...store
         })) as unknown as IStore[];
-        
+
         _setParentStores(convertedStores);
       } catch (error) {
         console.error("Error loading parent stores:", error);
@@ -544,9 +544,9 @@ export default function AddStoreForm() {
       navigate("/dashboard/storeManagement");
     } catch (error: any) {
       console.error("API error:", error);
-      
+
       let errorMessage = `Failed to ${isEditing ? "update" : "create"} store`;
-      
+
       // Handle specific error cases
       if (error.message) {
         if (error.message.toLowerCase().includes("code")) {
@@ -733,10 +733,10 @@ export default function AddStoreForm() {
                         {/* Validation Status Message */}
                         {storeIdValidationMessage && !errors.code && (
                           <p className={`text-sm flex items-center gap-1 mt-1 ${storeIdValidationStatus === 'valid'
-                              ? 'text-green-600'
-                              : storeIdValidationStatus === 'invalid'
-                                ? 'text-red-500'
-                                : 'text-blue-500'
+                            ? 'text-green-600'
+                            : storeIdValidationStatus === 'invalid'
+                              ? 'text-red-500'
+                              : 'text-blue-500'
                             }`}>
                             {storeIdValidationStatus === 'valid' && <Check className="h-3 w-3" />}
                             {storeIdValidationStatus === 'invalid' && <X className="h-3 w-3" />}
@@ -1094,7 +1094,7 @@ export default function AddStoreForm() {
                   </div>
                   */}
 
-{/* Financial Information Section */}
+                  {/* Financial Information Section */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
                       <CreditCard className="h-5 w-5 text-blue-600" />
