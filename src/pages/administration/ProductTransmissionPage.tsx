@@ -51,14 +51,14 @@ const ProductTransmissionPage = () => {
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Stores
   const [purchaserStores, setPurchaserStores] = useState<Store[]>([]);
   const [billerStores, setBillerStores] = useState<Store[]>([]);
-  
+
   // Currency rates
   const [customExchangeRate, setCustomExchangeRate] = useState<string>('');
-  
+
   // Transmission dialog
   const [showTransmissionDialog, setShowTransmissionDialog] = useState(false);
   const [transmissionForm, setTransmissionForm] = useState<TransmissionFormState>({
@@ -99,11 +99,11 @@ const ProductTransmissionPage = () => {
     try {
       const response = await storeService.listStores();
       const allStores = response.data || [];
-      
+
       // Filter stores with ROLE_PURCHASER for "From Store"
       const purchaserFilteredStores = allStores.filter(store => store.purchaser === 'ROLE_PURCHASER');
       setPurchaserStores(purchaserFilteredStores);
-      
+
       // Filter stores with ROLE_BILLER for "To Store"
       const billerFilteredStores = allStores.filter(store => store.biller === 'ROLE_BILLER');
       setBillerStores(billerFilteredStores);
@@ -117,9 +117,9 @@ const ProductTransmissionPage = () => {
   const loadCurrencyRates = useCallback(async () => {
     try {
       const response = await currencyService.list();
-      
+
       // Set default exchange rate (INR to AED)
-      const inrToAedRate = response.data.find(rate => 
+      const inrToAedRate = response.data.find(rate =>
         rate.fromCurrency === 'INR' && rate.toCurrency === 'AED'
       );
       if (inrToAedRate) {
@@ -288,11 +288,11 @@ const ProductTransmissionPage = () => {
       // Create store stock entries for each item in the biller store
       for (const item of transmissionForm.items) {
         // Check if product already exists in the destination store
-        const existingStockResponse = await storeStockService.list({ 
+        const existingStockResponse = await storeStockService.list({
           storeId: transmissionForm.toStoreId,
-          limit: 1000 
+          limit: 1000
         });
-        
+
         const existingStock = existingStockResponse.data.find(stock => {
           const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
           return stockProductId === item.productId;
@@ -318,6 +318,10 @@ const ProductTransmissionPage = () => {
           margin: parseFloat(item.margin) || 0, // This will be saved
           currency: 'AED' as const, // This will be saved
           unitPrice: item.unitPriceAED, // This will be saved as the AED unit price
+          packingListId: transmissionForm.packingListId,
+          dpPrice: parseFloat(item.dpPrice),
+          exchangeRate: parseFloat(transmissionForm.exchangeRate),
+          finalPrice: item.finalPrice
         };
 
         console.log('Transmission data for', item.productName, ':', transmissionData);
@@ -326,21 +330,21 @@ const ProductTransmissionPage = () => {
           // Product already exists in destination store
           // Since we can't update with full data, we'll create a new stock entry with AED pricing
           // This means the store will have separate entries for different currencies/transmissions
-          
+
           console.log('Found existing stock for:', item.productName);
           console.log('Creating new AED stock entry (separate from existing stock)');
-          
+
           await storeStockService.save(transmissionData);
-          
+
           console.log('Successfully created new AED stock entry for:', item.productName);
           console.log('Store now has multiple stock entries for this product (existing + new AED entry)');
         } else {
           // Create new stock entry
           console.log('Creating new stock entry for:', item.productName);
           console.log('Create payload:', transmissionData);
-          
+
           await storeStockService.save(transmissionData);
-          
+
           console.log('Successfully created stock for:', item.productName);
         }
       }
@@ -363,7 +367,7 @@ const ProductTransmissionPage = () => {
       loadPackingLists(pagination.page);
     } catch (error) {
       console.error('Failed to execute transmission', error);
-      
+
       // Show more specific error message
       let errorMessage = 'Unable to execute transmission.';
       if (error instanceof Error) {
@@ -376,7 +380,7 @@ const ProductTransmissionPage = () => {
           errorMessage = `Error: ${errorObj.message}`;
         }
       }
-      
+
       toast.error(errorMessage);
     } finally {
       setTransmissionLoading(false);
@@ -502,7 +506,7 @@ const ProductTransmissionPage = () => {
                       </TableCell>
                       <TableCell>{packingList.items?.length || 0}</TableCell>
                       <TableCell>
-                        {packingList.packingDate 
+                        {packingList.packingDate
                           ? new Date(packingList.packingDate).toLocaleDateString()
                           : '-'
                         }
@@ -542,18 +546,18 @@ const ProductTransmissionPage = () => {
               Showing page {pagination.page} of {pagination.totalPages}
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handlePageChange('prev')} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('prev')}
                 disabled={!pagination.hasPrevPage}
               >
                 Previous
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handlePageChange('next')} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('next')}
                 disabled={!pagination.hasNextPage}
               >
                 Next
@@ -597,8 +601,8 @@ const ProductTransmissionPage = () => {
 
               <div>
                 <Label>To Store (Biller) *</Label>
-                <Select 
-                  value={transmissionForm.toStoreId} 
+                <Select
+                  value={transmissionForm.toStoreId}
                   onValueChange={(value) => setTransmissionForm(prev => ({ ...prev, toStoreId: value }))}
                 >
                   <SelectTrigger>
@@ -663,7 +667,7 @@ const ProductTransmissionPage = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 <strong>Note:</strong> DP Price (AED) must be entered manually for each product. Unit Price (AED) is automatically calculated from INR price using the exchange rate.
               </p>
-              
+
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -735,16 +739,16 @@ const ProductTransmissionPage = () => {
                 <div className="text-amber-600">⚠ Some items have missing or zero DP prices</div>
               )}
             </div>
-            
+
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowTransmissionDialog(false)}
                 disabled={transmissionLoading}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowConfirmDialog(true)}
                 disabled={transmissionLoading || !transmissionForm.toStoreId || !transmissionForm.exchangeRate}
               >
@@ -774,7 +778,7 @@ const ProductTransmissionPage = () => {
               Are you sure you want to transmit these products? This action will:
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-3">
             <ul className="list-disc list-inside space-y-1 text-sm">
               <li>Add {transmissionForm.items.length} products to {billerStores.find(s => s._id === transmissionForm.toStoreId)?.name || 'the selected store'}</li>
@@ -782,7 +786,7 @@ const ProductTransmissionPage = () => {
               <li>Convert prices from INR to AED using rate: {transmissionForm.exchangeRate}</li>
               <li>Apply the configured margins and pricing</li>
             </ul>
-            
+
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <p className="text-sm text-amber-800">
                 <strong>Note:</strong> If products already exist in the destination store, the quantities will be added to existing stock.
@@ -794,7 +798,7 @@ const ProductTransmissionPage = () => {
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 setShowConfirmDialog(false);
                 handleExecuteTransmission();
