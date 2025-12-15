@@ -33,16 +33,28 @@ export const dailyExpenseService = {
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
   },
 
-  async create(payload: { 
-    supplierId?: string; 
-    description: string; 
-    amount: number; 
-    date?: string; 
+  create(payload: {
+    supplierId?: string;
+    description: string;
+    amount: number;
+    date?: string;
     type: 'purchase' | 'petty';
     paymentType?: 'cash' | 'card' | 'upi';
     transactionId?: string;
   }) {
     return apiClient.post<ApiResponse<DailyExpense>>('/expenses', payload);
+  },
+
+  async update(id: string, payload: Partial<{
+    supplierId?: string;
+    description: string;
+    amount: number;
+    date?: string;
+    type: 'purchase' | 'petty';
+    paymentType?: 'cash' | 'card' | 'upi';
+    transactionId?: string;
+  }>) {
+    return apiClient.put<ApiResponse<DailyExpense>>(`/expenses/${id}`, payload);
   },
 
   async delete(id: string) {

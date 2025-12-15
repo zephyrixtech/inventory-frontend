@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Receipt, Trash2, Plus } from 'lucide-react';
+import { Receipt, Trash2, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,7 +20,8 @@ export const DailyExpensesPage = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [transactionId, setTransactionId] = useState('');
-  
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [formState, setFormState] = useState({
     supplierId: '',
     description: '',
@@ -74,7 +75,7 @@ export const DailyExpensesPage = () => {
     setFormState(prev => ({ ...prev, supplierId }));
   };
 
-  const handleCreateExpense = async () => {
+  const handleCreateOrUpdateExpense = async () => {
     // Validate transaction ID for card and upi payments
     if ((formState.paymentType === 'card' || formState.paymentType === 'upi') && !transactionId) {
       toast.error('Transaction ID is required for card and UPI payments');
@@ -97,24 +98,59 @@ export const DailyExpensesPage = () => {
         expenseData.supplierId = formState.supplierId;
       }
 
-      await dailyExpenseService.create(expenseData);
-      toast.success('Expense recorded');
+      if (editingId) {
+        await dailyExpenseService.update(editingId, expenseData);
+        toast.success('Expense updated');
+      } else {
+        await dailyExpenseService.create(expenseData);
+        toast.success('Expense recorded');
+      }
+
       setShowDialog(false);
-      setFormState({
-        supplierId: '',
-        description: '',
-        amount: '',
-        date: new Date().toISOString().substring(0, 10),
-        type: 'purchase',
-        paymentType: 'cash'
-      });
-      setTransactionId('');
-      setSelectedSupplier(null);
+      resetForm();
       fetchExpenses();
     } catch (error) {
       console.error('Failed to save expense', error);
       toast.error('Unable to save expense');
     }
+  };
+
+  const resetForm = () => {
+    setFormState({
+      supplierId: '',
+      description: '',
+      amount: '',
+      date: new Date().toISOString().substring(0, 10),
+      type: 'purchase',
+      paymentType: 'cash'
+    });
+    setTransactionId('');
+    setSelectedSupplier(null);
+    setEditingId(null);
+  };
+
+  const handleEdit = (expense: any) => {
+    setEditingId(expense.id ?? expense._id);
+    setFormState({
+      supplierId: expense.supplier?.id ?? expense.supplier?._id ?? '',
+      description: expense.description,
+      amount: String(expense.amount),
+      date: expense.date ? new Date(expense.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+      type: expense.type,
+      paymentType: expense.paymentType || 'cash'
+    });
+    setTransactionId(expense.transactionId || '');
+    if (expense.supplier) {
+      // If the supplier object is populated, we might need to find it in our list
+      // or at least set the ID. If backend returns populated object, we just take ID.
+      // We also try to set selectedSupplier for display if found in our list
+      const sId = expense.supplier.id ?? expense.supplier._id;
+      const supplier = suppliers.find(s => s._id === sId) || null;
+      setSelectedSupplier(supplier);
+    } else {
+      setSelectedSupplier(null);
+    }
+    setShowDialog(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -204,6 +240,13 @@ export const DailyExpensesPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleEdit(expense)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() =>
                               expenseId ? handleDelete(expenseId) : toast.error('Missing expense identifier')
                             }
@@ -221,10 +264,10 @@ export const DailyExpensesPage = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) fetchExpenses(); }}>
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) { resetForm(); fetchExpenses(); } }}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Log Daily Expense</DialogTitle>
+            <DialogTitle>{editingId ? 'Edit Daily Expense' : 'Log Daily Expense'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -250,7 +293,7 @@ export const DailyExpensesPage = () => {
                 </select>
               </div>
             </div>
-            
+
             {formState.type === 'purchase' && (
               <>
                 <div className="grid gap-2">
@@ -269,7 +312,7 @@ export const DailyExpensesPage = () => {
                     ))}
                   </select>
                 </div>
-                
+
                 {selectedSupplier && (
                   <div className="grid gap-2 p-3 bg-gray-50 rounded-md">
                     <h4 className="font-medium">Supplier Financial Details</h4>
@@ -291,7 +334,7 @@ export const DailyExpensesPage = () => {
                 )}
               </>
             )}
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="paymentType">Payment Type</Label>
@@ -306,7 +349,7 @@ export const DailyExpensesPage = () => {
                   <option value="upi">UPI</option>
                 </select>
               </div>
-              
+
               {(formState.paymentType === 'card' || formState.paymentType === 'upi') && (
                 <div className="grid gap-2">
                   <Label htmlFor="transactionId">Transaction ID *</Label>
@@ -319,7 +362,7 @@ export const DailyExpensesPage = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <Input
@@ -345,11 +388,11 @@ export const DailyExpensesPage = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button 
-              onClick={handleCreateExpense} 
+            <Button
+              onClick={handleCreateOrUpdateExpense}
               disabled={
-                !formState.description || 
-                !formState.amount || 
+                !formState.description ||
+                !formState.amount ||
                 !formState.type ||
                 (formState.type === 'purchase' && !formState.supplierId) ||
                 ((formState.paymentType === 'card' || formState.paymentType === 'upi') && !transactionId)
