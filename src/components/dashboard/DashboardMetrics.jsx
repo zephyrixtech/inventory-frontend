@@ -23,7 +23,7 @@ export const DashboardMetrics = ({ metrics, currencySymbol }) => {
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-gray-500">Total Value</p>
-              <p className="text-2xl font-bold text-green-600">{currencySymbol}{metrics.totalValue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-600">₹{metrics.totalValue.toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
@@ -48,7 +48,7 @@ export const DashboardMetrics = ({ metrics, currencySymbol }) => {
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-gray-500">Total Value</p>
-              <p className="text-2xl font-bold text-purple-600">{currencySymbol}{metrics.totalSalesInvoiceValue.toLocaleString()}</p> {/* Changed property */}
+              <p className="text-2xl font-bold text-purple-600">AED {metrics.totalSalesInvoiceValue.toLocaleString()}</p> {/* Changed property */}
             </div>
           </div>
         </CardContent>

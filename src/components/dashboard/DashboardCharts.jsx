@@ -28,8 +28,8 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={transformedCategoryData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="name" 
+                  <XAxis
+                    dataKey="name"
                     tick={{ fontSize: 12, fill: '#6b7280' }}
                     angle={-45}
                     textAnchor="end"
@@ -37,10 +37,10 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                     axisLine={{ stroke: '#d1d5db' }}
                     tickLine={{ stroke: '#d1d5db' }}
                   />
-                  <YAxis 
-                    label={{ 
-                      value: 'Total Stock Items', 
-                      angle: -90, 
+                  <YAxis
+                    label={{
+                      value: 'Total Stock Items',
+                      angle: -90,
                       position: 'insideLeft',
                       style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
                     }}
@@ -48,9 +48,9 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                     axisLine={{ stroke: '#d1d5db' }}
                     tickLine={{ stroke: '#d1d5db' }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#ffffff', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
                       border: '1px solid #d1d5db',
                       borderRadius: '8px',
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
@@ -80,22 +80,22 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={transformedSalesData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="day" 
+                  <XAxis
+                    dataKey="day"
                     tick={{ fontSize: 12, fill: '#6b7280' }}
-                    label={{ 
-                      value: 'Day of Month', 
-                      position: 'insideBottom', 
+                    label={{
+                      value: 'Day of Month',
+                      position: 'insideBottom',
                       offset: -10,
                       style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
                     }}
                     axisLine={{ stroke: '#d1d5db' }}
                     tickLine={{ stroke: '#d1d5db' }}
                   />
-                  <YAxis 
-                    label={{ 
-                      value: `Sales (${currencySymbol})`, 
-                      angle: -90, 
+                  <YAxis
+                    label={{
+                      value: `Sales (AED)`,
+                      angle: -90,
                       position: 'insideLeft',
                       style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
                     }}
@@ -103,7 +103,7 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                     axisLine={{ stroke: '#d1d5db' }}
                     tickLine={{ stroke: '#d1d5db' }}
                   />
-                  <Tooltip 
+                  <Tooltip
                     labelFormatter={(iso) => {
                       try {
                         const d = new Date(iso);
@@ -112,18 +112,18 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                         return iso;
                       }
                     }}
-                    formatter={(value) => [`${currencySymbol}${value}`, 'Sales']}
-                    contentStyle={{ 
-                      backgroundColor: '#ffffff', 
+                    formatter={(value) => [`AED ${value}`, 'Sales']}
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
                       border: '1px solid #d1d5db',
                       borderRadius: '8px',
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
                     }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="sales" 
-                    stroke="#3b82f6" 
+                  <Line
+                    type="monotone"
+                    dataKey="sales"
+                    stroke="#3b82f6"
                     strokeWidth={3}
                     dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
                     activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}

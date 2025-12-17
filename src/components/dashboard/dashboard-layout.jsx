@@ -161,7 +161,7 @@ export const DashboardLayout = () => {
       path: '/dashboard/item-master',
       label: 'Item Master',
       icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
+      roles: ['superadmin', 'admin', 'purchaser']
     },
     {
       path: '/dashboard/purchaser/qc',
