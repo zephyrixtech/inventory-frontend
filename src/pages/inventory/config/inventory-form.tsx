@@ -232,16 +232,23 @@ const InventoryForm = () => {
   // Watch item_id specifically to ensure it updates properly
   const itemIdValue = watch('item_id');
 
-  // Watch paidAmount and returnAmount to calculate balanceAmount
+  // Watch quantity and selling_price to calculate total amount
+  const quantity = watch('quantity');
+  const sellingPrice = watch('selling_price');
+  const totalAmount = (quantity && sellingPrice) ? quantity * sellingPrice : 0;
+
+  // Watch paidAmount to calculate balanceAmount (totalAmount - paidAmount)
   const paidAmount = watch('paidAmount');
-  const returnAmount = watch('returnAmount');
 
   useEffect(() => {
-    if (typeof paidAmount === 'number' && typeof returnAmount === 'number') {
-      const balance = paidAmount - returnAmount;
+    if (typeof paidAmount === 'number' && totalAmount > 0) {
+      const balance = totalAmount - paidAmount;
       setValue('balanceAmount', balance >= 0 ? balance : 0);
+    } else if (totalAmount > 0 && !paidAmount) {
+      // If no paid amount, balance equals total amount
+      setValue('balanceAmount', totalAmount);
     }
-  }, [paidAmount, returnAmount, setValue]);
+  }, [paidAmount, totalAmount, setValue]);
 
   // Monitor category_id changes
   const categoryIdValue = watch('category_id');
@@ -936,7 +943,7 @@ const InventoryForm = () => {
                 <Target className="h-5 w-5" /> Stock, Pricing & Media
               </CardTitle>
               <CardDescription className="text-blue-600">
-                Inventory levels, pricing configuration, and media uploads
+                Inventory levels and pricing configuration
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
@@ -1059,6 +1066,24 @@ const InventoryForm = () => {
                         </p>
                       )}
                     </div>
+
+                    {/* Total Amount - Calculated Field (UI Only) */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="total_amount"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <DollarSign className="h-4 w-4" /> Total Amount
+                      </Label>
+                      <Input
+                        id="total_amount"
+                        type="text"
+                        value={totalAmount > 0 ? totalAmount.toFixed(2) : '0.00'}
+                        disabled={true}
+                        className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50 text-gray-700 font-semibold"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Calculated: Quantity × Unit Price</p>
+                    </div>
                   </div>
 
                   {/* NEW FIELDS: Vendor, Paid Amount, Return Amount */}
@@ -1124,27 +1149,7 @@ const InventoryForm = () => {
                       />
                     </div>
 
-                    {/* Return Amount */}
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="returnAmount"
-                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
-                      >
-                        <DollarSign className="h-4 w-4" /> Return Amount
-                      </Label>
-                      <Input
-                        id="returnAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...register('returnAmount', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
-                      />
-                    </div>
-
-                    {/* Balance Amount */}
+                    {/* Balance Amount - Editable */}
                     <div className="space-y-2 group">
                       <Label
                         htmlFor="balanceAmount"
@@ -1160,8 +1165,9 @@ const InventoryForm = () => {
                         placeholder="0.00"
                         {...register('balanceAmount', { valueAsNumber: true })}
                         disabled={isViewing}
-                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                        className={`pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200 ${watchedFields.balanceAmount && !isViewing ? 'border-blue-300' : ''}`}
                       />
+                      <p className="text-xs text-gray-500 mt-1">Auto-calculated: Total Amount - Paid Amount (editable)</p>
                     </div>
                   </div>
 
