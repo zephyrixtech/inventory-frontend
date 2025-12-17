@@ -137,17 +137,20 @@ const baseInventoryFormSchema = z.object({
 // Form values type
 type InventoryFormValues = z.infer<typeof baseInventoryFormSchema>;
 
+let sequenceCounter = 1;
+
 // Helper function to generate item ID based on current date with sequential numbering
 const generateItemID = () => {
   const now = new Date();
   const year = now.getFullYear().toString();
   const month = (now.getMonth() + 1).toString().padStart(2, '0');
   const day = now.getDate().toString().padStart(2, '0');
-  
-  // Format: ITMYYYYMMDDNNN (e.g., ITM20251207001)
+  const sequence = sequenceCounter.toString().padStart(2, '0');
+
+  // Format: ITMYYYYMMDD___NN (e.g., ITM20251207___01)
   // Note: The actual sequence number will be determined by the backend
-  // This is just a placeholder format for display purposes
-  return `ITM${year}${month}${day}___`;
+  // This is just a placeholder format for display purposes with local increment
+  return `ITM${year}${month}${day}___${sequence}`;
 };
 
 const InventoryForm = () => {
@@ -177,7 +180,7 @@ const InventoryForm = () => {
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [initialVideoPreview, setInitialVideoPreview] = useState<string | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  
+
   const [initialFormValues, setInitialFormValues] = useState<InventoryFormValues | null>(null);
   const [initialImage1Preview, setInitialImage1Preview] = useState<string | null>(null);
   const [initialImage2Preview, setInitialImage2Preview] = useState<string | null>(null);
@@ -225,7 +228,7 @@ const InventoryForm = () => {
 
   const watchedFields = watch();
   console.log('Watched fields:', watchedFields);
-  
+
   // Watch item_id specifically to ensure it updates properly
   const itemIdValue = watch('item_id');
 
@@ -298,7 +301,7 @@ const InventoryForm = () => {
     // Generate and set the item ID for new items
     const newItemId = generateItemID();
     setValue('item_id', newItemId, { shouldValidate: false });
-    
+
     // Set other default values
     const defaultValues: InventoryFormValues = {
       item_id: newItemId,
@@ -567,18 +570,18 @@ const InventoryForm = () => {
     console.log('Selected category ID:', data.category_id);
     console.log('Category ID type:', typeof data.category_id);
     console.log('Available categories:', categories);
-    
+
     // Check if selected category exists in our categories list
     const selectedCategory = categories.find(cat => cat.id === data.category_id);
     console.log('Selected category object:', selectedCategory);
-    
+
     // Validate that category_id is not empty
     if (!data.category_id || data.category_id.trim() === '') {
       console.error('Category ID is empty or undefined');
       toast.error('Please select a category');
       return;
     }
-    
+
     setFormStatus('submitting');
     setIsLoading(true);
 
@@ -634,6 +637,9 @@ const InventoryForm = () => {
       }
 
       setFormStatus('success');
+      if (!isEditing) {
+        sequenceCounter++;
+      }
       toast.success(isEditing ? 'Item updated successfully!' : 'Item created successfully!');
       setTimeout(() => navigate('/dashboard/item-master'), 1000);
     } catch (err: any) {
