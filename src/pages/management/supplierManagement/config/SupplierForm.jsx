@@ -133,7 +133,7 @@ const SupplierForm = () => {
       ifscCode: "",
       ibanCode: "",
       description: "",
-      status: "approved",
+      status: "pending",
       rating: 0,
     },
   });
@@ -266,15 +266,16 @@ const SupplierForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label>Company Name *</Label>
-                    <Input {...register("name", { required: "Required" })} disabled={isViewMode} />
+                    <Input {...register("name", { required: "Company name is required" })} disabled={isViewMode} />
+                    {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>}
                   </div>
                   <div>
-                    <Label>GST Number </Label>
-                    <Input {...register("registrationNumber",)} disabled={isViewMode} />
+                    <Label>GST Number</Label>
+                    <Input {...register("registrationNumber")} disabled={isViewMode} />
                   </div>
                   <div>
-                    <Label>Contact Person *</Label>
-                    <Input {...register("contactPerson", { required: "Required" })} disabled={isViewMode} />
+                    <Label>Contact Person</Label>
+                    <Input {...register("contactPerson")} disabled={isViewMode} />
                   </div>
                 </div>
               </div>
@@ -287,12 +288,12 @@ const SupplierForm = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <Label>Email *</Label>
-                    <Input type="email" {...register("email", { required: "Required" })} disabled={isViewMode} />
+                    <Label>Email</Label>
+                    <Input type="email" {...register("email")} disabled={isViewMode} />
                   </div>
                   <div>
-                    <Label>Phone *</Label>
-                    <Input {...register("phone", { required: "Required" })} disabled={isViewMode} />
+                    <Label>Phone</Label>
+                    <Input {...register("phone")} disabled={isViewMode} />
                   </div>
                   <div className="md:col-span-2">
                     <Label>Website</Label>
@@ -309,13 +310,13 @@ const SupplierForm = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
-                    <Label>Street Address *</Label>
-                    <Input {...register("address", { required: "Required" })} disabled={isViewMode} />
+                    <Label>Street Address</Label>
+                    <Input {...register("address")} disabled={isViewMode} />
                   </div>
-                  <div><Label>City *</Label><Input {...register("city", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>State *</Label><Input {...register("state", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>Postal Code *</Label><Input {...register("postalCode", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>Country *</Label><Input {...register("country", { required: "Required" })} disabled={isViewMode} /></div>
+                  <div><Label>City</Label><Input {...register("city")} disabled={isViewMode} /></div>
+                  <div><Label>State</Label><Input {...register("state")} disabled={isViewMode} /></div>
+                  <div><Label>Postal Code</Label><Input {...register("postalCode")} disabled={isViewMode} /></div>
+                  <div><Label>Country</Label><Input {...register("country")} disabled={isViewMode} /></div>
                 </div>
               </div>
 
@@ -326,10 +327,10 @@ const SupplierForm = () => {
                   <h3 className="text-lg font-semibold">Financial Information</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><Label>Bank Name *</Label><Input {...register("bankName", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>Account Number *</Label><Input {...register("bank_account_number", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>IFSC Code *</Label><Input {...register("ifscCode", { required: "Required" })} disabled={isViewMode} /></div>
-                  <div><Label>IBAN Code *</Label><Input {...register("ibanCode", { required: "Required" })} disabled={isViewMode} /></div>
+                  <div><Label>Bank Name</Label><Input {...register("bankName")} disabled={isViewMode} /></div>
+                  <div><Label>Account Number</Label><Input {...register("bank_account_number")} disabled={isViewMode} /></div>
+                  <div><Label>IFSC Code</Label><Input {...register("ifscCode")} disabled={isViewMode} /></div>
+                  <div><Label>IBAN Code</Label><Input {...register("ibanCode")} disabled={isViewMode} /></div>
                 </div>
               </div>
 
@@ -345,8 +346,12 @@ const SupplierForm = () => {
                     <Textarea {...register("description")} disabled={isViewMode} className="min-h-24" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label>Status *</Label>
-                    <Select onValueChange={(v) => setValue("status", v)} defaultValue="approved" disabled={isViewMode}>
+                    <Label>Status</Label>
+                    <Select 
+                      onValueChange={(v) => setValue("status", v)} 
+                      value={watched.status} 
+                      disabled={isViewMode}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="pending">Pending</SelectItem>
@@ -356,7 +361,7 @@ const SupplierForm = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Rating *</Label>
+                    <Label>Rating</Label>
                     <StarRating rating={watched.rating || 0} onRatingChange={(r) => setValue("rating", r)} readonly={isViewMode} />
                   </div>
                 </div>

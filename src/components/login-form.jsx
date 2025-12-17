@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useState, useEffect } from "react";
-import LoginSidePanelImg from '@/assets/Images/GarageInventoryLoginImg2.png';
+import LoginSidePanelImg from '@/assets/Images/6859025.jpg';
 import { useDispatch } from 'react-redux';
 import { setUser, clearUser, setLoading, setError } from '@/redux/features/userSlice';
 import { ForgotPasswordDialog } from "./ForgotPasswordDialog";
