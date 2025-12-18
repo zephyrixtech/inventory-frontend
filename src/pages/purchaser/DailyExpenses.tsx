@@ -21,6 +21,10 @@ export const DailyExpensesPage = () => {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [transactionId, setTransactionId] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [balanceDescription, setBalanceDescription] = useState('');
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [remainingBalance, setRemainingBalance] = useState(0);
 
   const [formState, setFormState] = useState({
     supplierId: '',
@@ -63,11 +67,28 @@ export const DailyExpensesPage = () => {
     }
   }, []);
 
+  const loadOpeningBalance = useCallback(async () => {
+    try {
+      const response = await dailyExpenseService.getCurrentOpeningBalance();
+      setOpeningBalance(response.data.amount);
+      setBalanceDescription(response.data.description);
+      setTotalExpenses(response.data.totalExpenses);
+      setRemainingBalance(response.data.remainingBalance);
+    } catch (error) {
+      console.error('Failed to load opening balance', error);
+      setOpeningBalance(0);
+      setBalanceDescription('');
+      setTotalExpenses(0);
+      setRemainingBalance(0);
+    }
+  }, []);
+
   useEffect(() => {
     fetchExpenses();
     fetchItems();
     fetchSuppliers();
-  }, [fetchExpenses, fetchItems, fetchSuppliers]);
+    loadOpeningBalance();
+  }, [fetchExpenses, fetchItems, fetchSuppliers, loadOpeningBalance]);
 
   const handleSupplierChange = (supplierId: string) => {
     const supplier = suppliers.find(s => s._id === supplierId) || null;
@@ -108,7 +129,8 @@ export const DailyExpensesPage = () => {
 
       setShowDialog(false);
       resetForm();
-      fetchExpenses();
+      await fetchExpenses();
+      await loadOpeningBalance(); // Refresh balance to show updated remaining balance
     } catch (error) {
       console.error('Failed to save expense', error);
       toast.error('Unable to save expense');
@@ -157,7 +179,8 @@ export const DailyExpensesPage = () => {
     try {
       await dailyExpenseService.delete(id);
       toast.success('Expense removed');
-      fetchExpenses();
+      await fetchExpenses();
+      await loadOpeningBalance(); // Refresh balance to show updated remaining balance
     } catch (error) {
       console.error('Failed to delete expense', error);
       toast.error('Unable to delete expense');
@@ -182,6 +205,34 @@ export const DailyExpensesPage = () => {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Opening Balance Section - Read Only */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardHeader className="pb-3">
+              <div>
+                <CardTitle className="text-lg">Current Balance Overview</CardTitle>
+                {balanceDescription && <CardDescription className="mt-1">{balanceDescription}</CardDescription>}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Opening Balance</div>
+                  <div className="text-2xl font-bold text-blue-600">₹{openingBalance.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Total Expenses</div>
+                  <div className="text-2xl font-bold text-red-600">-₹{totalExpenses.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Remaining Balance</div>
+                  <div className={`text-2xl font-bold ${remainingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ₹{remainingBalance.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="pb-2">
@@ -193,7 +244,7 @@ export const DailyExpensesPage = () => {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Total Amount</CardTitle>
+                <CardTitle className="text-sm text-muted-foreground">Total Expense Amount</CardTitle>
               </CardHeader>
               <CardContent className="text-3xl font-semibold">
                 ₹{totalAmount.toFixed(2)}

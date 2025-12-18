@@ -20,6 +20,27 @@ export interface DailyExpense {
   };
 }
 
+export interface OpeningBalance {
+  _id?: string;
+  amount: number;
+  description: string;
+  date: string;
+  totalExpenses: number;
+  remainingBalance: number;
+  createdBy?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  updatedBy?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export const dailyExpenseService = {
   async list(params: { page?: number; limit?: number; from?: string; to?: string; supplierId?: string } = {}) {
     const query = new URLSearchParams();
@@ -31,6 +52,31 @@ export const dailyExpenseService = {
 
     const path = `/expenses${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
+  },
+
+  async listOpeningBalances(params: { page?: number; limit?: number } = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+
+    const path = `/expenses/opening-balance/list${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient.get<ApiListResponse<OpeningBalance>>(path);
+  },
+
+  async getCurrentOpeningBalance() {
+    return apiClient.get<ApiResponse<OpeningBalance>>('/expenses/opening-balance/current');
+  },
+
+  async createOpeningBalance(payload: { amount: number; description: string }) {
+    return apiClient.post<ApiResponse<OpeningBalance>>('/expenses/opening-balance', payload);
+  },
+
+  async updateOpeningBalance(id: string, payload: { amount: number; description: string }) {
+    return apiClient.put<ApiResponse<OpeningBalance>>(`/expenses/opening-balance/${id}`, payload);
+  },
+
+  async deleteOpeningBalance(id: string) {
+    return apiClient.delete<ApiResponse<{ success: boolean }>>(`/expenses/opening-balance/${id}`);
   },
 
   create(payload: {

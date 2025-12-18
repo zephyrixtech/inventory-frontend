@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store, FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes, ArrowRightLeft } from 'lucide-react';
+import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store, FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes, ArrowRightLeft, Wallet } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -197,7 +197,13 @@ export const DashboardLayout = () => {
       path: '/dashboard/purchaser/expenses',
       label: 'Daily Expenses',
       icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser']
+      roles: ['superadmin', 'purchaser', 'admin']
+    },
+    {
+      path: '/dashboard/purchaser/opening-balance',
+      label: 'Credit Notes',
+      icon: <Wallet className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'admin']
     },
     // { 
     //   path: '/dashboard/purchaseOrderManagement', 

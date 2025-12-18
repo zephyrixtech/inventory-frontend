@@ -46,6 +46,7 @@ import QualityControlPage from '@/pages/purchaser/QC';
 import {PackingListsPage} from '@/pages/purchaser/PackingLists'
 import { PackingListView } from '@/pages/purchaser/PackingListView';
 import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
+import { OpeningBalancePage } from "@/pages/purchaser/OpeningBalance";
 import { StoreStockPage } from "@/pages/store/StoreStock";
 import ProductTransmissionPage from '@/pages/administration/ProductTransmissionPage';
 
@@ -102,6 +103,7 @@ const protectedRoutes = [
   { path: 'purchaser/packing-lists',element: <PackingListsPage /> ,module: 'Packing Lists'},
   { path: 'purchaser/packing-lists/view/:id',element: <PackingListView /> ,module: 'Packing Lists'},
   { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'},
+  { path: 'purchaser/opening-balance',element: <OpeningBalancePage /> ,module: 'Opening Balance'},
    { path: 'administration/product-transmission', element: <ProductTransmissionPage /> }
 ];
 
