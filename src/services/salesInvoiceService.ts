@@ -7,6 +7,8 @@ export interface SalesInvoiceItem {
   quantity: number;
   unitPrice: number;
   discount?: number;
+  vat?: number; // VAT percentage (0-100)
+  vatAmount?: number; // Calculated VAT amount
   totalPrice: number;
 }
 
@@ -21,6 +23,7 @@ export interface SalesInvoice {
   store: string | { _id: string; name: string; code?: string };
   subTotal: number;
   discountTotal: number;
+  vatTotal?: number; // Total VAT amount for all items
   netAmount: number;
   taxAmount: number;
   notes?: string;
@@ -41,6 +44,7 @@ export interface CreateSalesInvoicePayload {
     quantity: number;
     unitPrice: number;
     discount?: number;
+    vat?: number; // VAT percentage (0-100)
   }>;
   taxAmount?: number;
   notes?: string;
@@ -54,6 +58,7 @@ export interface UpdateSalesInvoicePayload {
     quantity: number;
     unitPrice: number;
     discount?: number;
+    vat?: number; // VAT percentage (0-100)
   }>;
   taxAmount?: number;
   notes?: string;

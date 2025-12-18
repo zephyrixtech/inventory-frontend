@@ -304,6 +304,8 @@ export default function SalesInvoiceList() {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: discountAmount,
+          vat: item.vat || 0,
+          vatAmount: item.vatAmount || 0,
           grossAmount: grossAmount,
           netAmount: netAmount,
         };

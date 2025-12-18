@@ -7,6 +7,8 @@ interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   discount: number;
+  vat: number;
+  vatAmount: number;
   grossAmount: number;
   netAmount: number;
 }
@@ -54,19 +56,25 @@ const generateInvoicePDF = (data: InvoiceData) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
 
-  const itemRows = data.items.map((item, index) => `
+  const itemRows = data.items.map((item, index) => {
+    const vatDisplay = item.vat > 0 ? `${formatNumber(item.vat)}%` : '-';
+    return `
     <tr>
       <td class="text-center">${index + 1}</td>
       <td class="item-name">${item.name}</td>
       <td class="text-center">${item.quantity}</td>
-      <td class="text-right">$${formatNumber(item.unitPrice)}</td>
-      <td class="text-right">$${formatNumber(item.grossAmount)}</td>
+      <td class="text-right">${formatNumber(item.unitPrice)}</td>
+      <td class="text-right">${formatNumber(item.grossAmount)}</td>
       <td class="text-center discount-cell">
-        ${item.discount > 0 ? `$${formatNumber(item.discount)}` : '-'}
+        ${item.discount > 0 ? `${formatNumber(item.discount)}` : '-'}
       </td>
-      <td class="text-right font-semibold">$${formatNumber(item.netAmount)}</td>
+      <td class="text-center" style="color: #2563eb;">
+        ${vatDisplay}
+      </td>
+      <td class="text-right font-semibold">${formatNumber(item.netAmount)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -367,15 +375,15 @@ const generateInvoicePDF = (data: InvoiceData) => {
               </div>
               <div class="summary-row">
                 <span class="summary-label">Gross Amount:</span>
-                <span class="summary-value">$${totals.grossTotal}</span>
+                <span class="summary-value">${totals.grossTotal}</span>
               </div>
               <div class="summary-row">
                 <span class="summary-label">Total Discount:</span>
-                <span class="summary-value discount-value">-$${totals.totalDiscount}</span>
+                <span class="summary-value discount-value">-${totals.totalDiscount}</span>
               </div>
               <div class="summary-row">
                 <span>Net Amount:</span>
-                <span>$${totals.netTotal}</span>
+                <span>${totals.netTotal}</span>
               </div>
             </div>
           </div>
@@ -384,13 +392,14 @@ const generateInvoicePDF = (data: InvoiceData) => {
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 60px;">#Sl No</th>
+                <th style="width: 50px;">#Sl No</th>
                 <th>Item Name</th>
                 <th style="width: 50px;">Qty</th>
-                <th style="width: 80px;">Unit Price</th>
-                <th style="width: 80px;">Gross Amount</th>
-                <th style="width: 80px;">Discount</th>
-                <th style="width: 90px;">Net Amount</th>
+                <th style="width: 75px;">Unit Price</th>
+                <th style="width: 75px;">Gross Amount</th>
+                <th style="width: 70px;">Discount</th>
+                <th style="width: 60px;">VAT</th>
+                <th style="width: 85px;">Net Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -403,15 +412,15 @@ const generateInvoicePDF = (data: InvoiceData) => {
             <div class="totals-box">
               <div class="total-row">
                 <span class="total-label">Gross Total:</span>
-                <span class="total-value">$${totals.grossTotal}</span>
+                <span class="total-value">${totals.grossTotal}</span>
               </div>
               <div class="total-row">
                 <span class="total-label">Total Discount:</span>
-                <span class="total-value discount-total">-$${totals.totalDiscount}</span>
+                <span class="total-value discount-total">-${totals.totalDiscount}</span>
               </div>
               <div class="total-row final">
                 <span>Total Amount:</span>
-                <span>$${totals.netTotal}</span>
+                <span>${totals.netTotal}</span>
               </div>
             </div>
           </div>

@@ -69,6 +69,7 @@ const invoiceItemSchema = z.object({
   quantity: z.number().min(1, 'Quantity must be at least 1').int('Quantity must be an integer'),
   unitPrice: z.number().min(0, 'Unit price cannot be negative'),
   discount: z.number().min(0, 'Discount cannot be negative').optional(),
+  vat: z.number().min(0, 'VAT cannot be negative').max(100, 'VAT cannot exceed 100%').optional(),
   total: z.number().min(0, 'Total cannot be negative'),
   availableStock: z.number().min(0).optional(),
 }).refine(
@@ -98,6 +99,7 @@ interface InvoiceItem {
   unitPrice: number;
   total: number;
   discount?: number;
+  vat?: number;
   availableStock?: number;
 }
 
@@ -276,6 +278,7 @@ export default function InvoiceEdit() {
             const quantity = item.quantity || 0;
             const unitPrice = item.unitPrice || 0;
             const discount = item.discount || 0;
+            const vat = item.vat || 0; // VAT percentage
             const discountPercentage = discount > 0 && unitPrice > 0
               ? (discount / (quantity * unitPrice)) * 100
               : 0;
@@ -287,6 +290,7 @@ export default function InvoiceEdit() {
               quantity: quantity,
               unitPrice: unitPrice,
               discount: discountPercentage, // UI expects percentage
+              vat: vat, // VAT percentage
               total: total,
               availableStock: 0,
             };
@@ -764,6 +768,7 @@ export default function InvoiceEdit() {
         quantity: 1,
         unitPrice: convertedPrice, // Use converted price from store stock
         discount: 0,
+        vat: 0, // Default VAT to 0%
         total: convertedPrice,
         availableStock,
       });
@@ -780,11 +785,38 @@ export default function InvoiceEdit() {
     const qty = typeof (item as any).quantity === 'number' && !isNaN((item as any).quantity) ? (item as any).quantity : 0;
     const price = typeof (item as any).unitPrice === 'number' && !isNaN((item as any).unitPrice) ? (item as any).unitPrice : 0;
     const discount = typeof item.discount === 'number' && !isNaN(item.discount) ? item.discount : 0;
-    let total = qty * price;
+    const vat = typeof item.vat === 'number' && !isNaN(item.vat) ? item.vat : 0;
+    
+    // Calculate subtotal after discount
+    let subtotal = qty * price;
     if (discount) {
-      total *= 1 - discount / 100;
+      subtotal *= 1 - discount / 100;
     }
+    
+    // Add VAT to subtotal
+    let total = subtotal;
+    if (vat) {
+      total += subtotal * (vat / 100);
+    }
+    
     return Math.max(total, 0);
+  };
+
+  // Helper function to calculate VAT amount for an item
+  const calculateItemVATAmount = (item: InvoiceItem) => {
+    const qty = typeof (item as any).quantity === 'number' && !isNaN((item as any).quantity) ? (item as any).quantity : 0;
+    const price = typeof (item as any).unitPrice === 'number' && !isNaN((item as any).unitPrice) ? (item as any).unitPrice : 0;
+    const discount = typeof item.discount === 'number' && !isNaN(item.discount) ? item.discount : 0;
+    const vat = typeof item.vat === 'number' && !isNaN(item.vat) ? item.vat : 0;
+    
+    // Calculate subtotal after discount
+    let subtotal = qty * price;
+    if (discount) {
+      subtotal *= 1 - discount / 100;
+    }
+    
+    // Calculate VAT amount
+    return subtotal * (vat / 100);
   };
 
   const calculateTotal = () => {
@@ -916,6 +948,17 @@ export default function InvoiceEdit() {
           (updatedItem as any).discount = parsed;
         }
       }
+    } else if (field === 'vat') {
+      if (value === '') {
+        (updatedItem as any).vat = undefined;
+      } else {
+        const parsed = parseFloat(value);
+        if (isNaN(parsed)) {
+          (updatedItem as any).vat = undefined;
+        } else {
+          (updatedItem as any).vat = parsed;
+        }
+      }
     } else if (field === 'quantity') {
       if (value === '') {
         (updatedItem as any).quantity = undefined;
@@ -1001,6 +1044,7 @@ export default function InvoiceEdit() {
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
           discount: item.discount || 0, // This is percentage
+          vat: item.vat || 0, // VAT percentage
         })),
         taxAmount: 0, // Can be added later if needed
         notes: data.billingAddress || undefined,
@@ -1497,7 +1541,7 @@ export default function InvoiceEdit() {
                       <table className="w-full">
                         <thead className="bg-blue-50">
                           <tr>
-                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[30%]">
+                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[25%]">
                               Item Name
                             </th>
                             <th className="px-4 py-2 text-left text-sm font-medium text-blue-800">
@@ -1508,6 +1552,9 @@ export default function InvoiceEdit() {
                             </th>
                             <th className="px-4 py-2 text-left text-sm font-medium text-blue-800">
                               Discount (%)
+                            </th>
+                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800">
+                              VAT (%)
                             </th>
                             <th className="px-4 py-2 text-left text-sm font-medium text-blue-800">
                               Total
@@ -1617,6 +1664,34 @@ export default function InvoiceEdit() {
                                     <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                                       <AlertCircle className="h-3 w-3" />
                                       {errors.items[index]?.discount?.message}
+                                    </p>
+                                  )}
+                                </td>
+
+                                {/* VAT */}
+                                <td className="px-4 py-3">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    value={field?.vat ?? ''}
+                                    onChange={(e) => {
+                                      handleItemChange(index, 'vat', e.target.value);
+                                      if (errors.items?.[index]?.vat)
+                                        clearValidationErrors();
+                                    }}
+                                    className="h-8 w-24 text-sm"
+                                  />
+                                  {errors.items?.[index]?.vat && (
+                                    <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                      <AlertCircle className="h-3 w-3" />
+                                      {errors.items[index]?.vat?.message}
+                                    </p>
+                                  )}
+                                  {field?.vat && field.vat > 0 && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                      +{formatCurrency(calculateItemVATAmount(field))}
                                     </p>
                                   )}
                                 </td>

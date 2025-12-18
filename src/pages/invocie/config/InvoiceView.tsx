@@ -101,8 +101,10 @@ export default function InvoiceView() {
           : 'Unknown Item';
         const grossAmount = item.quantity * item.unitPrice;
         const discountAmount = item.discount || 0;
-        // const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
-        const netAmount = grossAmount - discountAmount;
+        const vatPercentage = item.vat || 0;
+        const amountAfterDiscount = grossAmount - discountAmount;
+        const vatAmount = amountAfterDiscount * (vatPercentage / 100);
+        const netAmount = amountAfterDiscount + vatAmount;
 
         return {
           id: typeof item.item === 'object' && item.item !== null ? item.item._id : String(index),
@@ -110,7 +112,9 @@ export default function InvoiceView() {
           name: itemName,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: discountAmount, 
+          discount: discountAmount,
+          vat: vatPercentage,
+          vatAmount: vatAmount,
           grossAmount: grossAmount,
           netAmount: netAmount,
         };
@@ -267,6 +271,7 @@ export default function InvoiceView() {
                         <TableHead className="text-sm font-medium text-blue-800 text-center">Qty</TableHead>
                         <TableHead className="text-sm font-medium text-blue-800 text-right">Unit Price</TableHead>
                         <TableHead className="text-sm font-medium text-blue-800 text-center">Discount</TableHead>
+                        <TableHead className="text-sm font-medium text-blue-800 text-center">VAT</TableHead>
                         <TableHead className="text-sm font-medium text-blue-800 text-right">Gross Amount</TableHead>
                         <TableHead className="text-sm font-medium text-blue-800 text-right">Net Amount</TableHead>
                       </TableRow>
@@ -279,7 +284,10 @@ export default function InvoiceView() {
                         const grossAmount = item.quantity * item.unitPrice;
                         const discountAmount = item.discount || 0;
                         const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
-                        const netAmount = grossAmount - discountAmount;
+                        const vatPercentage = item.vat || 0;
+                        const amountAfterDiscount = grossAmount - discountAmount;
+                        const vatAmount = amountAfterDiscount * (vatPercentage / 100);
+                        const netAmount = amountAfterDiscount + vatAmount;
 
                         return (
                           <TableRow key={item.item && typeof item.item === 'object' ? item.item._id : index} className="hover:bg-gray-50 transition-colors">
@@ -295,10 +303,22 @@ export default function InvoiceView() {
                                 <span className="text-gray-400">-</span>
                               )}
                             </TableCell>
+                            <TableCell className="text-center">
+                              {vatPercentage > 0 ? (
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold">
+                                  {vatPercentage.toFixed(2)}%
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right">
                               {formatCurrency(grossAmount)}
                               {discountAmount > 0 && (
                                 <div className="text-xs text-green-600">-{formatCurrency(discountAmount)}</div>
+                              )}
+                              {vatAmount > 0 && (
+                                <div className="text-xs text-blue-600">+{formatCurrency(vatAmount)} VAT</div>
                               )}
                             </TableCell>
                             <TableCell className="text-right font-semibold">{formatCurrency(netAmount)}</TableCell>
