@@ -20,7 +20,10 @@ import {
   Package,
   Target,
   DollarSign,
-
+  Check,
+  ChevronsUpDown,
+  Plus,
+  Search,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -43,9 +46,9 @@ import {
 
 
 // Import our new services
-import { getCategories as getCategoriesService } from '@/services/itemService';
 import { inventoryService } from '@/services/inventoryService';
 import { supplierService } from '@/services/supplierService';
+import { categoryService } from '@/services/categoryService';
 
 // Interfaces for types
 interface ICategoryMaster {
@@ -186,6 +189,9 @@ const InventoryForm = () => {
   const [initialImage2Preview, setInitialImage2Preview] = useState<string | null>(null);
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categorySearchOpen, setCategorySearchOpen] = useState(false);
+  const [categorySearchValue, setCategorySearchValue] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   // const [categoryRetryCount, setCategoryRetryCount] = useState(0);
   // const user = localStorage.getItem("userData");
   // const userData: IUser | null = user ? JSON.parse(user) : null;
@@ -374,9 +380,14 @@ const InventoryForm = () => {
         // This prevents the category from appearing as "not found".
         setCategoriesLoading(true);
         try {
-          // Use our new backend API service for categories
-          const categoriesResponse = await getCategoriesService();
-          setCategories(categoriesResponse);
+          // Use the new getAllCategories API for fetching all categories without pagination
+          const categoriesResponse = await categoryService.getAllCategories();
+          const categoriesData = categoriesResponse.data || [];
+          const mappedCategories = categoriesData.map((cat: any) => ({
+            id: cat.id || cat._id,
+            name: cat.name
+          }));
+          setCategories(mappedCategories);
         } finally {
           setCategoriesLoading(false);
         }
@@ -448,11 +459,16 @@ const InventoryForm = () => {
     const fetchCategories = async () => {
       setCategoriesLoading(true);
       try {
-        // Use our new backend API service instead of Supabase
-        const categoriesResponse = await getCategoriesService();
+        // Use the new getAllCategories API for fetching all categories without pagination
+        console.log('Fetching all categories without pagination...');
+        const categoriesResponse = await categoryService.getAllCategories();
         console.log('Raw categories response:', categoriesResponse);
+        
+        // Extract data from response
+        const categoriesData = categoriesResponse.data || [];
+        
         // Map the response to match the expected format
-        const mappedCategories = categoriesResponse.map((cat: any) => ({
+        const mappedCategories = categoriesData.map((cat: any) => ({
           id: cat.id || cat._id,
           name: cat.name
         }));
@@ -741,6 +757,95 @@ const InventoryForm = () => {
 
   // Alternative items functionality has been completely removed as per user request
 
+  // Handle creating a new category
+  const handleCreateCategory = async (categoryName: string) => {
+    console.log('handleCreateCategory called with:', categoryName);
+    
+    if (!categoryName.trim()) {
+      toast.error('Category name cannot be empty');
+      return;
+    }
+
+    setIsCreatingCategory(true);
+    try {
+      // Call the backend API to create a new category
+      console.log('Calling backend API to create category...');
+      const response = await categoryService.createCategory({ 
+        name: categoryName.trim(),
+        isActive: true
+      });
+      
+      console.log('Category creation response:', response);
+      
+      // Extract the created category from the response
+      const createdCategory = response.data;
+      const categoryId = createdCategory._id || createdCategory.id;
+      
+      if (!categoryId) {
+        throw new Error('Category created but no ID returned from server');
+      }
+      
+      console.log('Category created successfully with ID:', categoryId);
+      
+      // Refresh categories list from backend to ensure consistency
+      console.log('Refreshing categories list from backend...');
+      const categoriesRefreshResponse = await categoryService.getAllCategories();
+      const categoriesData = categoriesRefreshResponse.data || [];
+      const mappedCategories = categoriesData.map((cat: any) => ({
+        id: cat.id || cat._id,
+        name: cat.name
+      }));
+      
+      console.log('Updated categories from backend:', mappedCategories);
+      setCategories(mappedCategories);
+      
+      // Set the newly created category as selected
+      setValue('category_id', categoryId, { shouldValidate: true, shouldDirty: true });
+      setCategorySearchValue('');
+      setCategorySearchOpen(false);
+      
+      toast.success(`Category "${categoryName}" created successfully!`);
+    } catch (err: any) {
+      console.error('Error creating category:', err);
+      const errorMessage = err.response?.data?.error?.message || err.message || 'Failed to create category';
+      toast.error(errorMessage);
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
+
+  // Handle category selection
+  const handleCategorySelect = (categoryId: string) => {
+    console.log('Category selected:', categoryId);
+    setValue('category_id', categoryId, { shouldValidate: true, shouldDirty: true });
+    setCategorySearchValue('');
+    setCategorySearchOpen(false);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (categorySearchOpen && !target.closest('.category-dropdown-container')) {
+        setCategorySearchOpen(false);
+        setCategorySearchValue('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [categorySearchOpen]);
+
+  // Filter categories based on search
+  const filteredCategories = categories.filter(cat =>
+    cat.name.toLowerCase().includes(categorySearchValue.toLowerCase())
+  );
+
+  // Check if search value matches any existing category
+  const exactMatch = categories.find(
+    cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()
+  );
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -770,7 +875,7 @@ const InventoryForm = () => {
         </div>
 
         <form className="grid gap-y-5" onSubmit={handleSubmit(handleFormSubmit)}>
-          <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+          <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-visible">
             <CardHeader>
               <CardTitle className="text-xl text-blue-800 flex items-center gap-2">
                 <Package className="h-5 w-5" /> Basic Information
@@ -835,7 +940,7 @@ const InventoryForm = () => {
                   )}
                 </div>
 
-                <div className="space-y-2 group">
+                <div className="space-y-2 group relative category-dropdown-container">
                   <Label
                     htmlFor="category_id"
                     className={`${errors.category_id && !categoriesLoading ? 'text-red-500' : 'text-gray-700'
@@ -843,59 +948,109 @@ const InventoryForm = () => {
                   >
                     <Package className="h-4 w-4" /> Item Category <span className="text-red-500">*</span>
                   </Label>
-                  <Select
-                    onValueChange={(value) => {
-                      console.log('Category selected:', value);
-                      console.log('Category value type:', typeof value);
-                      setValue('category_id', value, { shouldValidate: true, shouldDirty: true });
-                      console.log('Form value after setting category_id:', watch('category_id'));
-                    }}
-                    value={watchedFields.category_id ? String(watchedFields.category_id) : ''}
-                    disabled={isViewing || categoriesLoading}
-                  >
-                    <SelectTrigger
-                      id="category_id"
-                      className={`pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${errors.category_id && !categoriesLoading
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => !isViewing && !categoriesLoading && setCategorySearchOpen(!categorySearchOpen)}
+                      disabled={isViewing || categoriesLoading}
+                      className={`w-full justify-between pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${errors.category_id && !categoriesLoading
                         ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                         : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                         } ${watchedFields.category_id && !categoriesLoading && !isViewing ? 'border-blue-300' : ''}`}
                     >
                       {categoriesLoading ? (
-                        <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400 animate-spin" />
-                      ) : null}
-                      <SelectValue
-                        placeholder={categoriesLoading ? 'Getting categories...' : categories.length === 0 ? 'No categories available' : 'Select item category'}
-                      >
-                        {watchedFields.category_id && !categoriesLoading && !categories.some(cat => cat.id === String(watchedFields.category_id))
-                          ? `Category ID: ${String(watchedFields.category_id)}`
-                          : undefined
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoriesLoading ? (
-                        <div className="p-2 text-gray-500 text-sm flex items-center gap-2">
+                        <span className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
-                          Loading categories...
-                        </div>
-                      ) : categories.length > 0 ? (
-                        <>
-                          {watchedFields.category_id && !categories.some(cat => cat.id === String(watchedFields.category_id)) && (
-                            <SelectItem value={String(watchedFields.category_id)}>
-                              Selected (inactive): {String(watchedFields.category_id)}
-                            </SelectItem>
-                          )}
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </>
+                          Getting categories...
+                        </span>
+                      ) : watchedFields.category_id ? (
+                        categories.find((cat) => cat.id === watchedFields.category_id)?.name || 
+                        `Category ID: ${String(watchedFields.category_id)}`
                       ) : (
-                        <div className="p-2 text-gray-500 text-sm">No categories available</div>
+                        <span className="text-gray-500">Select or create category...</span>
                       )}
-                    </SelectContent>
-                  </Select>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                    
+                    {categorySearchOpen && !isViewing && !categoriesLoading && (
+                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-xl max-h-[300px] overflow-hidden left-0 top-full">
+                        <div className="p-2 border-b">
+                          <div className="flex items-center border rounded-md px-3 py-2">
+                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                            <input
+                              type="text"
+                              placeholder="Search or create category..."
+                              value={categorySearchValue}
+                              onChange={(e) => setCategorySearchValue(e.target.value)}
+                              className="flex-1 outline-none text-sm"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="max-h-[240px] overflow-y-auto">
+                          {filteredCategories.length > 0 ? (
+                            <div className="p-1">
+                              {filteredCategories.map((category) => (
+                                <div
+                                  key={category.id}
+                                  onClick={() => {
+                                    console.log('Selecting category:', category.id, category.name);
+                                    handleCategorySelect(category.id);
+                                  }}
+                                  className="flex items-center px-2 py-2 text-sm rounded-sm cursor-pointer hover:bg-blue-50 transition-colors"
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${
+                                      watchedFields.category_id === category.id ? 'opacity-100' : 'opacity-0'
+                                    }`}
+                                  />
+                                  {category.name}
+                                </div>
+                              ))}
+                            </div>
+                          ) : categorySearchValue.trim() ? (
+                            <div className="p-2 text-center text-sm text-gray-500">
+                              No categories found
+                            </div>
+                          ) : (
+                            <div className="p-2 text-center text-sm text-gray-500">
+                              Type to search categories
+                            </div>
+                          )}
+                          
+                          {!exactMatch && categorySearchValue.trim() && (
+                            <div className="border-t p-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  console.log('Create button clicked');
+                                  handleCreateCategory(categorySearchValue);
+                                }}
+                                disabled={isCreatingCategory}
+                                className="w-full flex items-center px-2 py-2 text-sm rounded-sm cursor-pointer hover:bg-blue-50 text-blue-600 transition-colors"
+                              >
+                                {isCreatingCategory ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Creating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Create "{categorySearchValue}"
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {!isViewing && !categoriesLoading && errors.category_id?.message && (
                     <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
                       <AlertCircle className="h-3 w-3" />

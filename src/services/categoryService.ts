@@ -34,6 +34,12 @@ export const categoryService = {
     return apiClient.get<ApiListResponse<Category>>(`/categories${queryString}`);
   },
 
+  // Get all categories without pagination (for dropdowns/forms)
+  async getAllCategories() {
+    // Use a very high limit to get all categories without pagination
+    return apiClient.get<{ data: Category[] }>('/categories?limit=10000&status=active');
+  },
+
   async getCategory(id: string) {
     return apiClient.get<ApiResponse<Category>>(`/categories/${id}`);
   },
