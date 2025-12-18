@@ -295,6 +295,7 @@ export default function InvoiceEdit() {
           // Fetch store stock for invoice items from the specific store
           const itemIds = invoiceItems.map(item => item.id);
           let stockMap: Record<string, number> = {};
+          let priceMap: Record<string, number> = {}; // Store converted prices
 
           const storeId = typeof invoice.store === 'object' && invoice.store !== null
             ? invoice.store._id
@@ -312,6 +313,7 @@ export default function InvoiceEdit() {
                   : String(stock.product);
                 if (itemIds.includes(productId)) {
                   stockMap[productId] = stock.quantity || 0;
+                  priceMap[productId] = stock.unitPrice || 0; // Store converted unit price
                 }
               });
             }
@@ -365,7 +367,7 @@ export default function InvoiceEdit() {
               id: item.id,
               name: item.name,
               description: '',
-              price: item.unitPrice,
+              price: priceMap[item.id] || item.unitPrice, // Use converted price if available
               availableStock: (stockMap[item.id] ?? 0) + (previousQuantitiesMap[item.id] || 0),
             }))
           );
@@ -547,8 +549,9 @@ export default function InvoiceEdit() {
           return;
         }
 
-        // Get all product IDs that have stock in this store
+        // Get all product IDs that have stock in this store with their converted prices
         const stockMap: Record<string, number> = {};
+        const priceMap: Record<string, number> = {}; // Store converted unit prices
         const availableProductIds: string[] = [];
 
         stockResponse.data.forEach((stock) => {
@@ -558,6 +561,7 @@ export default function InvoiceEdit() {
           
           if (productId && stock.quantity > 0) { // Only include items with positive stock
             stockMap[productId] = stock.quantity;
+            priceMap[productId] = stock.unitPrice || 0; // Use converted unitPrice from store stock
             availableProductIds.push(productId);
           }
         });
@@ -588,14 +592,14 @@ export default function InvoiceEdit() {
                   item.description?.toLowerCase().includes(itemSearchTerm.toLowerCase()));
         });
 
-        // Map filtered items to Supply format with actual stock from selected store
+        // Map filtered items to Supply format with actual stock and converted price from selected store
         const mappedSupplies: Supply[] = filteredItems.map((item) => {
           const itemId = item._id || item.id;
           return {
             id: itemId,
             name: item.name || 'Unnamed Item',
             description: item.description || 'No description',
-            price: item.unitPrice || 0,
+            price: priceMap[itemId] || item.unitPrice || 0, // Use converted price from store stock
             availableStock: stockMap[itemId] || 0,
           };
         });
@@ -691,7 +695,7 @@ export default function InvoiceEdit() {
     }
   };
 
-  // Get available stock using store-stock API for selected store
+  // Get available stock and converted prices using store-stock API for selected store
   const getAvailableStock = async (items: Supply[]) => {
     try {
       const itemIds = items.map((item) => item.id);
@@ -703,7 +707,7 @@ export default function InvoiceEdit() {
       });
       if (!stockResponse.data) return [];
 
-      // Map stock data to item_id format
+      // Map stock data to item_id format with converted unit price
       return stockResponse.data
         .filter((stock) => {
           const productId = typeof stock.product === 'object' && stock.product !== null
@@ -718,6 +722,7 @@ export default function InvoiceEdit() {
           return {
             item_id: productId,
             total_qty: stock.quantity || 0,
+            unitPrice: stock.unitPrice || 0, // Include converted unit price
           };
         });
     } catch (err: any) {
@@ -747,18 +752,19 @@ export default function InvoiceEdit() {
 
     // Append to invoice form fields
     tempSuppliesData.forEach((supply) => {
-      // Get availableStock from filteredSupplies if present, otherwise from API
+      // Get availableStock and converted unitPrice from filteredSupplies if present, otherwise from API
       const filteredSupply = filteredSupplies.find(item => item.id === supply.id);
-      const stockFromApi = itemAvailableStocks.find(item => item.item_id === supply.id)?.total_qty ?? 0;
-      const availableStock = filteredSupply?.availableStock ?? stockFromApi;
+      const stockInfo = itemAvailableStocks.find(item => item.item_id === supply.id);
+      const availableStock = filteredSupply?.availableStock ?? stockInfo?.total_qty ?? 0;
+      const convertedPrice = filteredSupply?.price ?? stockInfo?.unitPrice ?? supply.price;
 
       append({
         id: supply.id,
         name: supply.name,
         quantity: 1,
-        unitPrice: supply.price,
+        unitPrice: convertedPrice, // Use converted price from store stock
         discount: 0,
-        total: supply.price,
+        total: convertedPrice,
         availableStock,
       });
     });

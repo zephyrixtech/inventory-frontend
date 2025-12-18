@@ -318,9 +318,10 @@ const ProductTransmissionPage = () => {
           margin: parseFloat(item.margin) || 0, // This will be saved
           currency: 'AED' as const, // This will be saved
           unitPrice: item.unitPriceAED, // This will be saved as the AED unit price
+          unitPriceAED: item.unitPriceAED, // Explicitly save the AED unit price
           packingListId: transmissionForm.packingListId,
-          dpPrice: parseFloat(item.dpPrice),
-          exchangeRate: parseFloat(transmissionForm.exchangeRate),
+          dpPrice: parseFloat(item.dpPrice) || 0,
+          exchangeRate: parseFloat(transmissionForm.exchangeRate) || 0,
           finalPrice: item.finalPrice
         };
 
