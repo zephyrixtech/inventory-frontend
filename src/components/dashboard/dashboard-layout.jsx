@@ -143,7 +143,7 @@ export const DashboardLayout = () => {
       path: '/dashboard/category-master',
       label: 'Category Master',
       icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
+      roles: ['superadmin', 'admin', "purchaser"]
     },
     {
       path: '/dashboard/customer-management',
@@ -185,7 +185,7 @@ export const DashboardLayout = () => {
       path: '/dashboard/store/stock',
       label: 'Store Stock',
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'store']
+      roles: ['superadmin', 'store', 'biller', 'purchaser']
     },
     {
       path: '/dashboard/purchaser/packing-lists',
@@ -197,13 +197,13 @@ export const DashboardLayout = () => {
       path: '/dashboard/purchaser/expenses',
       label: 'Daily Expenses',
       icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser', 'admin']
+      roles: ['superadmin', 'purchaser', 'admin', 'biller']
     },
     {
       path: '/dashboard/purchaser/opening-balance',
       label: 'Credit Notes',
       icon: <Wallet className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser', 'admin']
+      roles: ['superadmin', 'purchaser', 'admin', 'biller']
     },
     // { 
     //   path: '/dashboard/purchaseOrderManagement', 

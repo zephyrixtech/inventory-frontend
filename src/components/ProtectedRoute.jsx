@@ -1,8 +1,9 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Mail, Shield, Loader2 } from 'lucide-react';
+import { hasModuleAccess } from '@/constants/rolePermissions';
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({ module }) {
   const raw = localStorage.getItem('userData');
   const user = raw ? JSON.parse(raw) : null;
 
@@ -14,8 +15,30 @@ export default function ProtectedRoute() {
     const checkAccess = async () => {
       setLoading(true);
       try {
-        // Static: if a user exists, allow access
-        const allowed = !!user;
+        if (!user) {
+          if (mounted) setHasAccess(false);
+          return;
+        }
+
+        // If no module is specified, just check if user exists
+        if (!module) {
+          if (mounted) setHasAccess(true);
+          return;
+        }
+
+        // Get user role from userData with proper handling
+        let userRole = 'biller'; // default fallback
+        
+        if (typeof user.role === 'string') {
+          userRole = user.role;
+        } else if (user.role && typeof user.role === 'object') {
+          userRole = user.role.name || user.role.role_name || 'biller';
+        } else if (user.role_name) {
+          userRole = user.role_name;
+        }
+
+        // Check if user has access to the module
+        const allowed = hasModuleAccess(userRole, module);
         if (mounted) setHasAccess(allowed);
       } catch (err) {
         console.error('Permission check failed:', err);
@@ -26,7 +49,7 @@ export default function ProtectedRoute() {
     };
     checkAccess();
     return () => { mounted = false; };
-  }, [user?.id]);
+  }, [user?.id, module]);
 
   if (!user) {
     return <Navigate to="/" replace />;

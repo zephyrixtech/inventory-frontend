@@ -6,6 +6,7 @@ export type ModuleKey =
   | 'Dashboard'
   | 'Supplier Management'
   | 'Store Management'
+  | 'Store Stock'
   | 'Purchase Order Management'
   | 'Inventory Management'
   | 'Sales Invoice'
@@ -24,12 +25,17 @@ export type ModuleKey =
   | 'Role Management'
   | 'Purchase Return Requests'
   | 'Product Transmission'
+  | 'Daily Expenses'
+  | 'Opening Balance'
+  | 'Quality Control'
+  | 'Packing Lists'
   | 'All Modules';
 
 export const ALL_MODULES: ModuleKey[] = [
   'Dashboard',
   'Supplier Management',
   'Store Management',
+  'Store Stock',
   'Purchase Order Management',
   'Inventory Management',
   'Sales Invoice',
@@ -48,6 +54,10 @@ export const ALL_MODULES: ModuleKey[] = [
   'Administration',
   'Purchase Return Requests',
   'Product Transmission',
+  'Daily Expenses',
+  'Opening Balance',
+  'Quality Control',
+  'Packing Lists',
   'All Modules',
 ];
 
