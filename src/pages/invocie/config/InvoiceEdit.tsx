@@ -38,7 +38,6 @@ import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { customerService } from '@/services/customerService';
 import { storeStockService } from '@/services/storeStockService';
 import { Textarea } from '@/components/ui/textarea';
-import { formatCurrency } from '@/Utils/formatters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Store type from storeService
@@ -1470,7 +1469,7 @@ export default function InvoiceEdit() {
                                 </div>
                               </div>
                               <div className="text-right ml-4">
-                                <p className="font-semibold text-blue-600 text-sm">${supply.price.toFixed(2)}</p>
+                                <p className="font-semibold text-blue-600 text-sm">{supply.price.toFixed(2)}</p>
                                 <p className="text-xs text-gray-400">per unit</p>
                               </div>
                             </div>
@@ -1691,14 +1690,14 @@ export default function InvoiceEdit() {
                                   )}
                                   {field?.vat && field.vat > 0 && (
                                     <p className="text-xs text-green-600 mt-1">
-                                      +{formatCurrency(calculateItemVATAmount(field))}
+                                      +{calculateItemVATAmount(field).toFixed(2)}
                                     </p>
                                   )}
                                 </td>
 
                                 {/* Total */}
                                 <td className="px-4 py-3 text-blue-600 font-semibold">
-                                  {formatCurrency(calculateItemTotal(field))}
+                                  {calculateItemTotal(field).toFixed(2)}
                                   {errors.items?.[index]?.total && (
                                     <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                                       <AlertCircle className="h-3 w-3" />
@@ -1753,7 +1752,7 @@ export default function InvoiceEdit() {
               <div className="pt-4 border-t flex justify-between items-center">
                 <div className="text-right">
                   <Label className="text-gray-700 font-medium">Total Amount</Label>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(calculateTotal())}</p>
+                  <p className="text-2xl font-bold text-gray-900">{calculateTotal().toFixed(2)}</p>
                 </div>
                 <div className="flex gap-4">
                   <Button

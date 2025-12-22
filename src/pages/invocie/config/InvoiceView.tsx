@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Printer } from "lucide-react";
 import generateInvoicePDF from './InvoicePrintTemplate';
 import { useAppSelector } from '@/hooks/redux';
-import { formatCurrency } from '@/Utils/formatters';
 import { toast } from 'react-hot-toast';
 
 // Using SalesInvoice type from service
@@ -246,15 +245,15 @@ export default function InvoiceView() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Gross Amount:</span>
-                      <span className="font-medium">{formatCurrency(grossTotal)}</span>
+                      <span className="font-medium">{grossTotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Discount:</span>
-                      <span className="font-medium text-green-600">-{formatCurrency(totalDiscount)}</span>
+                      <span className="font-medium text-green-600">-{totalDiscount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-3">
                       <span className="text-gray-800 font-semibold">Net Amount:</span>
-                      <span className="font-bold text-blue-600">{formatCurrency(finalAmount)}</span>
+                      <span className="font-bold text-blue-600">{finalAmount.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -293,7 +292,7 @@ export default function InvoiceView() {
                           <TableRow key={item.item && typeof item.item === 'object' ? item.item._id : index} className="hover:bg-gray-50 transition-colors">
                             <TableCell className="font-medium text-gray-800">{itemName}</TableCell>
                             <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                            <TableCell className="text-right">{item.unitPrice.toFixed(2)}</TableCell>
                             <TableCell className="text-center">
                               {discountPercentage > 0 ? (
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
@@ -313,15 +312,15 @@ export default function InvoiceView() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              {formatCurrency(grossAmount)}
+                              {grossAmount.toFixed(2)}
                               {discountAmount > 0 && (
-                                <div className="text-xs text-green-600">-{formatCurrency(discountAmount)}</div>
+                                <div className="text-xs text-green-600">-{discountAmount.toFixed(2)}</div>
                               )}
                               {vatAmount > 0 && (
-                                <div className="text-xs text-blue-600">+{formatCurrency(vatAmount)} VAT</div>
+                                <div className="text-xs text-blue-600">+{vatAmount.toFixed(2)} VAT</div>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-semibold">{formatCurrency(netAmount)}</TableCell>
+                            <TableCell className="text-right font-semibold">{netAmount.toFixed(2)}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -336,25 +335,25 @@ export default function InvoiceView() {
                   <div className="bg-gray-50 p-6 rounded-lg space-y-3">
                     <div className="flex justify-between text-gray-600">
                       <span>Gross Total:</span>
-                      <span>{formatCurrency(grossTotal)}</span>
+                      <span>{grossTotal.toFixed(2)}</span>
                     </div>
                     {totalDiscount > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Total Discount:</span>
-                        <span>-{formatCurrency(totalDiscount)}</span>
+                        <span>-{totalDiscount.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-gray-800 font-semibold border-t pt-3">
                       <span>Subtotal:</span>
-                      <span>{formatCurrency(subtotal)}</span>
+                      <span>{subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Tax (0%):</span>
-                      <span>{userInfo?.company_data?.currency}0.00</span>
+                      <span>0.00</span>
                     </div>
                     <div className="flex justify-between font-bold text-lg text-blue-600 border-t-2 pt-3">
                       <span>Total Amount:</span>
-                      <span>{formatCurrency(finalAmount)}</span>
+                      <span>{finalAmount.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

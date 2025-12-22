@@ -57,7 +57,6 @@ import { useNavigate } from "react-router-dom";
 import { salesInvoiceService, type SalesInvoice } from "@/services/salesInvoiceService";
 import generateInvoicePDF from "../config/InvoicePrintTemplate";
 import { format } from "date-fns";
-import { formatCurrency } from "@/Utils/formatters";
 
 interface PaginationInfo {
   total: number;
@@ -619,7 +618,7 @@ export default function SalesInvoiceList() {
                           </TableCell>
                           <TableCell>{customerName}</TableCell>
                           <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(invoice.netAmount)}</TableCell>
+                          <TableCell className="text-right">{invoice.netAmount.toFixed(2)}</TableCell>
                           <TableCell className="text-left pr-2">{storeName}</TableCell>
                           <TableCell className="text-center">
                             {renderActionButtons(invoice)}
