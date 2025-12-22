@@ -58,9 +58,38 @@ export function LoginForm({ className, ...props }) {
           status: data.status ?? 'active',
           is_active: data.isActive ?? true,
           company_id: data.companyId ?? data.company?.id ?? null,
-          company_data: data.company ?? null,
+          company_data: data.company ?? {
+            name: 'AL LIBAS GENERAL TRADING L L C',
+            description: 'SHOP NO 5',
+            address: 'STANDARD HOMES REAL ESTATE BUILDING',
+            city: 'AJMAN',
+            state: 'INDUSTRIAL AREA 2',
+            country: 'UNITED ARAB EMIRATES',
+            postal_code: 'P.O.BOX :4381',
+            phone: '+971-55-680-5858 / +971-55-918-7607',
+            email: 'allibastrading@gmail.com',
+            currency: 'AED',
+            currency_symbol: 'AED',
+            tax_percentage: 5,
+            bank_name: 'RAKBANK',
+            bank_account_number: '0192594853001',
+            iban: 'AE790400000192594853001'
+          },
           full_name: `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim() || data.email,
         };
+        
+        // Check if we have old "Default Company" data and force refresh
+        const existingUserData = localStorage.getItem('userData');
+        if (existingUserData) {
+          const existingUser = JSON.parse(existingUserData);
+          if (existingUser.company_data?.name === 'Default Company') {
+            // Force logout and clear old data
+            clearSession();
+            dispatch(clearUser());
+            return;
+          }
+        }
+        
         localStorage.setItem('userData', JSON.stringify(mappedUser));
         if (mappedUser.role_name) {
           localStorage.setItem('roleName', mappedUser.role_name);

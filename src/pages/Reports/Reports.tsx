@@ -32,7 +32,6 @@ import { setPrintData } from '@/redux/features/PurchaseOrderReportPrintSlice';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/hooks/redux';
 import { ICompany } from '@/Utils/constants';
-import { formatCurrency } from '@/Utils/formatters';
 
 import { supplierService } from '@/services/supplierService';
 import { storeService } from '@/services/storeService';
@@ -1679,10 +1678,10 @@ const Reports: React.FC = () => {
           return [
             `"${format(new Date(salesItem.invoiceDate!), 'dd MMM yyyy')}"`,
             `"${salesItem.invoiceNumber}"`,
-            `"${formatCurrency(salesItem.invoiceAmount ?? 0)}"`,
-            `"${formatCurrency(salesItem.discountAmount ?? 0)}"`,
-            `"${formatCurrency(salesItem.tax_amount ?? 0)}"`,
-            `"${formatCurrency(salesItem.net_amount ?? 0)}"`,
+            `"${(salesItem.invoiceAmount ?? 0).toFixed(2)}"`,
+            `"${(salesItem.discountAmount ?? 0).toFixed(2)}"`,
+            `"${(salesItem.tax_amount ?? 0).toFixed(2)}"`,
+            `"${(salesItem.net_amount ?? 0).toFixed(2)}"`,
           ];
         } else if (selectedReportType === 'stock') {
           const stockItem = item as unknown as InventoryStockReport;
@@ -2531,10 +2530,10 @@ const Reports: React.FC = () => {
                               >
                                 <TableCell className="text-gray-700 px-4 py-3">{format(new Date(item.invoiceDate!), 'dd MMM yyyy')}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 font-medium">{item.invoiceNumber}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.invoiceAmount ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.discountAmount ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(item?.tax_amount ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{formatCurrency(item?.net_amount ?? 0)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.invoiceAmount ?? 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.discountAmount ?? 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.tax_amount ?? 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{(item?.net_amount ?? 0).toFixed(2)}</TableCell>
                               </TableRow>
                             ))) : (
                             <TableRow>
@@ -2570,8 +2569,8 @@ const Reports: React.FC = () => {
                                 <TableCell className="text-gray-700 px-4 py-3 font-medium">{stock.itemName}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{stock.storeName}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 text-end">{stock.quantity}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{formatCurrency(stock.unitPrice ?? 0)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{formatCurrency(((stock.quantity ?? 0) * (stock.unitPrice ?? 0)))}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(stock.unitPrice ?? 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{((stock.quantity ?? 0) * (stock.unitPrice ?? 0)).toFixed(2)}</TableCell>
                               </TableRow>
                             ))) : (
                             <TableRow>
@@ -2669,7 +2668,7 @@ const Reports: React.FC = () => {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-green-700">Total Value</p>
-                              <h4 className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(summaryStats.totalValue)}</h4>
+                              <h4 className="text-2xl font-bold text-green-900 mt-1">{summaryStats.totalValue.toFixed(2)}</h4>
                               <p className="text-xs text-green-600 mt-1">In selected period</p>
                             </div>
                             <div className="p-3 bg-white bg-opacity-70 rounded-lg shadow-sm">
@@ -2764,7 +2763,7 @@ const Reports: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-green-700">Total Sales Value</p>
-                          <h4 className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(salesSummaryStats.totalSalesValue)}</h4>
+                          <h4 className="text-2xl font-bold text-green-900 mt-1">{salesSummaryStats.totalSalesValue.toFixed(2)}</h4>
                           <p className="text-xs text-green-600 mt-1">In selected period</p>
                         </div>
                         <div className="p-3 bg-white bg-opacity-70 rounded-lg shadow-sm">
@@ -2857,7 +2856,7 @@ const Reports: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-green-700">Total Stock Value</p>
-                          <h4 className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(stockSummaryStats.totalStockValue)}</h4>
+                          <h4 className="text-2xl font-bold text-green-900 mt-1">{stockSummaryStats.totalStockValue.toFixed(2)}</h4>
                           <p className="text-xs text-green-600 mt-1">In selected period</p>
                         </div>
                         <div className="p-3 bg-white bg-opacity-70 rounded-lg shadow-sm">

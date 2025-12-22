@@ -64,7 +64,7 @@ const generatePurchaseOrderPDF = (data: PurchaseOrderViewData, userInfo: any) =>
 
   // Extract company data safely
   const companyData = userInfo?.company_data || {};
-  const companyName = companyData.name || 'Company Name';
+  const companyName = companyData.name || 'AL LIBAS GENERAL TRADING L L C';
   const companyDescription = companyData.description || '';
   const companyAddress = companyData.address || '';
   const companyCity = companyData.city || '';
@@ -309,7 +309,7 @@ const generatePurchaseOrderPDF = (data: PurchaseOrderViewData, userInfo: any) =>
 
         <div class="footer">
           <p>Thank you for your business!</p>
-          ${companyEmail ? `<p>Contact: ${companyEmail}</p>` : '<p>Contact: support@garageinventory.com</p>'}
+          ${companyEmail ? `<p>Contact: ${companyEmail}</p>` : '<p>Contact: allibastrading@gmail.com</p>'}
         </div>
       </body>
     </html>

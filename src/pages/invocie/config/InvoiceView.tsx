@@ -202,12 +202,12 @@ export default function InvoiceView() {
               {/* Header Section */}
               <div className="flex justify-between items-start border-b border-gray-200 pb-6 print:pb-4">
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-bold text-blue-800">{userInfo?.company_data.name}</h1>
-                  <p className="text-gray-600">{userInfo?.company_data.description}</p>
-                  <p className="text-gray-600">{userInfo?.company_data.address}</p>
-                  <p className="text-gray-600">{userInfo?.company_data.city}, {userInfo?.company_data.state}, {userInfo?.company_data.postal_code}</p>
-                  <p className="text-gray-600">Phone: {userInfo?.company_data.phone}</p>
-                  {invoice.email && <p className="text-gray-600">Email: {userInfo?.company_data.email}</p>}
+                  <h1 className="text-3xl font-bold text-blue-800">{'AL LIBAS GENERAL TRADING L L C'}</h1>
+                  <p className="text-gray-600">{'SHOP NO 5'}</p>
+                  <p className="text-gray-600">{ 'STANDARD HOMES REAL ESTATE BUILDING'}</p>
+                  <p className="text-gray-600">{ 'AJMAN'}, {'INDUSTRIAL AREA 2'}, { 'P.O.BOX :4381'}</p>
+                  <p className="text-gray-600">Phone: { '+971-55-680-5858 / +971-55-918-7607'}</p>
+                  {invoice.email && <p className="text-gray-600">Email: {'allibastrading@gmail.com'}</p>}
                 </div>
                 <div className="text-right space-y-2">
                   <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
@@ -365,8 +365,9 @@ export default function InvoiceView() {
                   <div className="space-y-2">
                     <h4 className="font-semibold text-gray-800">Payment Instructions</h4>
                     <p className="text-gray-600 text-sm">Please make payment via bank transfer to:</p>
-                    <p className="text-gray-600 text-sm">Bank: {userInfo?.company_data?.bank_name}</p>
-                    <p className="text-gray-600 text-sm">Account: {userInfo?.company_data?.bank_account_number}</p>
+                    <p className="text-gray-600 text-sm">Bank: {userInfo?.company_data?.bank_name || 'RAKBANK'}</p>
+                    <p className="text-gray-600 text-sm">Account: {userInfo?.company_data?.bank_account_number || '0192594853001'}</p>
+                    <p className="text-gray-600 text-sm">IBAN: {userInfo?.company_data?.iban || 'AE790400000192594853001'}</p>
                     <p className="text-gray-600 text-sm">Reference: {invoice.invoiceNumber}</p>
                   </div>
                   <div className="space-y-2">
@@ -379,7 +380,7 @@ export default function InvoiceView() {
                 </div>
                 <div className="text-center mt-6 text-gray-500 text-sm print:fixed print:bottom-0 print:left-0 print:right-0">
                   <p>Thank you for your business!</p>
-                  <p>For any queries, please contact us</p>
+                  <p>For any queries, please contact us at {userInfo?.company_data?.email || 'allibastrading@gmail.com'}</p>
                 </div>
               </div>
             </div>

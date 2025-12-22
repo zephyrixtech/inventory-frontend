@@ -346,8 +346,13 @@ const generateInvoicePDF = (data: InvoiceData) => {
           <!-- Header -->
           <div class="invoice-header">
             <div class="company-info">
-              <h1>${data.store.name}</h1>
-              <p>Phone: ${data.store.contact}</p>
+              <h1>AL LIBAS GENERAL TRADING L L C</h1>
+              <p>SHOP NO 5</p>
+              <p>STANDARD HOMES REAL ESTATE BUILDING</p>
+              <p>AJMAN, INDUSTRIAL AREA 2, UNITED ARAB EMIRATES</p>
+              <p>P.O.BOX :4381</p>
+              <p>Phone: +971-55-680-5858 / +971-55-918-7607</p>
+              <p>Email: allibastrading@gmail.com</p>
             </div>
             <div class="invoice-details">
               <h2>INVOICE</h2>
@@ -428,6 +433,8 @@ const generateInvoicePDF = (data: InvoiceData) => {
           <!-- Footer -->
           <div class="invoice-footer">
             <p><strong>Thank you for your business!</strong></p>
+            <p>Payment Details: Bank: RAKBANK | Account: 0192594853001 | IBAN: AE790400000192594853001</p>
+            <p>For any queries, please contact us at allibastrading@gmail.com</p>
             <p>This is a computer generated invoice</p>
           </div>
         </div>

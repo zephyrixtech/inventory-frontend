@@ -1,6 +1,5 @@
 import { Package } from 'lucide-react';
 import type { JSX } from 'react';
-import { formatCurrency } from '@/Utils/formatters';
 
 interface PrintTemplateProps {
   reportData: any;
@@ -135,8 +134,8 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">ABC Company Ltd.</h1>
-                  <p className="text-gray-600 text-sm">Inventory Management System</p>
+                  <h1 className="text-2xl font-bold text-gray-800">AL LIBAS GENERAL TRADING L L C</h1>
+                  <p className="text-gray-600 text-sm">SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING</p>
                 </div>
               </div>
               <div className="text-right">
@@ -215,7 +214,7 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                     <div className="space-y-2 text-sm">
                       <p>
                         <span className="font-medium">Total Value:</span>{' '}
-                        {formatCurrency(currentItem.totalValue || 0)}
+                        {(currentItem.totalValue || 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -251,9 +250,9 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                           <td className="px-4 py-3">{currentItem.itemName}</td>
                           <td className="px-4 py-3">{currentItem.supplier?.name || 'N/A'}</td>
                           <td className="px-4 py-3 text-center">{currentItem.quantity || 0}</td>
-                          <td className="px-4 py-3 text-right">{formatCurrency(currentItem.unitPrice || 0)}</td>
+                          <td className="px-4 py-3 text-right">{(currentItem.unitPrice || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right font-medium">
-                            {formatCurrency(currentItem.totalValue || 0)}
+                            {(currentItem.totalValue || 0).toFixed(2)}
                           </td>
                         </tr>
                       </tbody>
@@ -321,20 +320,20 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                       <div className="space-y-2 text-sm">
                         <p>
                           <span className="font-medium">Gross Amount:</span>{' '}
-                          {formatCurrency(invoiceAmount)}
+                          {invoiceAmount.toFixed(2)}
                         </p>
                         <p>
                           <span className="font-medium">Discount:</span>{' '}
-                          {formatCurrency(discountAmount)}
+                          {discountAmount.toFixed(2)}
                         </p>
                         <p>
                           <span className="font-medium">Tax Amount:</span>{' '}
-                          {formatCurrency(taxAmount)}
+                          {taxAmount.toFixed(2)}
                         </p>
                         <p className="pt-2 border-t border-gray-200">
                           <span className="font-bold text-base">Net Amount:</span>{' '}
                           <span className="font-bold text-base text-blue-600">
-                            {formatCurrency(netAmount)}
+                            {netAmount.toFixed(2)}
                           </span>
                         </p>
                       </div>
@@ -377,13 +376,13 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                                 </td>
                                 <td className="px-4 py-3 text-right">{item.quantity || 0}</td>
                                 <td className="px-4 py-3 text-right">
-                                  {formatCurrency(item.unit_price || 0)}
+                                  {(item.unit_price || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   {item.discount_percentage || 0}%
                                 </td>
                                 <td className="px-4 py-3 text-right font-medium">
-                                  {formatCurrency(item.total || 0)}
+                                  {(item.total || 0).toFixed(2)}
                                 </td>
                               </tr>
                             ))
@@ -402,7 +401,7 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                               Tax Amount:
                             </td>
                             <td className="px-4 py-3 text-right font-semibold">
-                              {formatCurrency(taxAmount)}
+                              {taxAmount.toFixed(2)}
                             </td>
                           </tr>
                           <tr className="border-t-2 border-gray-300">
@@ -411,7 +410,7 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
                               Net Total:
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-base text-blue-600">
-                              {formatCurrency(netAmount)}
+                              {netAmount.toFixed(2)}
                             </td>
                           </tr>
                         </tfoot>

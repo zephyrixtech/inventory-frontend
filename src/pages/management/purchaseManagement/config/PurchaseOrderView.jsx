@@ -88,14 +88,15 @@ export default function PurchaseOrderView() {
   const [loading, setLoading] = useState(true);
   const userInfo = {
     company_data: {
-      name: "GarageInventory",
-      description: "Inventory Management System",
-      address: "789 Business Blvd",
-      city: "Enterprise",
-      state: "CA",
-      postal_code: "90210",
-      phone: "(555) 123-4567",
-      email: "support@garageinventory.com"
+      name: "AL LIBAS GENERAL TRADING L L C",
+      description: "SHOP NO 5",
+      address: "STANDARD HOMES REAL ESTATE BUILDING",
+      city: "AJMAN",
+      state: "INDUSTRIAL AREA 2",
+      country: "UNITED ARAB EMIRATES",
+      postal_code: "P.O.BOX :4381",
+      phone: "+971-55-680-5858 / +971-55-918-7607",
+      email: "allibastrading@gmail.com"
     }
   };
 
@@ -132,9 +133,9 @@ export default function PurchaseOrderView() {
     // Company Details
     doc.setFontSize(11);
     doc.setTextColor(75, 85, 99);
-    doc.text(companyData?.name || "GarageInventory", 20, 30);
-    doc.text(companyData?.address || "123 Garage Street, City, State 12345", 20, 36);
-    doc.text(`Phone: ${companyData?.phone || "(555) 123-4567"}`, 20, 42);
+    doc.text(companyData?.name || "AL LIBAS GENERAL TRADING L L C", 20, 30);
+    doc.text(companyData?.address || "STANDARD HOMES REAL ESTATE BUILDING, AJMAN, UAE", 20, 36);
+    doc.text(`Phone: ${companyData?.phone || "+971-55-680-5858 / +971-55-918-7607"}`, 20, 42);
 
     // PO Details
     doc.setFontSize(11);
@@ -355,7 +356,7 @@ export default function PurchaseOrderView() {
           <div className="mt-12 border-t pt-8 print:mt-8">
             <div className="text-center text-gray-500 text-xs print:fixed print:bottom-0 print:left-0 print:right-0">
               <p>Thank you for your business!</p>
-              <p>For any queries, please contact at support@garageinventory.com</p>
+              <p>For any queries, please contact at allibastrading@gmail.com</p>
             </div>
           </div>
         </div>
