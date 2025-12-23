@@ -18,16 +18,17 @@ export interface ApiResponse<T> {
 }
 
 export interface Vendor {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   contactPerson?: string;
   phone?: string;
   email?: string;
   address?: string;
   creditReport?: string;
-  status: 'pending' | 'approved' | 'inactive';
-  createdAt: string;
-  updatedAt: string;
+  status?: 'pending' | 'approved' | 'inactive';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Category {
