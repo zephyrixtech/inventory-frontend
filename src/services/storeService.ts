@@ -76,7 +76,6 @@ export const storeService = {
     
     try {
       const response = await apiClient.get<ApiResponse<Store[]>>(url);
-      console.log('Store API response status:', response.status);
       console.log('Store API response data:', response.data);
       console.log('=== End Store Service API Call ===');
       return response;
