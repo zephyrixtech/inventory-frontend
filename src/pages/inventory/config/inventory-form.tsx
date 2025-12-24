@@ -84,6 +84,7 @@ const baseInventoryFormSchema = z.object({
   damagedQuantity: z.number().min(0, 'Damaged quantity cannot be negative').optional(), // NEW FIELD
   availableQuantity: z.number().min(0, 'Available quantity cannot be negative').optional(), // NEW FIELD
   selling_price: z.number().min(0, 'Unit price cannot be negative').nullable(),
+  discountAmount: z.number().min(0, 'Discount amount cannot be negative').optional(), // NEW FIELD
   vendorId: z.string().optional(), // NEW FIELD - Vendor/Supplier selection
   paidAmount: z.number().min(0, 'Paid amount cannot be negative').optional(), // NEW FIELD
   returnAmount: z.number().min(0, 'Return amount cannot be negative').optional(), // NEW FIELD
@@ -221,6 +222,7 @@ const InventoryForm = () => {
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
+      discountAmount: 0,
       vendorId: undefined,
       paidAmount: undefined,
       returnAmount: undefined,
@@ -241,7 +243,8 @@ const InventoryForm = () => {
   // Watch quantity and selling_price to calculate total amount
   const quantity = watch('quantity');
   const sellingPrice = watch('selling_price');
-  const totalAmount = (quantity && sellingPrice) ? quantity * sellingPrice : 0;
+  const discountAmount = watch('discountAmount') || 0;
+  const totalAmount = (quantity && sellingPrice) ? (quantity * sellingPrice) - discountAmount : 0;
 
   // Watch paidAmount to calculate balanceAmount (totalAmount - paidAmount)
   const paidAmount = watch('paidAmount');
@@ -325,6 +328,7 @@ const InventoryForm = () => {
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
+      discountAmount: 0,
       // image_1: null,
       // image_2: null,
       // video: null,
@@ -405,6 +409,7 @@ const InventoryForm = () => {
           damagedQuantity: itemData.damagedQuantity || 0,
           availableQuantity: itemData.availableQuantity || 0,
           selling_price: itemData.unitPrice ?? null,
+          discountAmount: (itemData as any).discountAmount || 0,
           vendorId: (itemData as any).vendor?._id || (itemData as any).vendor?.id || (itemData as any).vendor || '',
           paidAmount: (itemData as any).paidAmount,
           returnAmount: (itemData as any).returnAmount,
@@ -619,6 +624,7 @@ const InventoryForm = () => {
         // Note: damagedQuantity and availableQuantity are not sent during create/edit
         // They are managed by the backend (e.g., during QC process)
         unitPrice: data.selling_price ?? null,
+        discountAmount: data.discountAmount ?? undefined, // NEW: Discount amount field
         vendorId: data.vendorId || undefined, // NEW: Vendor field
         paidAmount: data.paidAmount ?? undefined, // NEW: Paid amount field
         returnAmount: data.returnAmount ?? undefined, // NEW: Return amount field
@@ -717,6 +723,7 @@ const InventoryForm = () => {
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
+      discountAmount: 0,
       image_1: null,
       image_2: null,
       video: null,
@@ -1222,6 +1229,37 @@ const InventoryForm = () => {
                       )}
                     </div>
 
+                    {/* Discount Amount Field */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="discountAmount"
+                        className={`${errors.discountAmount ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                      >
+                        <DollarSign className="h-4 w-4" /> Discount Amount
+                      </Label>
+                      <Input
+                        id="discountAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...register('discountAmount', { valueAsNumber: true })}
+                        disabled={isViewing}
+                        className={`${errors.discountAmount
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.discountAmount && !isViewing ? 'border-blue-300' : ''}`}
+                      />
+                      {errors.discountAmount?.message && (
+                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.discountAmount.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Total Amount - Calculated Field (UI Only) */}
                     <div className="space-y-2 group">
                       <Label
@@ -1237,7 +1275,25 @@ const InventoryForm = () => {
                         disabled={true}
                         className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50 text-gray-700 font-semibold"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Calculated: Quantity × Unit Price</p>
+                      <p className="text-xs text-gray-500 mt-1">Calculated: (Quantity × Unit Price) - Discount Amount</p>
+                    </div>
+
+                    {/* Net Price per Unit - Calculated Field (UI Only) */}
+                    <div className="space-y-2 group">
+                      <Label
+                        htmlFor="net_unit_price"
+                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
+                      >
+                        <DollarSign className="h-4 w-4" /> Net Unit Price
+                      </Label>
+                      <Input
+                        id="net_unit_price"
+                        type="text"
+                        value={sellingPrice && quantity ? ((sellingPrice * quantity - discountAmount) / quantity).toFixed(2) : '0.00'}
+                        disabled={true}
+                        className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50 text-gray-700 font-semibold"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Calculated: (Total Amount) ÷ Quantity</p>
                     </div>
                   </div>
 

@@ -56,6 +56,7 @@ export interface Item {
   unitOfMeasure?: string;
   vendor?: Vendor;
   unitPrice?: number;
+  discountAmount?: number;
   currency?: 'INR' | 'AED';
   quantity?: number;
   totalPrice?: number;

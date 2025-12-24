@@ -177,13 +177,14 @@ export const Inventory = () => {
     }
 
     try {
-      const headers = ['Item Code', 'Item Name', 'Category', 'Vendor', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
+      const headers = ['Item Code', 'Item Name', 'Category', 'Vendor', 'Unit Price', 'Discount Amount', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
       const rows = inventory.map((item) => [
         item.code || '',
         item.name || '',
         item.category?.name ?? 'Uncategorized',
         item.vendor?.name ?? 'No Vendor',
         item.unitPrice ?? 0,
+        (item as any).discountAmount ?? 0,
         item.quantity ?? 0,
         item.damagedQuantity ?? 0,
         item.availableQuantity ?? 0,
@@ -311,6 +312,7 @@ export const Inventory = () => {
                   <TableHead>Category</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Unit Price</TableHead>
+                  <TableHead>Discount Amount</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Damaged Qty</TableHead>
                   <TableHead>Available Qty</TableHead>
@@ -321,13 +323,13 @@ export const Inventory = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       Loading inventory...
                     </TableCell>
                   </TableRow>
                 ) : sortedInventory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       No items found.
                     </TableCell>
                   </TableRow>
@@ -341,6 +343,7 @@ export const Inventory = () => {
                       <TableCell>{item.category?.name ?? 'Uncategorized'}</TableCell>
                       <TableCell>{item.vendor?.name ?? 'No Vendor'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
+                      <TableCell>{(item as any).discountAmount ?? 0}</TableCell>
                       <TableCell>{item.quantity ?? 0}</TableCell>
                       <TableCell>{item.damagedQuantity ?? 0}</TableCell>
                       <TableCell>{item.availableQuantity ?? 0}</TableCell>
