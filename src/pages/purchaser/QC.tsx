@@ -71,11 +71,8 @@ const QualityControlPage = () => {
     try {
       const response = await inventoryService.getItems({ qcStatus: 'pending', isActive: true, limit: 50 });
       setItems(response.data);
-      if (response.meta?.total) {
-        setTotalPendingCount(response.meta.total);
-      } else {
-        setTotalPendingCount(response.data.length);
-      }
+      const pendingItems = response.data.filter(item => item.qcStatus === 'pending');
+      setTotalPendingCount(pendingItems.length);
       await hydrateSupplierNames(response.data);
     } catch (error) {
       console.error('Failed to load QC items', error);
