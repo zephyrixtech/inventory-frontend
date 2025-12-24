@@ -186,7 +186,7 @@ export const DashboardLayout = () => {
       path: '/dashboard/storeManagement',
       label: 'Store Management',
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser', 'admin', 'store']
+      roles: ['superadmin', 'purchaser', 'admin', 'biller']
     },
     {
       path: '/dashboard/store/stock',

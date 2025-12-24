@@ -103,6 +103,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
   biller: [
     'Dashboard',
     'Customer Master',
+    'Store Management',
     'Store Stock',
     'Daily Expenses',
     'Opening Balance',

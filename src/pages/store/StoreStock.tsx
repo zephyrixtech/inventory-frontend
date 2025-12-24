@@ -38,28 +38,28 @@ export const StoreStockPage = () => {
   const [records, setRecords] = useState<StoreStock[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
-  // const [editingQuantity, setEditingQuantity] = useState<Record<string, number>>({});
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Add/Edit stock modal states
-  // const [isModalOpen, setIsModalOpen] = useState(false);
-  // const [isEditMode, setIsEditMode] = useState(false);
-  // const [editingStockId, setEditingStockId] = useState<string | null>(null);
-  // const [items, setItems] = useState<ItemType[]>([]);
-  // const [stores, setStores] = useState<Store[]>([]);
-  // const [stockForm, setStockForm] = useState({
-  //   productId: '',
-  //   storeId: '',
-  //   quantity: 1,
-  //   margin: 0,
-  //   currency: 'INR'
-  // });
-  // const [itemLoading, setItemLoading] = useState(false);
-  // const [storeLoading, setStoreLoading] = useState(false);
+  // Get user role on component mount
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        const role = user.role_name || user.role || null;
+        setUserRole(role);
+        console.log('User role:', role); // Debug log
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+  }, []);
 
   const fetchStock = useCallback(async (page?: number) => {
     setLoading(true);
     try {
       const response = await storeStockService.list({ page: page ?? pagination.page, limit: pagination.limit });
+      console.log('Store stock response:', response); // Debug log
       setRecords(response.data);
       setPagination(response.meta);
     } catch (error) {
@@ -234,7 +234,12 @@ export const StoreStockPage = () => {
             </CardTitle>
             <CardDescription>
               Monitor approved products and apply margin adjustments before billing.
-              Items are automatically added to purchaser stores when QC status becomes "approved".
+              Items are automatically added to stores when QC status becomes "approved".
+              {userRole && userRole !== 'admin' && userRole !== 'superadmin' && (
+                <div className="mt-2 text-sm font-medium text-blue-600">
+                  Showing {userRole} store stock only
+                </div>
+              )}
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -278,7 +283,19 @@ export const StoreStockPage = () => {
                     <TableRow key={record.id}>
                       <TableCell>
                         <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">{record.store?.code}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {record.store?.code}
+                          {(record.store as any)?.biller && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Biller
+                            </span>
+                          )}
+                          {(record.store as any)?.purchaser && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Purchaser
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>

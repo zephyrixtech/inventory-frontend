@@ -68,11 +68,22 @@ export const storeService = {
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
     const url = `/stores${queryString}`;
     
-    // Debug logging (remove in production)
+    // Enhanced debugging
+    console.log('=== Store Service API Call ===');
     console.log('Store API call - params:', params);
+    console.log('Store API call - queryParams:', queryParams.toString());
     console.log('Store API call - URL:', url);
     
-    return apiClient.get<ApiResponse<Store[]>>(url);
+    try {
+      const response = await apiClient.get<ApiResponse<Store[]>>(url);
+      console.log('Store API response status:', response.status);
+      console.log('Store API response data:', response.data);
+      console.log('=== End Store Service API Call ===');
+      return response;
+    } catch (error) {
+      console.error('Store API call failed:', error);
+      throw error;
+    }
   },
 
   async getStore(id: string) {

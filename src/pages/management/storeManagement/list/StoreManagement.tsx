@@ -66,9 +66,13 @@ import { useNavigate } from 'react-router-dom';
 const getUserRole = (): string | null => {
   try {
     const userDataString = localStorage.getItem('userData');
+    console.log('getUserRole - raw userData:', userDataString);
     if (userDataString) {
       const userData = JSON.parse(userDataString);
-      return userData.role_name || null;
+      console.log('getUserRole - parsed userData:', userData);
+      const role = userData.role_name || userData.role || null;
+      console.log('getUserRole - extracted role:', role);
+      return role;
     }
   } catch (error) {
     console.error('Error getting user role from localStorage:', error);
@@ -80,9 +84,13 @@ const getUserRole = (): string | null => {
 const getUserId = (): string | null => {
   try {
     const userDataString = localStorage.getItem('userData');
+    console.log('getUserId - raw userData:', userDataString);
     if (userDataString) {
       const userData = JSON.parse(userDataString);
-      return userData.id || null;
+      console.log('getUserId - parsed userData:', userData);
+      const id = userData.id || null;
+      console.log('getUserId - extracted id:', id);
+      return id;
     }
   } catch (error) {
     console.error('Error getting user ID from localStorage:', error);
@@ -103,6 +111,7 @@ export const StoreManagement = () => {
   const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const [sortConfig, setSortConfig] = useState<{
     field: string | null;
@@ -112,6 +121,21 @@ export const StoreManagement = () => {
     direction: null,
   });
 
+  // Get user role on component mount
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        const role = user.role_name || user.role || null;
+        setUserRole(role);
+        console.log('Store Management - User role:', role); // Debug log
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+  }, []);
+
   // Load stores when component mounts
   useEffect(() => {
     const loadStores = async () => {
@@ -120,6 +144,12 @@ export const StoreManagement = () => {
         const userRole = getUserRole();
         const userId = getUserId();
 
+        // Enhanced debugging
+        console.log('=== Frontend Store Loading ===');
+        console.log('Raw localStorage userData:', localStorage.getItem('userData'));
+        console.log('Parsed userRole:', userRole);
+        console.log('Parsed userId:', userId);
+
         // Prepare params for the API call
         const params: any = {};
 
@@ -127,9 +157,18 @@ export const StoreManagement = () => {
         if (userRole && (userRole === 'purchaser' || userRole === 'biller')) {
           params.userId = userId;
           params.userRole = userRole;
+          console.log('User is purchaser or biller, adding params');
+        } else {
+          console.log('User is not purchaser or biller, no params added');
         }
 
+        console.log('Final API params:', params);
         const response = await storeService.listStores(params);
+        console.log('Store API response:', response);
+        console.log('Store data received:', response.data);
+        console.log('Number of stores:', response.data?.length || 0);
+        console.log('=== End Frontend Store Loading ===');
+        
         setStores(response.data || []);
       } catch (error: any) {
         console.error('Error loading stores:', error);
@@ -299,16 +338,18 @@ export const StoreManagement = () => {
                     {node.address || 'No address'}
                   </span>
                 </div>
-                {node.purchaser === 'ROLE_PURCHASER' && (
-                  <span>
-                    Purchaser Role Assigned
-                  </span>
-                )}
-                {node.biller === 'ROLE_BILLER' && (
-                  <span>
-                    Biller Role Assigned
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {node.purchaser === 'ROLE_PURCHASER' && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Purchaser
+                    </span>
+                  )}
+                  {node.biller === 'ROLE_BILLER' && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Biller
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -342,7 +383,7 @@ export const StoreManagement = () => {
 
   // === Export CSV ===
   const exportStoresToCSV = () => {
-    const headers = ['Store ID', 'Store Name', 'Address', 'Store Manager'];
+    const headers = ['Store ID', 'Store Name', 'Address', 'Role Assignment'];
     const rows = filteredAndSortedStores.map((store) => [
       `"${store.code}"`,
       `"${store.name}"`,
@@ -355,7 +396,7 @@ export const StoreManagement = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'stores.csv';
+    a.download = `stores-${userRole || 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success('CSV exported successfully!');
@@ -426,6 +467,11 @@ export const StoreManagement = () => {
                     <CardTitle className="text-2xl font-bold">Store Management</CardTitle>
                     <CardDescription className="mt-1">
                       View your store details and storage capacity
+                      {userRole && userRole !== 'admin' && userRole !== 'superadmin' && (
+                        <div className="mt-2 text-sm font-medium text-blue-600">
+                          Showing {userRole} stores only
+                        </div>
+                      )}
                     </CardDescription>
                   </div>
                 </div>
@@ -521,7 +567,7 @@ export const StoreManagement = () => {
                       </TableHead>
                       <TableHead className="font-semibold">
                         <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('store_manager')}>
-                          Store Manager {getSortIcon('store_manager')}
+                          Role Assignment {getSortIcon('store_manager')}
                         </p>
                       </TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
@@ -559,7 +605,23 @@ export const StoreManagement = () => {
                               {store.address || 'No address'}
                             </TableCell>
                             <TableCell>
-                              {store.purchaser === 'ROLE_PURCHASER' ? 'Purchaser' : store.biller === 'ROLE_BILLER' ? 'Biller' : 'None'}
+                              <div className="flex items-center gap-2">
+                                {store.purchaser === 'ROLE_PURCHASER' && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Purchaser
+                                  </span>
+                                )}
+                                {store.biller === 'ROLE_BILLER' && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    Biller
+                                  </span>
+                                )}
+                                {!store.purchaser && !store.biller && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                    None
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-center gap-2">
