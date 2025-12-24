@@ -15,6 +15,7 @@ export type ModuleKey =
   | 'Packing Lists'
   | 'Daily Expenses'
   | 'Opening Balance'
+  | 'Purchase Entries'
   | 'Purchase Order Management'
   | 'Inventory Management'
   | 'Sales Invoice'
@@ -45,6 +46,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Packing Lists',
     'Daily Expenses',
     'Opening Balance',
+    'Purchase Entries',
     'Purchase Order Management',
     'Inventory Management',
     'Sales Invoice',
@@ -73,6 +75,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Packing Lists',
     'Daily Expenses',
     'Opening Balance',
+    'Purchase Entries',
     'Purchase Order Management',
     'Inventory Management',
     'Sales Invoice',
@@ -96,6 +99,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Packing Lists',
     'Daily Expenses',
     'Opening Balance',
+    'Purchase Entries',
     'Purchase Order Management',
     'Category Master',
     'Store Stock',
