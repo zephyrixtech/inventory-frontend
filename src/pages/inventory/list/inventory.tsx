@@ -75,8 +75,9 @@ export const Inventory = () => {
   const fetchInventory = useCallback(async (page?: number) => {
     setLoading(true);
     try {
+      const currentPage = page ?? pagination.page;
       const response = await inventoryService.getItems({
-        page: page ?? pagination.page,
+        page: currentPage,
         limit: pagination.limit,
         search: searchQuery || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -101,17 +102,25 @@ export const Inventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchQuery, statusFilter, sortConfig.field, sortConfig.order]);
+  }, [pagination.limit, searchQuery, statusFilter, sortConfig.field, sortConfig.order]);
+
+  // Initial load
+  useEffect(() => {
+    fetchInventory(1);
+  }, []);
 
   useEffect(() => {
     fetchInventory(1);
-  }, [fetchInventory]);
+  }, [statusFilter, sortConfig]);
 
+  // Debounced search effect
   useEffect(() => {
-    if (!searchQuery) {
+    const timeoutId = setTimeout(() => {
       fetchInventory(1);
-    }
-  }, [searchQuery, fetchInventory]);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const handleSort = (field: string) => {
     setSortConfig((prev) => {
@@ -122,10 +131,6 @@ export const Inventory = () => {
       return { field, order: 'asc' };
     });
   };
-
-  useEffect(() => {
-    fetchInventory(1);
-  }, [sortConfig, statusFilter]);
 
   const handlePageChange = (direction: 'next' | 'prev') => {
     const targetPage = direction === 'next' ? pagination.page + 1 : pagination.page - 1;
