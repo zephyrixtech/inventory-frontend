@@ -10,7 +10,6 @@ import {
   ArrowUp,
   ArrowDown,
   Package,
-  Filter,
   Download,
   Eye,
   Edit
@@ -43,8 +42,7 @@ import toast from 'react-hot-toast';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { inventoryService } from '@/services/inventoryService';
-import { categoryService } from '@/services/categoryService';
-import type { Item, Category, PaginationMeta } from '@/types/backend';
+import type { Item, PaginationMeta } from '@/types/backend';
 
 interface PaginationState extends PaginationMeta {}
 
@@ -70,21 +68,9 @@ export const Inventory = () => {
   const [inventory, setInventory] = useState<Item[]>([]);
   const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-
-  const fetchCategories = useCallback(async () => {
-    try {
-      const response = await categoryService.listCategories({ limit: 100, sortBy: 'name', sortOrder: 'asc' });
-      setCategories(response.data ?? []);
-    } catch (error) {
-      console.error('Failed to load categories', error);
-      toast.error('Unable to load categories');
-    }
-  }, []);
 
   const fetchInventory = useCallback(async (page?: number) => {
     setLoading(true);
@@ -93,7 +79,6 @@ export const Inventory = () => {
         page: page ?? pagination.page,
         limit: pagination.limit,
         search: searchQuery || undefined,
-        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         sortBy: sortConfig.field ?? undefined,
         sortOrder: sortConfig.order ?? undefined,
@@ -116,11 +101,7 @@ export const Inventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchQuery, categoryFilter, statusFilter, sortConfig.field, sortConfig.order]);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+  }, [pagination.page, pagination.limit, searchQuery, statusFilter, sortConfig.field, sortConfig.order]);
 
   useEffect(() => {
     fetchInventory(1);
@@ -144,7 +125,7 @@ export const Inventory = () => {
 
   useEffect(() => {
     fetchInventory(1);
-  }, [sortConfig, categoryFilter, statusFilter]);
+  }, [sortConfig, statusFilter]);
 
   const handlePageChange = (direction: 'next' | 'prev') => {
     const targetPage = direction === 'next' ? pagination.page + 1 : pagination.page - 1;
@@ -177,14 +158,13 @@ export const Inventory = () => {
     }
 
     try {
-      const headers = ['Item Code', 'Item Name', 'Category', 'Vendor', 'Unit Price', 'Discount Amount', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
+      const headers = ['Item Code', 'Item Name', 'Bill Number', 'Vendor', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
       const rows = inventory.map((item) => [
         item.code || '',
         item.name || '',
-        item.category?.name ?? 'Uncategorized',
+        item.billNumber || '',
         item.vendor?.name ?? 'No Vendor',
         item.unitPrice ?? 0,
-        (item as any).discountAmount ?? 0,
         item.quantity ?? 0,
         item.damagedQuantity ?? 0,
         item.availableQuantity ?? 0,
@@ -258,7 +238,7 @@ export const Inventory = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative col-span-1 md:col-span-2">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -273,18 +253,6 @@ export const Inventory = () => {
                 }}
               />
             </div>
-            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value)}>
-              <SelectTrigger>
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.filter(category => category.id || category._id).map((category) => (
-                  <SelectItem key={category.id || category._id} value={category.id || category._id || ''}>{category.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="All Status" />
@@ -309,10 +277,9 @@ export const Inventory = () => {
                   <TableHead onClick={() => handleSort('name')} className="cursor-pointer">
                     <div className="flex items-center gap-1">Item Name {sortConfig.field === 'name' ? (sortConfig.order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />}</div>
                   </TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Bill Number</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Unit Price</TableHead>
-                  <TableHead>Discount Amount</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Damaged Qty</TableHead>
                   <TableHead>Available Qty</TableHead>
@@ -323,13 +290,13 @@ export const Inventory = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       Loading inventory...
                     </TableCell>
                   </TableRow>
                 ) : sortedInventory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No items found.
                     </TableCell>
                   </TableRow>
@@ -340,10 +307,9 @@ export const Inventory = () => {
                     <TableRow key={itemId}>
                       <TableCell>{item.code}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.category?.name ?? 'Uncategorized'}</TableCell>
+                      <TableCell>{item.billNumber || '-'}</TableCell>
                       <TableCell>{item.vendor?.name ?? 'No Vendor'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
-                      <TableCell>{(item as any).discountAmount ?? 0}</TableCell>
                       <TableCell>{item.quantity ?? 0}</TableCell>
                       <TableCell>{item.damagedQuantity ?? 0}</TableCell>
                       <TableCell>{item.availableQuantity ?? 0}</TableCell>

@@ -5,7 +5,6 @@ export interface ItemListParams {
   page?: number;
   limit?: number;
   search?: string;
-  categoryId?: string;
   status?: string;
   qcStatus?: 'pending' | 'approved' | 'rejected' | 'all';
   isActive?: boolean;
@@ -19,7 +18,6 @@ export const inventoryService = {
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.search) query.append('search', params.search);
-    if (params.categoryId && params.categoryId !== 'all') query.append('categoryId', params.categoryId);
     if (params.status && params.status !== 'all') query.append('status', params.status);
     if (params.qcStatus && params.qcStatus !== 'all') query.append('qcStatus', params.qcStatus);
     if (typeof params.isActive === 'boolean') query.append('isActive', String(params.isActive));
@@ -54,6 +52,15 @@ export const inventoryService = {
 
     const path = `/store-stock${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<ApiListResponse<StoreStock>>(path);
+  },
+
+  async getItemsByBillNumber(billNumber: string) {
+    const query = new URLSearchParams();
+    query.append('billNumber', billNumber);
+    query.append('limit', '1000');
+    
+    const path = `/items?${query.toString()}`;
+    return apiClient.get<ApiListResponse<Item>>(path);
   }
 };
 

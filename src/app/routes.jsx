@@ -49,6 +49,8 @@ import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { OpeningBalancePage } from "@/pages/purchaser/OpeningBalance";
 import { StoreStockPage } from "@/pages/store/StoreStock";
 import ProductTransmissionPage from '@/pages/administration/ProductTransmissionPage';
+import PurchaseEntries from '@/pages/purchaser/PurchaseEntries';
+import PurchaseEntryForm from '@/pages/purchaser/PurchaseEntryForm';
 
 
 const protectedRoutes = [
@@ -104,6 +106,10 @@ const protectedRoutes = [
   { path: 'purchaser/packing-lists/view/:id',element: <PackingListView /> ,module: 'Packing Lists'},
   { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'},
   { path: 'purchaser/opening-balance',element: <OpeningBalancePage /> ,module: 'Opening Balance'},
+  { path: 'purchase-entries', element: <PurchaseEntries />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/add', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/edit/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/view/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
    { path: 'administration/product-transmission', element: <ProductTransmissionPage /> }
 ];
 

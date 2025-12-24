@@ -139,12 +139,12 @@ export const DashboardLayout = () => {
       icon: <Users className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'admin']
     },
-    {
-      path: '/dashboard/category-master',
-      label: 'Category Master',
-      icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin', "purchaser"]
-    },
+    // {
+    //   path: '/dashboard/category-master',
+    //   label: 'Category Master',
+    //   icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'admin', "purchaser"]
+    // },
     {
       path: '/dashboard/customer-management',
       label: 'Customer Master',
@@ -157,6 +157,13 @@ export const DashboardLayout = () => {
     //   icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
     //   roles: ['superadmin', 'admin']
     // },
+    
+    {
+      path: '/dashboard/purchase-entries',
+      label: 'Purchase Entries',
+      icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'admin']
+    },
     {
       path: '/dashboard/item-master',
       label: 'Item Master',

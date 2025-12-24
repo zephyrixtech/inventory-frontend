@@ -51,12 +51,11 @@ export interface Item {
   id: string;
   name: string;
   code: string;
-  category: Category;
+  billNumber: string; // Changed from category to billNumber
   description?: string;
   unitOfMeasure?: string;
   vendor?: Vendor;
   unitPrice?: number;
-  discountAmount?: number;
   currency?: 'INR' | 'AED';
   quantity?: number;
   totalPrice?: number;
@@ -74,9 +73,6 @@ export interface Item {
   videoType?: 'upload' | 'youtube';
   youtubeLink?: string | null;
   videoUrl?: string | null;
-  paidAmount?: number;
-  returnAmount?: number;
-  balanceAmount?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

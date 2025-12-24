@@ -20,10 +20,6 @@ import {
   Package,
   Target,
   DollarSign,
-  Check,
-  ChevronsUpDown,
-  Plus,
-  Search,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -48,14 +44,8 @@ import {
 // Import our new services
 import { inventoryService } from '@/services/inventoryService';
 import { supplierService } from '@/services/supplierService';
-import { categoryService } from '@/services/categoryService';
 
 // Interfaces for types
-interface ICategoryMaster {
-  id: string;
-  name: string;
-}
-
 // interface IUser {
 //   id: string;
 //   first_name: string | null;
@@ -76,7 +66,7 @@ const baseInventoryFormSchema = z.object({
     .string()
     .min(1, 'Item Name is required')
     .max(100, 'Item Name must be less than 100 characters'),
-  category_id: z.string().min(1, 'Item Category is required'),
+  bill_number: z.string().min(1, 'Bill Number is required'),
   description: z
     .string()
     .min(1, 'Description is required'),
@@ -84,11 +74,7 @@ const baseInventoryFormSchema = z.object({
   damagedQuantity: z.number().min(0, 'Damaged quantity cannot be negative').optional(), // NEW FIELD
   availableQuantity: z.number().min(0, 'Available quantity cannot be negative').optional(), // NEW FIELD
   selling_price: z.number().min(0, 'Unit price cannot be negative').nullable(),
-  discountAmount: z.number().min(0, 'Discount amount cannot be negative').optional(), // NEW FIELD
   vendorId: z.string().optional(), // NEW FIELD - Vendor/Supplier selection
-  paidAmount: z.number().min(0, 'Paid amount cannot be negative').optional(), // NEW FIELD
-  returnAmount: z.number().min(0, 'Return amount cannot be negative').optional(), // NEW FIELD
-  balanceAmount: z.number().min(0, 'Balance amount cannot be negative').optional(), // NEW FIELD
   image_1: z
     .any()
     .optional()
@@ -175,7 +161,6 @@ const InventoryForm = () => {
   const isViewing = Boolean(id) && location.pathname.includes('view');
   const [isLoading, setIsLoading] = useState(false);
   const [_, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
-  const [categories, setCategories] = useState<ICategoryMaster[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]); // NEW: Suppliers state
   const [suppliersLoading, setSuppliersLoading] = useState(false); // NEW: Suppliers loading state
   const [formSchema] = useState<z.ZodType<any>>(baseInventoryFormSchema);
@@ -188,14 +173,6 @@ const InventoryForm = () => {
   const [initialFormValues, setInitialFormValues] = useState<InventoryFormValues | null>(null);
   const [initialImage1Preview, setInitialImage1Preview] = useState<string | null>(null);
   const [initialImage2Preview, setInitialImage2Preview] = useState<string | null>(null);
-  const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [categorySearchOpen, setCategorySearchOpen] = useState(false);
-  const [categorySearchValue, setCategorySearchValue] = useState('');
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-  // const [categoryRetryCount, setCategoryRetryCount] = useState(0);
-  // const user = localStorage.getItem("userData");
-  // const userData: IUser | null = user ? JSON.parse(user) : null;
   const [videoType, setVideoType] = useState('upload'); // 'upload' or 'youtube'
   // const [youtubeUrl, setYoutubeUrl] = useState('');
   // const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
@@ -216,17 +193,13 @@ const InventoryForm = () => {
     defaultValues: {
       item_id: '',
       item_name: '',
-      category_id: '',
+      bill_number: '',
       description: '',
       quantity: 0,
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
-      discountAmount: 0,
       vendorId: undefined,
-      paidAmount: undefined,
-      returnAmount: undefined,
-      balanceAmount: undefined,
       image_1: null,
       image_2: null,
       video: null,
@@ -243,28 +216,43 @@ const InventoryForm = () => {
   // Watch quantity and selling_price to calculate total amount
   const quantity = watch('quantity');
   const sellingPrice = watch('selling_price');
-  const discountAmount = watch('discountAmount') || 0;
-  const totalAmount = (quantity && sellingPrice) ? (quantity * sellingPrice) - discountAmount : 0;
+  const totalAmount = (quantity && sellingPrice) ? (quantity * sellingPrice) : 0;
 
-  // Watch paidAmount to calculate balanceAmount (totalAmount - paidAmount)
-  const paidAmount = watch('paidAmount');
-
+  // Monitor bill_number changes
+  const billNumberValue = watch('bill_number');
   useEffect(() => {
-    if (typeof paidAmount === 'number' && totalAmount > 0) {
-      const balance = totalAmount - paidAmount;
-      setValue('balanceAmount', balance >= 0 ? balance : 0);
-    } else if (totalAmount > 0 && !paidAmount) {
-      // If no paid amount, balance equals total amount
-      setValue('balanceAmount', totalAmount);
+    console.log('Bill Number changed to:', billNumberValue);
+    console.log('Bill Number type:', typeof billNumberValue);
+  }, [billNumberValue]);
+
+  // Monitor vendorId changes for debugging
+  const vendorIdValue = watch('vendorId');
+  useEffect(() => {
+    console.log('🎯 VendorId changed to:', vendorIdValue);
+    console.log('🎯 VendorId type:', typeof vendorIdValue);
+    console.log('📋 Current suppliers:', suppliers.length);
+    if (suppliers.length > 0) {
+      const matchingSupplier = suppliers.find(s => s.id === vendorIdValue);
+      console.log('🔍 Matching supplier:', matchingSupplier);
     }
-  }, [paidAmount, totalAmount, setValue]);
+  }, [vendorIdValue, suppliers]);
 
-  // Monitor category_id changes
-  const categoryIdValue = watch('category_id');
+  // Ensure vendor ID is set correctly when both suppliers and initial form values are available
   useEffect(() => {
-    console.log('Category ID changed to:', categoryIdValue);
-    console.log('Category ID type:', typeof categoryIdValue);
-  }, [categoryIdValue]);
+    if (initialFormValues && suppliers.length > 0 && initialFormValues.vendorId && !vendorIdValue) {
+      console.log('🔄 Setting vendorId from initial form values:', initialFormValues.vendorId);
+      console.log('📋 Available supplier IDs:', suppliers.map(s => s.id));
+      
+      // Check if the vendor ID exists in the suppliers list
+      const matchingSupplier = suppliers.find(s => s.id === initialFormValues.vendorId);
+      if (matchingSupplier) {
+        console.log('✅ Found matching supplier:', matchingSupplier);
+        setValue('vendorId', initialFormValues.vendorId, { shouldValidate: true });
+      } else {
+        console.log('⚠️ No matching supplier found for ID:', initialFormValues.vendorId);
+      }
+    }
+  }, [initialFormValues, suppliers, vendorIdValue, setValue]);
 
   // const extractVideoId = (url: string) => {
   //   try {
@@ -322,13 +310,12 @@ const InventoryForm = () => {
     const defaultValues: InventoryFormValues = {
       item_id: newItemId,
       item_name: '',
-      category_id: '',
+      bill_number: '',
       description: '',
       quantity: 0,
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
-      discountAmount: 0,
       // image_1: null,
       // image_2: null,
       // video: null,
@@ -374,57 +361,40 @@ const InventoryForm = () => {
         const response = await inventoryService.getItem(id);
         const itemData = response.data || response;
 
-        // Handle category ID - could be id or _id
-        const rawCategory = itemData.category as { id?: string; _id?: string } | string | undefined;
-        const itemCategoryId =
-          (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
-        setValue('category_id', itemCategoryId || '');
-
-        // Sequentially fetch categories to ensure they are loaded before the form is reset.
-        // This prevents the category from appearing as "not found".
-        setCategoriesLoading(true);
-        try {
-          // Use the new getAllCategories API for fetching all categories without pagination
-          const categoriesResponse = await categoryService.getAllCategories();
-          const categoriesData = categoriesResponse.data || [];
-          const mappedCategories = categoriesData.map((cat: any) => ({
-            id: cat.id || cat._id,
-            name: cat.name
-          }));
-          setCategories(mappedCategories);
-        } finally {
-          setCategoriesLoading(false);
-        }
-
-        // Handle category ID - could be id or _id
-        const categoryId =
-          (typeof rawCategory === 'string' ? rawCategory : rawCategory?.id || rawCategory?._id) || '';
-
         const formValues: InventoryFormValues = {
           item_id: itemData.code || '',
           item_name: itemData.name || '',
-          category_id: categoryId,
+          bill_number: itemData.billNumber || '',
           description: itemData.description || '',
           quantity: itemData.quantity || 0,
           damagedQuantity: itemData.damagedQuantity || 0,
           availableQuantity: itemData.availableQuantity || 0,
           selling_price: itemData.unitPrice ?? null,
-          discountAmount: (itemData as any).discountAmount || 0,
-          vendorId: (itemData as any).vendor?._id || (itemData as any).vendor?.id || (itemData as any).vendor || '',
-          paidAmount: (itemData as any).paidAmount,
-          returnAmount: (itemData as any).returnAmount,
-          balanceAmount: (itemData as any).balanceAmount, // Added balanceAmount
+          vendorId: (() => {
+            // Enhanced vendor ID extraction with debugging
+            console.log('🔍 Raw itemData.vendor:', itemData.vendor);
+            
+            if (!itemData.vendor) {
+              console.log('⚠️ No vendor found in itemData');
+              return '';
+            }
+            
+            // Try different possible vendor ID fields
+            const vendorId = itemData.vendor._id || itemData.vendor.id || itemData.vendor;
+            console.log('🎯 Extracted vendorId:', vendorId);
+            console.log('🎯 VendorId type:', typeof vendorId);
+            
+            // Ensure we return a string
+            return typeof vendorId === 'string' ? vendorId : String(vendorId || '');
+          })(),
           image_1: null,
           image_2: null,
           video: null,
           youtube_link: null,
         };
 
-        // Set current category ID - this will trigger category refetch
-        if (formValues.category_id) {
-          setCurrentCategoryId(String(formValues.category_id));
-          console.log('Setting currentCategoryId:', String(formValues.category_id));
-        }
+        console.log('📋 Final form values:', formValues);
+        console.log('🎯 Final vendorId value:', formValues.vendorId);
 
 
 
@@ -438,13 +408,20 @@ const InventoryForm = () => {
         formValues.youtube_link = youtubeLinkFromApi;
         formValues.video = null;
         setVideoType(inferredVideoType);
-        // setYoutubeUrl(youtubeLinkFromApi || '');
-        // setYoutubeVideoId(youtubeLinkFromApi ? extractVideoId(youtubeLinkFromApi) : null);
 
         // Alternative items functionality has been completely removed as per user request
 
         setInitialFormValues(formValues);
         reset(formValues);
+        
+        // Force set the vendorId after a short delay to ensure suppliers are loaded
+        setTimeout(() => {
+          if (formValues.vendorId) {
+            console.log('🔄 Force setting vendorId after delay:', formValues.vendorId);
+            setValue('vendorId', formValues.vendorId, { shouldValidate: true });
+          }
+        }, 100);
+        
         setIsLoading(false);
       } catch (err: any) {
         console.error('Error fetching item:', err);
@@ -455,40 +432,6 @@ const InventoryForm = () => {
     fetchItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditing, isViewing]);
-  // Fetch categories
-  useEffect(() => {
-    // This effect now only runs for the "Create New Item" page.
-    // Edit/View mode category fetching is handled sequentially within the item fetch effect.
-    if (isEditing || isViewing) return;
-
-    const fetchCategories = async () => {
-      setCategoriesLoading(true);
-      try {
-        // Use the new getAllCategories API for fetching all categories without pagination
-        console.log('Fetching all categories without pagination...');
-        const categoriesResponse = await categoryService.getAllCategories();
-        console.log('Raw categories response:', categoriesResponse);
-        
-        // Extract data from response
-        const categoriesData = categoriesResponse.data || [];
-        
-        // Map the response to match the expected format
-        const mappedCategories = categoriesData.map((cat: any) => ({
-          id: cat.id || cat._id,
-          name: cat.name
-        }));
-        console.log('Mapped categories:', mappedCategories);
-        setCategories(mappedCategories);
-      } catch (err: any) {
-        console.error('Error fetching categories:', err);
-        toast.error('Failed to load categories.');
-      } finally {
-        setCategoriesLoading(false);
-      }
-    };
-
-    fetchCategories();
-  }, [isEditing, isViewing]);
 
   // Fetch suppliers (runs in all modes)
   useEffect(() => {
@@ -536,32 +479,6 @@ const InventoryForm = () => {
     fetchSuppliers();
   }, []);
 
-  console.log("Current Category Id =>", currentCategoryId);
-  console.log("Watched Category Id =>", watchedFields.category_id);
-  console.log("All Categories =>", categories);
-
-  // Force fetch missing category if needed
-  useEffect(() => {
-    if (!watchedFields.category_id || categoriesLoading) return;
-
-    const selectedId = String(watchedFields.category_id);
-    const categoryExists = categories.some(cat => cat.id === selectedId);
-    if (!categoryExists && selectedId) {
-      console.log('Force fetching missing category:', selectedId);
-
-      // For now, we'll skip this as it requires a specific endpoint
-      // This would need to be implemented in the backend API
-      console.log('Skipping force fetch missing category - needs backend implementation');
-    }
-  }, [watchedFields.category_id, categories, categoriesLoading]);
-
-  // Ensure category_id stays set once currentCategoryId is known (prevents intermittent blank state)
-  useEffect(() => {
-    if ((isEditing || isViewing) && currentCategoryId && (!watchedFields.category_id || String(watchedFields.category_id).trim() === '')) {
-      setValue('category_id', String(currentCategoryId), { shouldValidate: true });
-    }
-  }, [currentCategoryId, watchedFields.category_id, isEditing, isViewing, setValue]);
-
   // Alternative items functionality has been completely removed as per user request
 
   // Check for unsaved changes
@@ -595,18 +512,13 @@ const InventoryForm = () => {
   const onSubmit: SubmitHandler<InventoryFormValues> = async (data) => {
     if (isViewing) return; // Prevent submission in view mode
     console.log('Form data being submitted:', data);
-    console.log('Selected category ID:', data.category_id);
-    console.log('Category ID type:', typeof data.category_id);
-    console.log('Available categories:', categories);
+    console.log('Selected bill number:', data.bill_number);
+    console.log('Bill number type:', typeof data.bill_number);
 
-    // Check if selected category exists in our categories list
-    const selectedCategory = categories.find(cat => cat.id === data.category_id);
-    console.log('Selected category object:', selectedCategory);
-
-    // Validate that category_id is not empty
-    if (!data.category_id || data.category_id.trim() === '') {
-      console.error('Category ID is empty or undefined');
-      toast.error('Please select a category');
+    // Validate that bill_number is not empty
+    if (!data.bill_number || data.bill_number.trim() === '') {
+      console.error('Bill number is empty or undefined');
+      toast.error('Please enter a bill number');
       return;
     }
 
@@ -618,17 +530,13 @@ const InventoryForm = () => {
       const payload: any = {
         code: data.item_id || undefined, // Include item_id if provided
         name: data.item_name,
-        category: data.category_id, // Changed from categoryId to category to match backend expectation
+        billNumber: data.bill_number,
         description: data.description,
         quantity: data.quantity,
         // Note: damagedQuantity and availableQuantity are not sent during create/edit
         // They are managed by the backend (e.g., during QC process)
         unitPrice: data.selling_price ?? null,
-        discountAmount: data.discountAmount ?? undefined, // NEW: Discount amount field
         vendorId: data.vendorId || undefined, // NEW: Vendor field
-        paidAmount: data.paidAmount ?? undefined, // NEW: Paid amount field
-        returnAmount: data.returnAmount ?? undefined, // NEW: Return amount field
-        balanceAmount: data.balanceAmount ?? undefined, // NEW: Balance amount field
       };
 
       console.log('Sending payload to backend:', payload);
@@ -659,7 +567,7 @@ const InventoryForm = () => {
         await inventoryService.updateItem(id, payload);
       } else {
         // Create new item
-        if (!payload.name || !payload.category || !payload.description) { // Changed from categoryId to category
+        if (!payload.name || !payload.billNumber || !payload.description) { // Changed from category to billNumber
           throw new Error('All mandatory fields are required');
         }
         await inventoryService.createItem(payload);
@@ -717,13 +625,12 @@ const InventoryForm = () => {
     reset({
       item_id: newItemId,
       item_name: '',
-      category_id: '',
+      bill_number: '',
       description: '',
       quantity: 0,
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
-      discountAmount: 0,
       image_1: null,
       image_2: null,
       video: null,
@@ -762,96 +669,7 @@ const InventoryForm = () => {
 
 
 
-  // Alternative items functionality has been completely removed as per user request
-
-  // Handle creating a new category
-  const handleCreateCategory = async (categoryName: string) => {
-    console.log('handleCreateCategory called with:', categoryName);
-    
-    if (!categoryName.trim()) {
-      toast.error('Category name cannot be empty');
-      return;
-    }
-
-    setIsCreatingCategory(true);
-    try {
-      // Call the backend API to create a new category
-      console.log('Calling backend API to create category...');
-      const response = await categoryService.createCategory({ 
-        name: categoryName.trim(),
-        isActive: true
-      });
-      
-      console.log('Category creation response:', response);
-      
-      // Extract the created category from the response
-      const createdCategory = response.data;
-      const categoryId = createdCategory._id || createdCategory.id;
-      
-      if (!categoryId) {
-        throw new Error('Category created but no ID returned from server');
-      }
-      
-      console.log('Category created successfully with ID:', categoryId);
-      
-      // Refresh categories list from backend to ensure consistency
-      console.log('Refreshing categories list from backend...');
-      const categoriesRefreshResponse = await categoryService.getAllCategories();
-      const categoriesData = categoriesRefreshResponse.data || [];
-      const mappedCategories = categoriesData.map((cat: any) => ({
-        id: cat.id || cat._id,
-        name: cat.name
-      }));
-      
-      console.log('Updated categories from backend:', mappedCategories);
-      setCategories(mappedCategories);
-      
-      // Set the newly created category as selected
-      setValue('category_id', categoryId, { shouldValidate: true, shouldDirty: true });
-      setCategorySearchValue('');
-      setCategorySearchOpen(false);
-      
-      toast.success(`Category "${categoryName}" created successfully!`);
-    } catch (err: any) {
-      console.error('Error creating category:', err);
-      const errorMessage = err.response?.data?.error?.message || err.message || 'Failed to create category';
-      toast.error(errorMessage);
-    } finally {
-      setIsCreatingCategory(false);
-    }
-  };
-
-  // Handle category selection
-  const handleCategorySelect = (categoryId: string) => {
-    console.log('Category selected:', categoryId);
-    setValue('category_id', categoryId, { shouldValidate: true, shouldDirty: true });
-    setCategorySearchValue('');
-    setCategorySearchOpen(false);
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (categorySearchOpen && !target.closest('.category-dropdown-container')) {
-        setCategorySearchOpen(false);
-        setCategorySearchValue('');
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [categorySearchOpen]);
-
-  // Filter categories based on search
-  const filteredCategories = categories.filter(cat =>
-    cat.name.toLowerCase().includes(categorySearchValue.toLowerCase())
-  );
-
-  // Check if search value matches any existing category
-  const exactMatch = categories.find(
-    cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()
-  );
+ 
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -947,121 +765,27 @@ const InventoryForm = () => {
                   )}
                 </div>
 
-                <div className="space-y-2 group relative category-dropdown-container">
+                <div className="space-y-2 group">
                   <Label
-                    htmlFor="category_id"
-                    className={`${errors.category_id && !categoriesLoading ? 'text-red-500' : 'text-gray-700'
-                      } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                    htmlFor="bill_number"
+                    className={`${errors.bill_number ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                   >
-                    <Package className="h-4 w-4" /> Item Category <span className="text-red-500">*</span>
+                    <Package className="h-4 w-4" /> Bill Number <span className="text-red-500">*</span>
                   </Label>
-                  <div className="relative">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => !isViewing && !categoriesLoading && setCategorySearchOpen(!categorySearchOpen)}
-                      disabled={isViewing || categoriesLoading}
-                      className={`w-full justify-between pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${errors.category_id && !categoriesLoading
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                        } ${watchedFields.category_id && !categoriesLoading && !isViewing ? 'border-blue-300' : ''}`}
-                    >
-                      {categoriesLoading ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
-                          Getting categories...
-                        </span>
-                      ) : watchedFields.category_id ? (
-                        categories.find((cat) => cat.id === watchedFields.category_id)?.name || 
-                        `Category ID: ${String(watchedFields.category_id)}`
-                      ) : (
-                        <span className="text-gray-500">Select or create category...</span>
-                      )}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                    
-                    {categorySearchOpen && !isViewing && !categoriesLoading && (
-                      <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-xl max-h-[300px] overflow-hidden left-0 top-full">
-                        <div className="p-2 border-b">
-                          <div className="flex items-center border rounded-md px-3 py-2">
-                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                            <input
-                              type="text"
-                              placeholder="Search or create category..."
-                              value={categorySearchValue}
-                              onChange={(e) => setCategorySearchValue(e.target.value)}
-                              className="flex-1 outline-none text-sm"
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="max-h-[240px] overflow-y-auto">
-                          {filteredCategories.length > 0 ? (
-                            <div className="p-1">
-                              {filteredCategories.map((category) => (
-                                <div
-                                  key={category.id}
-                                  onClick={() => {
-                                    console.log('Selecting category:', category.id, category.name);
-                                    handleCategorySelect(category.id);
-                                  }}
-                                  className="flex items-center px-2 py-2 text-sm rounded-sm cursor-pointer hover:bg-blue-50 transition-colors"
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      watchedFields.category_id === category.id ? 'opacity-100' : 'opacity-0'
-                                    }`}
-                                  />
-                                  {category.name}
-                                </div>
-                              ))}
-                            </div>
-                          ) : categorySearchValue.trim() ? (
-                            <div className="p-2 text-center text-sm text-gray-500">
-                              No categories found
-                            </div>
-                          ) : (
-                            <div className="p-2 text-center text-sm text-gray-500">
-                              Type to search categories
-                            </div>
-                          )}
-                          
-                          {!exactMatch && categorySearchValue.trim() && (
-                            <div className="border-t p-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  console.log('Create button clicked');
-                                  handleCreateCategory(categorySearchValue);
-                                }}
-                                disabled={isCreatingCategory}
-                                className="w-full flex items-center px-2 py-2 text-sm rounded-sm cursor-pointer hover:bg-blue-50 text-blue-600 transition-colors"
-                              >
-                                {isCreatingCategory ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Creating...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Create "{categorySearchValue}"
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {!isViewing && !categoriesLoading && errors.category_id?.message && (
+                  <Input
+                    id="bill_number"
+                    placeholder="Enter bill number"
+                    {...register('bill_number')}
+                    disabled={isViewing}
+                    className={`${errors.bill_number
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.bill_number && !isViewing ? 'border-blue-300' : ''}`}
+                  />
+                  {errors.bill_number?.message && (
                     <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.category_id.message}
+                      {errors.bill_number.message}
                     </p>
                   )}
                 </div>
@@ -1229,37 +953,6 @@ const InventoryForm = () => {
                       )}
                     </div>
 
-                    {/* Discount Amount Field */}
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="discountAmount"
-                        className={`${errors.discountAmount ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
-                      >
-                        <DollarSign className="h-4 w-4" /> Discount Amount
-                      </Label>
-                      <Input
-                        id="discountAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...register('discountAmount', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className={`${errors.discountAmount
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                          } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.discountAmount && !isViewing ? 'border-blue-300' : ''}`}
-                      />
-                      {errors.discountAmount?.message && (
-                        <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.discountAmount.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Total Amount - Calculated Field (UI Only) */}
                     <div className="space-y-2 group">
                       <Label
@@ -1275,31 +968,12 @@ const InventoryForm = () => {
                         disabled={true}
                         className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50 text-gray-700 font-semibold"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Calculated: (Quantity × Unit Price) - Discount Amount</p>
-                    </div>
-
-                    {/* Net Price per Unit - Calculated Field (UI Only) */}
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="net_unit_price"
-                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
-                      >
-                        <DollarSign className="h-4 w-4" /> Net Unit Price
-                      </Label>
-                      <Input
-                        id="net_unit_price"
-                        type="text"
-                        value={sellingPrice && quantity ? ((sellingPrice * quantity - discountAmount) / quantity).toFixed(2) : '0.00'}
-                        disabled={true}
-                        className="pl-3 pr-3 py-2 rounded-md shadow-sm border-gray-200 bg-gray-50 text-gray-700 font-semibold"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Calculated: (Total Amount) ÷ Quantity</p>
+                      <p className="text-xs text-gray-500 mt-1">Calculated: Quantity × Unit Price</p>
                     </div>
                   </div>
 
-                  {/* NEW FIELDS: Vendor, Paid Amount, Return Amount */}
+                  {/* Vendor/Supplier Dropdown */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    {/* Vendor/Supplier Dropdown */}
                     <div className="space-y-2 group">
                       <Label
                         htmlFor="vendorId"
@@ -1308,8 +982,17 @@ const InventoryForm = () => {
                         <Package className="h-4 w-4" /> Vendor/Supplier
                       </Label>
                       <Select
-                        onValueChange={(value) => setValue('vendorId', value, { shouldValidate: true, shouldDirty: true })}
-                        value={watchedFields.vendorId as string | undefined}
+                        onValueChange={(value) => {
+                          console.log('🔄 Vendor selection changed to:', value);
+                          setValue('vendorId', value, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        value={(() => {
+                          const currentValue = watchedFields.vendorId as string | undefined;
+                          console.log('🎯 Current vendorId value in Select:', currentValue);
+                          console.log('🎯 Current vendorId type:', typeof currentValue);
+                          console.log('📋 Available suppliers:', suppliers.map(s => ({ id: s.id, name: s.name })));
+                          return currentValue;
+                        })()}
                         disabled={isViewing || suppliersLoading}
                       >
                         <SelectTrigger
@@ -1338,47 +1021,6 @@ const InventoryForm = () => {
                           )}
                         </SelectContent>
                       </Select>
-                    </div>
-
-                    {/* Paid Amount */}
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="paidAmount"
-                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
-                      >
-                        <DollarSign className="h-4 w-4" /> Paid Amount
-                      </Label>
-                      <Input
-                        id="paidAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...register('paidAmount', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className="pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200"
-                      />
-                    </div>
-
-                    {/* Balance Amount - Editable */}
-                    <div className="space-y-2 group">
-                      <Label
-                        htmlFor="balanceAmount"
-                        className="text-gray-700 group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium"
-                      >
-                        <DollarSign className="h-4 w-4" /> Balance Amount
-                      </Label>
-                      <Input
-                        id="balanceAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...register('balanceAmount', { valueAsNumber: true })}
-                        disabled={isViewing}
-                        className={`pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 border-gray-200 focus:border-blue-500 focus:ring-blue-200 ${watchedFields.balanceAmount && !isViewing ? 'border-blue-300' : ''}`}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Auto-calculated: Total Amount - Paid Amount (editable)</p>
                     </div>
                   </div>
 
