@@ -226,7 +226,9 @@ const PrintPreview: React.FC = () => {
 
   // Simple print function that directly prints the current data
   const handleSimplePrint = () => {
-    console.log('Simple print function called');
+    console.log('🖨️ Simple print function called');
+    console.log('🖨️ Report type:', selectedReportType);
+    console.log('🖨️ Total data items:', data.length);
 
     if (data.length === 0) {
       toast.error('No data to print');
@@ -235,12 +237,21 @@ const PrintPreview: React.FC = () => {
 
     // For purchase orders, use data from Redux
     if (selectedReportType === 'purchase-order') {
+      console.log('🖨️ Purchase order data:', {
+        totalItems: data.length,
+        sampleItems: data.slice(0, 3).map((item: any) => ({
+          itemName: item.itemName,
+          supplier: item.supplier?.name,
+          totalValue: item.totalValue
+        }))
+      });
+
       if (allPurchaseOrders.length === 0) {
         toast.error('No purchase order data available');
         return;
       }
 
-      console.log('Printing', allPurchaseOrders.length, 'purchase orders');
+      console.log('🖨️ Printing', allPurchaseOrders.length, 'purchase orders');
 
       // Create a new window for printing
       const printWindow = window.open('', '_blank');
@@ -939,18 +950,21 @@ const PrintPreview: React.FC = () => {
 
                 {/* Desktop Navigation Arrows */}
                 {!isMobile && totalPages > 1 && (
-                  <div>
+                  <div className="flex justify-between items-center mt-6">
                     <button
                       onClick={handlePrevious}
                       disabled={currentPage === 1 || loading}
-                      className="absolute left-[-50px] top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 text-gray-600 p-3 rounded-full shadow-md hover:bg-gray-50 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
+                      className="bg-blue-600 border border-blue-600 text-white p-3 rounded-full shadow-md hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </button>
+                    <div className="text-center text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
+                    </div>
                     <button
                       onClick={handleNext}
                       disabled={currentPage === totalPages || loading}
-                      className="absolute right-[-50px] top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 text-gray-600 p-3 rounded-full shadow-md hover:bg-gray-50 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
+                      className="bg-blue-600 border border-blue-600 text-white p-3 rounded-full shadow-md hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-sm transition-all duration-200"
                     >
                       <ChevronRight className="h-5 w-5" />
                     </button>
@@ -958,20 +972,13 @@ const PrintPreview: React.FC = () => {
                 )}
               </div>
 
-              {/* Desktop Pagination Details */}
-              {!isMobile && totalPages > 1 && (
-                <div className="text-center text-sm text-gray-600 mt-4">
-                  Page {currentPage} of {totalPages}
-                </div>
-              )}
-
               {/* Mobile Navigation */}
               {isMobile && totalPages > 1 && (
                 <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <button
                     onClick={handlePrevious}
                     disabled={currentPage === 1 || loading}
-                    className="bg-gray-50 border border-gray-200 text-gray-600 p-3 rounded-full shadow-sm hover:bg-gray-100 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                    className="bg-blue-600 border border-blue-600 text-white p-3 rounded-full shadow-sm hover:bg-blue-700 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
@@ -986,7 +993,7 @@ const PrintPreview: React.FC = () => {
                   <button
                     onClick={handleNext}
                     disabled={currentPage === totalPages || loading}
-                    className="bg-gray-50 border border-gray-200 text-gray-600 p-3 rounded-full shadow-sm hover:bg-gray-100 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                    className="bg-blue-600 border border-blue-600 text-white p-3 rounded-full shadow-sm hover:bg-blue-700 hover:shadow-md disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>

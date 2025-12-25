@@ -777,23 +777,190 @@ const Reports: React.FC = () => {
 
   // Removed debounce - we want immediate execution when generate is clicked
 
-  const handlePrintPreview = () => {
-    // Make sure the latest data is in Redux before showing print preview
-    const currentReportData = selectedReportType === 'purchase-order'
-      ? { ...reportData, 'purchase-order': { ...reportData['purchase-order'], data: fullPurchaseOrders } }
-      : selectedReportType === 'sales' ? { ...reportData, 'sales': { ...reportData['sales'], data: allSales } }
-        : selectedReportType === 'stock' ? { ...reportData, 'stock': { ...reportData['stock'], data: allStocks } }
-          : reportData;
+  const handlePrintPreview = async () => {
+    try {
+      setIsLoading(true);
+      
+      let printData;
+      
+      // For purchase order reports, fetch fresh data directly for printing
+      if (selectedReportType === 'purchase-order') {
+        console.log('🖨️ Fetching fresh purchase orders data for print preview...');
+        
+        const companyId = userData?.company_id || (userData as any)?.companyId || (userData as any)?.id;
+        if (!companyId) {
+          throw new Error('Company ID not found');
+        }
 
-    dispatch(setPrintData({
-      reportData: currentReportData,
-      selectedReportType: selectedReportType as ReportType,
-      dateRange: dateRange,
-      statusMessages: statusMessages
-    } as any));
+        // Fetch fresh data using the same logic as fetchFullPurchaseOrders
+        const itemFilters: any = {};
+        if (searchQuery.trim()) itemFilters.search = searchQuery.trim();
 
-    // Navigate to the print preview page
-    navigate('/dashboard/report/preview');
+        const itemsResponse = await getItems(1, 1000, itemFilters);
+        
+        if (!itemsResponse.data || itemsResponse.data.length === 0) {
+          throw new Error('No items found for printing');
+        }
+
+        // Create suppliers map
+        const suppliersMap = new Map<string, Supplier>();
+        suppliers.forEach(supplier => {
+          suppliersMap.set(supplier._id, supplier);
+        });
+
+        // Filter items by date range and supplier selection
+        let filteredItems = itemsResponse.data.filter((item: any) => {
+          // Check date range using item's createdAt
+          if (dateRange[0] || dateRange[1]) {
+            const itemCreatedAt = (item as any).createdAt || (item as any).created_at;
+            if (!itemCreatedAt) return false;
+            
+            const itemDate = new Date(itemCreatedAt);
+            const start = dateRange[0] ? new Date(dateRange[0]) : null;
+            const end = dateRange[1] ? new Date(dateRange[1]) : null;
+            
+            if (start) {
+              start.setHours(0, 0, 0, 0);
+              if (itemDate < start) return false;
+            }
+            if (end) {
+              end.setHours(23, 59, 59, 999);
+              if (itemDate > end) return false;
+            }
+          }
+
+          // Check supplier filter using item.vendor field directly
+          if (selectedSuppliers.length > 0) {
+            const itemVendorId = item.vendor?._id || item.vendor?.id || item.vendor;
+            if (!itemVendorId || !selectedSuppliers.includes(itemVendorId)) {
+              return false;
+            }
+          } else {
+            if (!item.vendor) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        // Transform items to PurchaseOrderItem format
+        const freshPurchaseOrderItems: PurchaseOrderItem[] = filteredItems.map(item => {
+          const itemVendor = (item as any).vendor;
+          const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
+          const vendorName = itemVendor?.name || 'Unknown Supplier';
+          
+          const supplier = vendorId ? suppliersMap.get(vendorId) : null;
+          
+          const supplierInfo = supplier ? {
+            _id: supplier._id,
+            name: supplier.name
+          } : {
+            _id: vendorId || 'no-supplier',
+            name: vendorName
+          };
+          
+          const itemName = item.name || (item as any).item_name || 'Unnamed Item';
+          const createdAt = (item as any).createdAt || (item as any).created_at;
+          const unitPrice = item.unitPrice || (item as any).selling_price || 0;
+          const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
+          
+          return {
+            _id: (item as any).id || item._id,
+            itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
+            itemName: itemName,
+            description: (item as any).description || undefined,
+            unitPrice: unitPrice,
+            quantity: quantity,
+            totalValue: unitPrice * quantity,
+            supplier: supplierInfo,
+            orderDate: createdAt || new Date().toISOString(),
+            status: (item as any).isActive !== false ? 'active' : 'inactive'
+          };
+        });
+
+        // Apply sorting
+        const sortField = sortConfig.field || 'orderDate';
+        const sortDirection = sortConfig.direction || 'desc';
+        
+        freshPurchaseOrderItems.sort((a, b) => {
+          let aValue: any, bValue: any;
+          
+          switch (sortField) {
+            case 'itemName':
+              aValue = a.itemName;
+              bValue = b.itemName;
+              break;
+            case 'supplier.name':
+              aValue = a.supplier.name;
+              bValue = b.supplier.name;
+              break;
+            case 'orderDate':
+              aValue = new Date(a.orderDate);
+              bValue = new Date(b.orderDate);
+              break;
+            case 'quantity':
+              aValue = a.quantity;
+              bValue = b.quantity;
+              break;
+            case 'unitPrice':
+              aValue = a.unitPrice;
+              bValue = b.unitPrice;
+              break;
+            case 'totalValue':
+              aValue = a.totalValue;
+              bValue = b.totalValue;
+              break;
+            default:
+              aValue = new Date(a.orderDate);
+              bValue = new Date(b.orderDate);
+          }
+
+          if (sortDirection === 'desc') {
+            return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+          } else {
+            return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+          }
+        });
+
+        console.log('🖨️ Fresh purchase orders for print:', freshPurchaseOrderItems.length);
+        console.log('🖨️ Sample items:', freshPurchaseOrderItems.slice(0, 3).map(item => ({
+          itemName: item.itemName,
+          supplier: item.supplier.name,
+          totalValue: item.totalValue
+        })));
+
+        printData = {
+          ...reportData,
+          'purchase-order': {
+            ...reportData['purchase-order'],
+            data: freshPurchaseOrderItems
+          }
+        };
+      } else {
+        // For other report types, use existing data
+        printData = selectedReportType === 'sales' 
+          ? { ...reportData, 'sales': { ...reportData['sales'], data: allSales } }
+          : selectedReportType === 'stock' 
+            ? { ...reportData, 'stock': { ...reportData['stock'], data: allStocks } }
+            : reportData;
+      }
+
+      dispatch(setPrintData({
+        reportData: printData,
+        selectedReportType: selectedReportType as ReportType,
+        dateRange: dateRange,
+        statusMessages: statusMessages
+      } as any));
+
+      // Navigate to the print preview page
+      navigate('/dashboard/report/preview');
+    } catch (error: any) {
+      console.error('Error preparing print preview:', error);
+      setErrorMessage(`Failed to prepare print preview: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Fetch full (unpaginated) purchase orders for PrintPreview
@@ -2039,8 +2206,15 @@ const Reports: React.FC = () => {
                               )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-64 p-3" align="start">
-                            <div className="space-y-2">
+                          <PopoverContent 
+                            className="w-64 p-0 [&[data-side=top]]:hidden" 
+                            align="start" 
+                            side="bottom" 
+                            sideOffset={4} 
+                            avoidCollisions={false}
+                            collisionPadding={0}
+                          >
+                            <div className="p-3 space-y-2">
                               <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
                                 <Checkbox
                                   id="select-all"
@@ -2055,21 +2229,23 @@ const Reports: React.FC = () => {
                                   Select All
                                 </label>
                               </div>
-                              {suppliers.map((supplier) => (
-                                <div key={supplier._id} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={supplier._id}
-                                    checked={selectedSuppliers.includes(supplier._id)}
-                                    onCheckedChange={() => handleSupplierChange(supplier._id)}
-                                  />
-                                  <label
-                                    htmlFor={supplier._id}
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                  >
-                                    {supplier.name}
-                                  </label>
-                                </div>
-                              ))}
+                              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                                {suppliers.map((supplier) => (
+                                  <div key={supplier._id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={supplier._id}
+                                      checked={selectedSuppliers.includes(supplier._id)}
+                                      onCheckedChange={() => handleSupplierChange(supplier._id)}
+                                    />
+                                    <label
+                                      htmlFor={supplier._id}
+                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                    >
+                                      {supplier.name}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </PopoverContent>
                         </Popover>
@@ -2094,8 +2270,15 @@ const Reports: React.FC = () => {
                               )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-64 p-3" align="start">
-                            <div className="space-y-2">
+                          <PopoverContent 
+                            className="w-64 p-0 [&[data-side=top]]:hidden" 
+                            align="start" 
+                            side="bottom" 
+                            sideOffset={4} 
+                            avoidCollisions={false}
+                            collisionPadding={0}
+                          >
+                            <div className="p-3 space-y-2">
                               <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
                                 <Checkbox
                                   id="select-all"
@@ -2110,21 +2293,23 @@ const Reports: React.FC = () => {
                                   Select All
                                 </label>
                               </div>
-                              {allStores.map((store) => (
-                                <div key={store._id} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={store._id}
-                                    checked={selectedStores.includes(store._id)}
-                                    onCheckedChange={() => handleStoreChange(store._id)}
-                                  />
-                                  <label
-                                    htmlFor={store._id}
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                  >
-                                    {store.name}
-                                  </label>
-                                </div>
-                              ))}
+                              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                                {allStores.map((store) => (
+                                  <div key={store._id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={store._id}
+                                      checked={selectedStores.includes(store._id)}
+                                      onCheckedChange={() => handleStoreChange(store._id)}
+                                    />
+                                    <label
+                                      htmlFor={store._id}
+                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                    >
+                                      {store.name}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </PopoverContent>
                         </Popover>
