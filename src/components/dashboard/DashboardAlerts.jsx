@@ -1,78 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 export const DashboardAlerts = ({
-  inventoryAlerts,
   fastMovingItems,
   slowMovingItems,
 }) => {
-  // Separate alerts
-  const lowStockAlerts = inventoryAlerts.filter(a => a.alertType === "low_stock");
-  const excessStockAlerts = inventoryAlerts.filter(a => a.alertType === "excess_stock");
-
   return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {/* Inventory Alerts */}
-      <Card className="hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
-            Inventory Alerts
-            {inventoryAlerts.length > 0 && (
-              <span className="ml-2 text-sm bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
-                {inventoryAlerts.length} Active
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 max-h-70 overflow-y-auto scrollbar-thin">
-          {inventoryAlerts.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">
-              <p>No inventory alerts available</p>
-            </div>
-          ) : (
-            <>
-              {/* Excess Stock Box */}
-              {excessStockAlerts.length > 0 && (
-                <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
-                  {excessStockAlerts.map((alert, index) => (
-                    <Alert key={`excess-${index}`} className="border-none bg-transparent p-0">
-                      <TrendingUp className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
-                        <div className="font-medium">Excess Stock Alert</div>
-                        <p className="text-sm">
-                          {alert.itemName} - Current: {alert.currentQty}, Max Level:{" "}
-                          {alert.maxLevel}
-                        </p>
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                </div>
-              )}
-
-              {/* Low Stock Box */}
-              {lowStockAlerts.length > 0 && (
-                <div className="border border-orange-200 bg-orange-50 rounded-lg p-3 space-y-2">
-                  {lowStockAlerts.map((alert, index) => (
-                    <Alert key={`low-${index}`} className="border-none bg-transparent p-0">
-                      <AlertTriangle className="h-4 w-4 text-orange-600" />
-                      <AlertDescription className="text-orange-800">
-                        <div className="font-medium">Low Stock Alert</div>
-                        <p className="text-sm">
-                          {alert.itemName} - Current: {alert.currentQty}, Reorder Level:{" "}
-                          {alert.reorderLevel}
-                        </p>
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
+    <div className="grid gap-6 md:grid-cols-2">
       {/* Fast Moving Items */}
       <Card className="hover:shadow-lg transition-shadow duration-300 flex flex-col">
         <CardHeader>
@@ -80,7 +14,7 @@ export const DashboardAlerts = ({
             <TrendingUp className="h-5 w-5 text-green-500" />
             Fast Moving Items
           </CardTitle>
-          <p className="text-sm text-gray-500">Top 3 items (3-month average)</p>
+          <p className="text-sm text-gray-500">Top 5 items by stock quantity</p>
         </CardHeader>
         <CardContent className="flex-1 max-h-70">
           <div className="h-full flex flex-col bg-green-50 rounded-lg border border-green-200 overflow-y-auto scrollbar-thin">
@@ -97,7 +31,7 @@ export const DashboardAlerts = ({
                     </div>
                     <span className="font-medium text-gray-900">{item.name}</span>
                   </div>
-                  <div className="text-right font-bold text-green-700">{item.avgQuantity}/month</div>
+                  <div className="text-right font-bold text-green-700">{item.avgQuantity} units</div>
                 </div>
               ))
             ) : (
@@ -114,7 +48,7 @@ export const DashboardAlerts = ({
             <TrendingDown className="h-5 w-5 text-red-500" />
             Slow Moving Items
           </CardTitle>
-          <p className="text-sm text-gray-500">Bottom 3 items by inventory movement</p>
+          <p className="text-sm text-gray-500">Bottom 5 items by stock quantity</p>
         </CardHeader>
         <CardContent className="flex-1 max-h-70">
           <div className="h-full flex flex-col bg-red-50 rounded-lg border border-red-200 overflow-y-auto scrollbar-thin">
@@ -133,8 +67,8 @@ export const DashboardAlerts = ({
                     <span className="font-medium text-gray-900">{item.name}</span>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-red-700">{item.avgQuantity}/month</div>
-                    <div className="text-xs text-red-600">Low movement</div>
+                    <div className="font-bold text-red-700">{item.avgQuantity} units</div>
+                    <div className="text-xs text-red-600">Low stock</div>
                   </div>
                 </div>
               ))

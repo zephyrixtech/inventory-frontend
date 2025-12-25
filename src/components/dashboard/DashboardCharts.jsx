@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ResponsiveContainer } from 'recharts';
 
-export const DashboardCharts = ({ itemStockData, salesData, currencySymbol }) => {
+export const DashboardCharts = ({ itemStockData, salesData, purchaseEntryData, currencySymbol }) => {
   // Get user role from localStorage
   const getUserRole = () => {
     try {
@@ -35,6 +35,12 @@ export const DashboardCharts = ({ itemStockData, salesData, currencySymbol }) =>
     sales: item.sales
   }));
 
+  // Transform purchase entry data to match chart expectations
+  const transformedPurchaseEntryData = purchaseEntryData ? purchaseEntryData.map(item => ({
+    day: item.day,
+    purchases: item.purchases
+  })) : [];
+
   // Get chart title based on user role
   const getChartTitle = () => {
     switch (userRole) {
@@ -47,11 +53,26 @@ export const DashboardCharts = ({ itemStockData, salesData, currencySymbol }) =>
     }
   };
 
-  // Role-based visibility for sales chart
+  // Role-based visibility for charts
   const shouldShowSalesChart = userRole !== 'purchaser'; // Hide sales chart for purchaser
+  const shouldShowPurchaseEntryChart = userRole === 'purchaser' || userRole === 'admin' || userRole === 'superadmin'; // Show for purchaser, admin, superadmin
+
+  // Calculate grid layout based on visible charts
+  const getGridLayout = () => {
+    if (userRole === 'purchaser') {
+      // Purchaser: Stock + Purchase Entry (2 charts)
+      return 'md:grid-cols-2';
+    } else if (userRole === 'biller') {
+      // Biller: Stock + Sales (2 charts)
+      return 'md:grid-cols-2';
+    } else {
+      // Admin/SuperAdmin: Stock + Sales + Purchase Entry (3 charts)
+      return 'md:grid-cols-3';
+    }
+  };
 
   return (
-    <div className={`grid gap-6 ${shouldShowSalesChart ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+    <div className={`grid gap-6 ${getGridLayout()}`}>
       {/* Stock by Item Bar Chart */}
       <Card className="hover:shadow-lg transition-shadow duration-300">
         <CardHeader>
@@ -172,6 +193,79 @@ export const DashboardCharts = ({ itemStockData, salesData, currencySymbol }) =>
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <p>No sales data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Purchase Entry Turnover Line Chart - Show for purchaser, admin, superadmin */}
+      {shouldShowPurchaseEntryChart && (
+        <Card className="hover:shadow-lg transition-shadow duration-300">
+          <CardHeader>
+            <CardTitle>Purchase Entry Turnover</CardTitle>
+            <p className="text-sm text-gray-500">Last Month</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-60">
+              {transformedPurchaseEntryData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={transformedPurchaseEntryData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      label={{
+                        value: 'Day of Month',
+                        position: 'insideBottom',
+                        offset: -10,
+                        style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
+                      }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                      tickLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis
+                      label={{
+                        value: `Purchases (INR)`,
+                        angle: -90,
+                        position: 'insideLeft',
+                        style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
+                      }}
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                      tickLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip
+                      labelFormatter={(iso) => {
+                        try {
+                          const d = new Date(iso);
+                          return d.toLocaleDateString();
+                        } catch (e) {
+                          return iso;
+                        }
+                      }}
+                      formatter={(value) => [`AED ${value}`, 'Purchases']}
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="purchases"
+                      stroke="#10b981"
+                      strokeWidth={3}
+                      dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <p>No purchase entry data available</p>
                 </div>
               )}
             </div>

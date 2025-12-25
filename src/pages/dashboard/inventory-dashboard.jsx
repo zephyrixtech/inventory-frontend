@@ -82,9 +82,9 @@ export const InventoryDashboard = () => {
   };
   const itemStockData = data?.itemStockData || []; // Changed from categoryData to itemStockData
   const salesData = data?.salesData || [];
+  const purchaseEntryData = data?.purchaseEntryData || []; // Added purchase entry data
   const fastMovingItems = data?.fastMovingItems || [];
   const slowMovingItems = data?.slowMovingItems || [];
-  const inventoryAlerts = data?.inventoryAlerts || [];
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -103,11 +103,11 @@ export const InventoryDashboard = () => {
         <DashboardCharts 
           itemStockData={itemStockData} // Changed from categoryData to itemStockData
           salesData={salesData}
+          purchaseEntryData={purchaseEntryData} // Added purchase entry data
           currencySymbol={currencySymbol}
         />
 
         <DashboardAlerts 
-          inventoryAlerts={inventoryAlerts}
           fastMovingItems={fastMovingItems}
           slowMovingItems={slowMovingItems}
         />

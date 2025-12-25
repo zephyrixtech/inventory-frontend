@@ -10,6 +10,21 @@ export interface DashboardMetrics {
   totalSalesInvoiceValue: number; // Added this new metric
 }
 
+export interface SalesData {
+  day: string;
+  sales: number;
+}
+
+export interface PurchaseEntryData {
+  day: string;
+  purchases: number;
+}
+
+export interface MovingItem {
+  name: string;
+  avgQuantity: number;
+}
+
 export interface ItemStockData {
   name: string;
   stock: number;
@@ -20,9 +35,9 @@ export interface DashboardData {
   metrics: DashboardMetrics;
   itemStockData: ItemStockData[]; // Changed from categoryData to itemStockData
   salesData: SalesData[];
+  purchaseEntryData: PurchaseEntryData[]; // Added purchase entry data
   fastMovingItems: MovingItem[];
   slowMovingItems: MovingItem[];
-  inventoryAlerts: InventoryAlert[];
 }
 
 export const dashboardService = {
