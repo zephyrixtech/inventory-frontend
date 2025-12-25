@@ -1,9 +1,29 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ResponsiveContainer } from 'recharts';
 
-export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => {
-  // Transform category data to match chart expectations
-  const transformedCategoryData = categoryData.map(item => ({
+export const DashboardCharts = ({ itemStockData, salesData, currencySymbol }) => {
+  // Get user role from localStorage
+  const getUserRole = () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      if (typeof userData.role === 'string') {
+        return userData.role.toLowerCase();
+      } else if (userData.role && typeof userData.role === 'object') {
+        return (userData.role.name || userData.role.role_name || 'biller').toLowerCase();
+      } else if (userData.role_name) {
+        return userData.role_name.toLowerCase();
+      }
+      return 'biller'; // default fallback
+    } catch (err) {
+      console.error('Error getting user role:', err);
+      return 'biller';
+    }
+  };
+
+  const userRole = getUserRole();
+
+  // Transform item stock data to match chart expectations
+  const transformedItemStockData = itemStockData.map(item => ({
     name: item.name,
     count: item.stock, // Backend returns "stock", frontend chart expects "count"
     fill: item.fill
@@ -15,18 +35,34 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
     sales: item.sales
   }));
 
+  // Get chart title based on user role
+  const getChartTitle = () => {
+    switch (userRole) {
+      case 'purchaser':
+        return 'Stock by Item (Store Stock)'; // Changed from Purchase Inventory to Store Stock
+      case 'biller':
+        return 'Stock by Item (Store Stock)';
+      default:
+        return 'Stock by Item (Combined)';
+    }
+  };
+
+  // Role-based visibility for sales chart
+  const shouldShowSalesChart = userRole !== 'purchaser'; // Hide sales chart for purchaser
+
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      {/* Stock by Category Bar Chart */}
+    <div className={`grid gap-6 ${shouldShowSalesChart ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+      {/* Stock by Item Bar Chart */}
       <Card className="hover:shadow-lg transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Stocks by Category</CardTitle>
+          <CardTitle>{getChartTitle()}</CardTitle>
+          <p className="text-sm text-gray-500">Top 10 Items by Stock Count</p>
         </CardHeader>
         <CardContent>
           <div className="h-60">
-            {transformedCategoryData.length > 0 ? (
+            {transformedItemStockData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={transformedCategoryData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                <BarChart data={transformedItemStockData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     dataKey="name"
@@ -39,7 +75,7 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                   />
                   <YAxis
                     label={{
-                      value: 'Total Stock Items',
+                      value: 'Stock Count',
                       angle: -90,
                       position: 'insideLeft',
                       style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
@@ -55,89 +91,93 @@ export const DashboardCharts = ({ categoryData, salesData, currencySymbol }) => 
                       borderRadius: '8px',
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
                     }}
+                    formatter={(value, name) => [value, 'Stock Count']}
+                    labelFormatter={(label) => `Item: ${label}`}
                   />
                   <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
-                <p>No category data available</p>
+                <p>No stock data available</p>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Sales Turnover Line Chart */}
-      <Card className="hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle>Sales Turnover</CardTitle>
-          <p className="text-sm text-gray-500">Last Month</p>
-        </CardHeader>
-        <CardContent>
-          <div className="h-60">
-            {transformedSalesData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={transformedSalesData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontSize: 12, fill: '#6b7280' }}
-                    label={{
-                      value: 'Day of Month',
-                      position: 'insideBottom',
-                      offset: -10,
-                      style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
-                    }}
-                    axisLine={{ stroke: '#d1d5db' }}
-                    tickLine={{ stroke: '#d1d5db' }}
-                  />
-                  <YAxis
-                    label={{
-                      value: `Sales (AED)`,
-                      angle: -90,
-                      position: 'insideLeft',
-                      style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
-                    }}
-                    tick={{ fontSize: 12, fill: '#6b7280' }}
-                    axisLine={{ stroke: '#d1d5db' }}
-                    tickLine={{ stroke: '#d1d5db' }}
-                  />
-                  <Tooltip
-                    labelFormatter={(iso) => {
-                      try {
-                        const d = new Date(iso);
-                        return d.toLocaleDateString();
-                      } catch (e) {
-                        return iso;
-                      }
-                    }}
-                    formatter={(value) => [`AED ${value}`, 'Sales']}
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sales"
-                    stroke="#3b82f6"
-                    strokeWidth={3}
-                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <p>No sales data available</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Sales Turnover Line Chart - Hidden for purchaser role */}
+      {shouldShowSalesChart && (
+        <Card className="hover:shadow-lg transition-shadow duration-300">
+          <CardHeader>
+            <CardTitle>Sales Turnover</CardTitle>
+            <p className="text-sm text-gray-500">Last Month</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-60">
+              {transformedSalesData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={transformedSalesData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      label={{
+                        value: 'Day of Month',
+                        position: 'insideBottom',
+                        offset: -10,
+                        style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
+                      }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                      tickLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis
+                      label={{
+                        value: `Sales (AED)`,
+                        angle: -90,
+                        position: 'insideLeft',
+                        style: { textAnchor: 'middle', fill: '#374151', fontSize: 14, fontWeight: 500 }
+                      }}
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                      tickLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip
+                      labelFormatter={(iso) => {
+                        try {
+                          const d = new Date(iso);
+                          return d.toLocaleDateString();
+                        } catch (e) {
+                          return iso;
+                        }
+                      }}
+                      formatter={(value) => [`AED ${value}`, 'Sales']}
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="sales"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <p>No sales data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

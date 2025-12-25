@@ -80,7 +80,7 @@ export const InventoryDashboard = () => {
     totalSalesInvoices: 0, // Added new metric with default value
     totalSalesInvoiceValue: 0 // Added new metric with default value
   };
-  const categoryData = data?.categoryData || [];
+  const itemStockData = data?.itemStockData || []; // Changed from categoryData to itemStockData
   const salesData = data?.salesData || [];
   const fastMovingItems = data?.fastMovingItems || [];
   const slowMovingItems = data?.slowMovingItems || [];
@@ -101,7 +101,7 @@ export const InventoryDashboard = () => {
         />
 
         <DashboardCharts 
-          categoryData={categoryData}
+          itemStockData={itemStockData} // Changed from categoryData to itemStockData
           salesData={salesData}
           currencySymbol={currencySymbol}
         />
