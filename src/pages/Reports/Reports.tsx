@@ -254,7 +254,9 @@ const Reports: React.FC = () => {
     company_id: string, 
     company_data: ICompany,
     role?: string | { name?: string; role_name?: string },
-    role_name?: string 
+    role_name?: string,
+    id?: string,
+    _id?: string
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -369,6 +371,26 @@ const Reports: React.FC = () => {
     
     console.log('🔐 Filtered report types for role', userRole, ':', filteredReports.map(r => r.value));
     return filteredReports;
+  }, [userData]);
+
+  /**
+   * Extract user role from userData using the same logic as ProtectedRoute
+   * @returns {string} User role (defaults to 'biller')
+   */
+  const getUserRole = useCallback(() => {
+    let userRole = 'biller'; // default fallback
+    
+    if (userData) {
+      if (typeof userData.role === 'string') {
+        userRole = userData.role;
+      } else if (userData.role && typeof userData.role === 'object') {
+        userRole = userData.role.name || userData.role.role_name || 'biller';
+      } else if (userData.role_name) {
+        userRole = userData.role_name;
+      }
+    }
+    
+    return userRole;
   }, [userData]);
 
   /**
@@ -2180,12 +2202,34 @@ const Reports: React.FC = () => {
       try {
         console.log('Fetching stores using storeService...');
         
-        const response = await storeService.listStores();
+        // Get user role and ID for role-based store filtering
+        const userRole = getUserRole();
+        const userId = userData?.id || userData?._id || userData?.company_id;
+        
+        console.log('🏪 Store filtering - User role:', userRole);
+        console.log('🏪 Store filtering - User ID:', userId);
+        
+        // Prepare store service parameters based on role
+        const storeParams: any = {};
+        
+        // Admin and SuperAdmin get all stores, others get role-filtered stores
+        if (userRole.toLowerCase() !== 'admin' && userRole.toLowerCase() !== 'superadmin') {
+          if (userId) {
+            storeParams.userId = userId;
+          }
+          storeParams.userRole = userRole;
+          console.log('🏪 Applying role-based store filtering for:', userRole);
+        } else {
+          console.log('🏪 Admin/SuperAdmin access - fetching all stores');
+        }
+        
+        const response = await storeService.listStores(storeParams);
         
         console.log('Stores API response:', response);
         
         if (response && response.data) {
-          console.log('Stores data:', response.data);
+          console.log('🏪 Stores data filtered by role:', response.data);
+          console.log('🏪 Number of stores available:', response.data.length);
           setAllStores(response.data);
         } else {
           console.error('No stores data in response');
@@ -2197,8 +2241,11 @@ const Reports: React.FC = () => {
       }
     };
 
-    fetchStores();
-  }, []);
+    // Only fetch stores if userData is available
+    if (userData) {
+      fetchStores();
+    }
+  }, [userData, getUserRole]); // Add getUserRole as dependency
 
   // Fetch data when relevant state changes
   useEffect(() => {
@@ -2575,6 +2622,18 @@ const Reports: React.FC = () => {
                             </div>
                           </PopoverContent>
                         </Popover>
+                        {/* Role-based store filtering indicator */}
+                        {/* {userData && (
+                          (() => {
+                            const userRole = getUserRole();
+                            
+                            return userRole.toLowerCase() !== 'admin' && userRole.toLowerCase() !== 'superadmin' ? (
+                              <div className="mt-2 text-sm font-medium text-blue-600">
+                                Showing {userRole} stores only
+                              </div>
+                            ) : null;
+                          })()
+                        )} */}
                       </div>
                     )}
 
