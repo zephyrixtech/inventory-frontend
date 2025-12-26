@@ -98,6 +98,8 @@ const PrintTemplate: React.FC<PrintTemplateProps> = ({
         return 'Sales Invoice Report';
       case 'stock':
         return 'Stock Report';
+      case 'packing-list':
+        return 'Packing List Report';
       default:
         return 'Report';
     }

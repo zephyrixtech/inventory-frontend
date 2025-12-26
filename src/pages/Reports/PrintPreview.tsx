@@ -92,6 +92,9 @@ const PrintPreview: React.FC = () => {
     if (selectedReportType === 'stock' && reportData) {
       return reportData['stock']?.data || [];
     }
+    if (selectedReportType === 'packing-list' && reportData) {
+      return reportData['packing-list']?.data || [];
+    }
     if (selectedReportType && reportData && reportData[selectedReportType as keyof typeof reportData]) {
       return (reportData[selectedReportType as keyof typeof reportData] as any)?.data || [];
     }
@@ -110,6 +113,11 @@ const PrintPreview: React.FC = () => {
 
   // For stock reports, group by item
   const stockItems = selectedReportType === 'stock'
+    ? (data as any[])
+    : [];
+
+  // For packing list reports
+  const packingListItems = selectedReportType === 'packing-list'
     ? (data as any[])
     : [];
 
@@ -652,6 +660,179 @@ const PrintPreview: React.FC = () => {
 
           <div class="footer">
             <p>${reportConfigs['stock']?.report_footer || 'Generated on ' + new Date().toLocaleDateString() + ' by AL LIBAS GENERAL TRADING L L C'}</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    } else if (selectedReportType === 'packing-list') {
+      if (packingListItems.length === 0) {
+        toast.error('No packing list data available to print');
+        return;
+      }
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Please allow popups to print');
+        return;
+      }
+
+      const printContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Packing List Report</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+          }
+          .page {
+            page-break-after: always;
+          }
+          .page:last-child {
+            page-break-after: auto;
+          }
+          .header {
+            padding: 20px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 25px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .header .left-column { text-align: left; }
+          .header .right-column { text-align: right; }
+          .header h1 {
+            color: #1e40af;
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+          }
+          .header h2 {
+            color: #1e3a8a;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 8px;
+          }
+          .header .company-details, .header .report-details {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 8px; 
+          }
+          .header .report-details p {
+            margin: 4px 0; 
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 13px;
+          }
+          th, td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 10px;
+            font-size: 13px;
+          }
+          th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            color: #1f2937;
+          }
+          tbody tr:nth-child(even) { background-color: #f9fafb; }
+          tbody tr:hover { background-color: #eff6ff; transition: background-color 0.2s ease; }
+          .packing-list-header {
+            background-color: #e0f2fe;
+            font-weight: bold;
+          }
+          .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 15px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header">
+            <div class="left-column">
+              <h1>${companyData.name}</h1>
+              <div class="company-details">
+                ${companyData.description}<br>
+                ${companyData.address}<br>
+                ${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}<br>
+                Phone: ${companyData.phone}
+              </div>
+            </div>
+            <div class="right-column">
+              <h2>PACKING LIST REPORT</h2>
+              <div class="report-details">
+                <p>Date: ${formatDate(new Date().toLocaleDateString())}</p>
+                <p>Total Packing Lists: ${packingListItems.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Box/Bora Number</th>
+                <th>Item Description</th>
+                <th style="text-align:right;">Quantity</th>
+                <th>Size</th>
+                <th>Cargo Number</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${packingListItems.flatMap((packingList: any) => 
+                (packingList.items || []).map((item: any, itemIndex: number) => `
+                  <tr>
+                    <td>${itemIndex === 0 ? (packingList.boxNumber || '-') : ''}</td>
+                    <td>
+                      <strong>${item.product?.name || 'Unknown Item'}</strong>
+                      ${item.description ? `<br><small style="color: #666;">${item.description}</small>` : ''}
+                    </td>
+                    <td style="text-align:right;">${item.quantity || 0}</td>
+                    <td>${item.unitOfMeasure || packingList.size || '-'}</td>
+                    <td>${itemIndex === 0 ? (packingList.cargoNumber || '-') : ''}</td>
+                    <td>${itemIndex === 0 ? (packingList.description || '-') : ''}</td>
+                  </tr>
+                `)
+              ).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin: 20px 0;">
+            <h4 style="margin: 0 0 10px 0;">Summary</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div>
+                <p style="margin: 5px 0; color: #666; font-size: 12px;"><strong>Total Packing Lists:</strong> ${packingListItems.length}</p>
+                <p style="margin: 5px 0; color: #666; font-size: 12px;"><strong>Total Items:</strong> ${packingListItems.reduce((sum, pl) => sum + (pl.totalQuantity || 0), 0)}</p>
+              </div>
+              <div>
+                <p style="margin: 5px 0; color: #666; font-size: 12px;"><strong>Date Range:</strong> ${dateRange[0] && dateRange[1] ? `${formatDate(dateRange[0])} - ${formatDate(dateRange[1])}` : 'All time'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>${(reportConfigs as any)['packing-list']?.report_footer || 'Generated on ' + new Date().toLocaleDateString() + ' by AL LIBAS GENERAL TRADING L L C'}</p>
           </div>
         </div>
       </body>

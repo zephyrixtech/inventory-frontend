@@ -11,6 +11,7 @@ const initialState = {
     'purchase-order': {},
     sales: {},
     stock: {},
+    'packing-list': {},
   },
 };
 

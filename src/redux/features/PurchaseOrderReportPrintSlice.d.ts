@@ -4,6 +4,7 @@ interface ReportConfigs {
   'purchase-order': Record<string, any>;
   sales: Record<string, any>;
   stock: Record<string, any>;
+  'packing-list': Record<string, any>;
 }
 
 interface PrintState {

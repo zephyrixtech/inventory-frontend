@@ -39,6 +39,7 @@ import { getItems } from '@/services/itemService';
 import { apiClient } from '@/services/apiClient';
 import { storeStockService } from '@/services/storeStockService';
 import { salesInvoiceService } from '@/services/salesInvoiceService';
+import { packingListReportService, type PackingListReportItem } from '@/services/packingListReportService';
 import type { Supplier } from '@/types/backend';
 import type { Store } from '@/services/storeService';
 import type { StoreStock } from '@/types/backend';
@@ -99,6 +100,20 @@ type InventoryStockReport = {
   totalValue: number;
 };
 
+// Packing List Report Type Definition
+interface PackingListReport {
+  title: string;
+  headers: readonly [
+    'Box/Bora Number',
+    'Item Description',
+    'Quantity',
+    'Size',
+    'Cargo Number',
+    'Remarks'
+  ];
+  data: PackingListReportItem[];
+}
+
 interface SalesReport {
   title: string;
   headers: readonly [
@@ -144,10 +159,11 @@ interface ReportData {
   'sales': SalesReport;
   'stock': StockReport;
   'purchase-order': PurchaseOrderReport;
+  'packing-list': PackingListReport;
 }
 
 // Type for report types
-type ReportType = 'sales' | 'stock' | 'purchase-order';
+type ReportType = 'sales' | 'stock' | 'purchase-order' | 'packing-list';
 
 type SortFieldSales = 'invoice_date' | 'invoice_number' | 'invoice_amount' | 'net_amount';
 type SortField = 'itemName' | 'supplier.name' | 'orderDate' | 'quantity' | 'unitPrice' | 'totalValue';
@@ -281,6 +297,23 @@ const Reports: React.FC = () => {
   const [allStocks, setAllStocks] = useState<InventoryStockReport[]>([])
   const [allStores, setAllStores] = useState<Store[]>([])
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
+  
+  // Packing List Report State
+  const [allPackingLists, setAllPackingLists] = useState<PackingListReportItem[]>([]);
+  const [paginatedPackingLists, setPaginatedPackingLists] = useState<PackingListReportItem[]>([]);
+  const [packingListSummaryStats, setPackingListSummaryStats] = useState({
+    totalPackingLists: 0,
+    totalItems: 0,
+  });
+  const [searchQueryPackingList, setSearchQueryPackingList] = useState('');
+  const [currentPagePackingList, setCurrentPagePackingList] = useState(1);
+  const [itemsPerPagePackingList, setItemsPerPagePackingList] = useState(10);
+  const [packingListPagination, setPackingListPagination] = useState<SalesPaginationData>({
+    currentPage: 1,
+    totalPages: 0,
+    total: 0,
+    itemsPerPage: 10
+  });
 
   // Debug: Log paginatedSales when it changes (moved after state declaration)
   useEffect(() => {
@@ -347,6 +380,18 @@ const Reports: React.FC = () => {
         'Total Value'
       ] as const,
       data: fullPurchaseOrders
+    },
+    'packing-list': {
+      title: 'Packing List Report',
+      headers: [
+        'Box/Bora Number',
+        'Item Description',
+        'Quantity',
+        'Size',
+        'Cargo Number',
+        'Remarks'
+      ] as const,
+      data: allPackingLists
     }
   };
 
@@ -943,7 +988,9 @@ const Reports: React.FC = () => {
           ? { ...reportData, 'sales': { ...reportData['sales'], data: allSales } }
           : selectedReportType === 'stock' 
             ? { ...reportData, 'stock': { ...reportData['stock'], data: allStocks } }
-            : reportData;
+            : selectedReportType === 'packing-list'
+              ? { ...reportData, 'packing-list': { ...reportData['packing-list'], data: allPackingLists } }
+              : reportData;
       }
 
       dispatch(setPrintData({
@@ -1727,6 +1774,118 @@ const Reports: React.FC = () => {
     }
   }, [selectedReportType, selectedStores, dateRange])
 
+  // Fetch paginated packing list data
+  const fetchPaginatedPackingLists = useCallback(async () => {
+    if (selectedReportType !== 'packing-list') {
+      setIsLoading(false);
+      setPaginatedPackingLists([]);
+      setPackingListPagination({
+        currentPage: 1,
+        totalPages: 0,
+        total: 0,
+        itemsPerPage: itemsPerPagePackingList,
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('Fetching paginated packing list data...');
+
+      // Format dates for API
+      const dateFrom = dateRange[0] ? format(dateRange[0], 'yyyy-MM-dd') : undefined;
+      const dateTo = dateRange[1] ? format(dateRange[1], 'yyyy-MM-dd') : undefined;
+
+      // Fetch packing list data
+      const packingLists = await packingListReportService.getPackingListReport(dateFrom, dateTo);
+
+      console.log('Total packing lists fetched:', packingLists.length);
+
+      // Apply search filtering
+      let filteredPackingLists = packingLists;
+      if (searchQueryPackingList.trim()) {
+        const searchLower = searchQueryPackingList.toLowerCase();
+        filteredPackingLists = packingLists.filter((packingList: PackingListReportItem) =>
+          (packingList.boxNumber || '').toLowerCase().includes(searchLower) ||
+          (packingList.cargoNumber || '').toLowerCase().includes(searchLower) ||
+          (packingList.items || []).some(item => 
+            (item.product?.name || '').toLowerCase().includes(searchLower) ||
+            (item.description || '').toLowerCase().includes(searchLower)
+          )
+        );
+      }
+
+      // Apply pagination
+      const total = filteredPackingLists.length;
+      const totalPages = itemsPerPagePackingList === -1 ? 1 : Math.ceil(total / itemsPerPagePackingList);
+      const startIndex = itemsPerPagePackingList === -1 ? 0 : (currentPagePackingList - 1) * itemsPerPagePackingList;
+      const endIndex = itemsPerPagePackingList === -1 ? total : startIndex + itemsPerPagePackingList;
+      const paginatedItems = filteredPackingLists.slice(startIndex, endIndex);
+
+      console.log('Paginated packing list items:', paginatedItems.length, 'of', total);
+
+      setPaginatedPackingLists(paginatedItems);
+      setPackingListPagination({
+        currentPage: currentPagePackingList,
+        totalPages,
+        total,
+        itemsPerPage: itemsPerPagePackingList,
+      });
+
+    } catch (error: any) {
+      console.error('Error fetching paginated packing lists:', error);
+      setErrorMessage(`Failed to fetch packing list data: ${error?.message || 'Unknown error'}`);
+      setPaginatedPackingLists([]);
+      setPackingListPagination({
+        currentPage: 1,
+        totalPages: 0,
+        total: 0,
+        itemsPerPage: itemsPerPagePackingList,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedReportType, searchQueryPackingList, currentPagePackingList, itemsPerPagePackingList, dateRange]);
+
+  // Fetch all packing lists for summary and export
+  const fetchAllPackingLists = useCallback(async () => {
+    if (selectedReportType !== 'packing-list') {
+      setAllPackingLists([]);
+      setPackingListSummaryStats({ totalPackingLists: 0, totalItems: 0 });
+      return;
+    }
+
+    try {
+      console.log('Fetching all packing list data...');
+
+      // Format dates for API
+      const dateFrom = dateRange[0] ? format(dateRange[0], 'yyyy-MM-dd') : undefined;
+      const dateTo = dateRange[1] ? format(dateRange[1], 'yyyy-MM-dd') : undefined;
+
+      // Fetch packing list data
+      const packingLists = await packingListReportService.getPackingListReport(dateFrom, dateTo);
+
+      console.log('Total packing lists for export:', packingLists.length);
+
+      // Calculate summary statistics
+      const totalPackingLists = packingLists.length;
+      const totalItems = packingLists.reduce((sum, packingList) => sum + (packingList.totalQuantity || 0), 0);
+
+      console.log('Packing list summary stats:', { totalPackingLists, totalItems });
+
+      setAllPackingLists(packingLists);
+      setPackingListSummaryStats({
+        totalPackingLists,
+        totalItems
+      });
+
+    } catch (error: any) {
+      console.error('Error fetching all packing lists:', error);
+      setAllPackingLists([]);
+      setPackingListSummaryStats({ totalPackingLists: 0, totalItems: 0 });
+    }
+  }, [selectedReportType, dateRange])
+
   // Sorting function for sales report
   const handleSortStock = (field: SortFieldStock) => {
     let direction: SortDirection = 'asc';
@@ -1798,6 +1957,12 @@ const Reports: React.FC = () => {
         setIsReportGenerated(true);
         setIsLoading(false);
         console.log('✅ Stock report generated successfully');
+      } else if (selectedReportType === 'packing-list') {
+        console.log('📊 Generating packing list report...');
+        await Promise.all([fetchPaginatedPackingLists(), fetchAllPackingLists()]);
+        setIsReportGenerated(true);
+        setIsLoading(false);
+        console.log('✅ Packing list report generated successfully');
       } else {
         console.log('⚠️ Unknown report type, setting as generated');
         setIsReportGenerated(true);
@@ -1860,6 +2025,17 @@ const Reports: React.FC = () => {
             `"${stockItem.unitPrice}"`,
             `"${(stockItem.quantity * stockItem.unitPrice)}"`,
           ];
+        } else if (selectedReportType === 'packing-list') {
+          const packingListItem = item as unknown as PackingListReportItem;
+          // Flatten items for CSV export
+          return (packingListItem.items || []).map(packingItem => [
+            `"${packingListItem.boxNumber || ''}"`,
+            `"${packingItem.product?.name || 'Unknown Item'} - ${packingItem.description || ''}"`,
+            `"${packingItem.quantity || 0}"`,
+            `"${packingListItem.size || ''}"`,
+            `"${packingListItem.cargoNumber || ''}"`,
+            `"${packingListItem.description || ''}"`,
+          ]).flat();
         }
         return [];
       });
@@ -1981,6 +2157,13 @@ const Reports: React.FC = () => {
     }
   }, [fetchPaginatedStock, fetchAllInventoryStock, isReportGenerated, selectedReportType, searchQueryStock, sortConfigStock, selectedStores, currentPageStock, itemsPerPageStock]);
 
+  useEffect(() => {
+    if (isReportGenerated && selectedReportType === 'packing-list') {
+      fetchPaginatedPackingLists();
+      fetchAllPackingLists();
+    }
+  }, [fetchPaginatedPackingLists, fetchAllPackingLists, isReportGenerated, selectedReportType, searchQueryPackingList, currentPagePackingList, itemsPerPagePackingList, dateRange]);
+
   const handleSort = (field: SortField) => {
     let direction: SortDirection = 'asc';
 
@@ -2054,7 +2237,7 @@ const Reports: React.FC = () => {
 
   const handleReportTypeChange = (value: string) => {
     // Validate the value is a valid report type
-    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order'];
+    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order', 'packing-list'];
 
     if (validReportTypes.includes(value as ReportType)) {
       setSelectedReportType(value as ReportType);
@@ -2066,8 +2249,11 @@ const Reports: React.FC = () => {
     setPurchaseOrders([]);
     setFullPurchaseOrders([]);
     setSummaryStats({ totalOrders: 0, totalValue: 0, pendingDelivery: 0 });
+    setAllPackingLists([]);
+    setPackingListSummaryStats({ totalPackingLists: 0, totalItems: 0 });
     setErrorMessage(null);
     setCurrentPage(1);
+    setCurrentPagePackingList(1);
   };
 
   const handleFilterReset = () => {
@@ -2077,6 +2263,8 @@ const Reports: React.FC = () => {
     setCurrentPageSales(1);
     setSearchQueryStock('');
     setCurrentPageStock(1);
+    setSearchQueryPackingList('');
+    setCurrentPagePackingList(1);
   };
 
   const handleSearchChange = (value: string) => {
@@ -2183,6 +2371,7 @@ const Reports: React.FC = () => {
                           <SelectItem value="purchase-order">Purchase Order Report</SelectItem>
                           <SelectItem value="sales">Sales Report</SelectItem>
                           <SelectItem value="stock">Stock Report</SelectItem>
+                          <SelectItem value="packing-list">Packing List Report</SelectItem>
                           {/* <SelectItem value="supplier">Supplier Report</SelectItem> */}
                         </SelectContent>
                       </Select>
@@ -2463,6 +2652,34 @@ const Reports: React.FC = () => {
                           <Button
                             variant="outline"
                             onClick={handleFilterReset}
+                            className="text-gray-600 border-gray-300 hover:bg-gray-50"
+                          >
+                            Reset
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReportType === 'packing-list' && (
+                    <div className="mb-6 space-y-4">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative flex-1 w-full">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Search by box number, cargo number, or item..."
+                            value={searchQueryPackingList}
+                            onChange={(e) => {
+                              setSearchQueryPackingList(e.target.value);
+                              setCurrentPagePackingList(1);
+                            }}
+                            className="pl-10"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={handleFilterReset}
                             className="px-3 py-2 text-sm"
                           >
                             Clear Filters
@@ -2623,6 +2840,39 @@ const Reports: React.FC = () => {
                                 </p>
                               </TableHead>
                             </>
+                          ) : selectedReportType === 'packing-list' ? (
+                            <>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Box/Bora Number
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Item Description
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center justify-end gap-1 font-semibold ps-2">
+                                  Quantity
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Size
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Cargo Number
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Remarks
+                                </p>
+                              </TableHead>
+                            </>
                           ) : (
                             reportData[selectedReportType as keyof typeof reportData]?.headers?.map((header: string) => (
                               <TableHead key={header} className="font-semibold text-gray-800 px-4 py-3 text-left">
@@ -2767,9 +3017,157 @@ const Reports: React.FC = () => {
                               </TableCell>
                             </TableRow>
                           ))}
+                        {selectedReportType === 'packing-list' && (
+                          isLoading ? (
+                            Array(itemsPerPagePackingList).fill(0).map((_, index) => (
+                              <TableRow key={index} className="hover:bg-gray-50">
+                                <TableCell className="py-3">
+                                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                                </TableCell>
+                                <TableCell><div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                              </TableRow>
+                            ))
+                          ) : paginatedPackingLists.length > 0 ? (
+                            paginatedPackingLists.flatMap((packingList, packingIndex) =>
+                              (packingList.items || []).map((item, itemIndex) => (
+                                <TableRow
+                                  key={`${packingList._id}-${itemIndex}`}
+                                  className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${(packingIndex + itemIndex) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                                >
+                                  <TableCell className="text-gray-700 px-4 py-3 font-medium">
+                                    {itemIndex === 0 ? (packingList.boxNumber || '-') : ''}
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    <div>
+                                      <div className="font-medium">{item.product?.name || 'Unknown Item'}</div>
+                                      {item.description && (
+                                        <div className="text-sm text-gray-500">{item.description}</div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 text-end">{item.quantity || 0}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {item.unitOfMeasure || '-'}
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {itemIndex === 0 ? (packingList.cargoNumber || '-') : ''}
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {itemIndex === 0 ? (packingList.description || '-') : ''}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                                <div className="flex flex-col items-center justify-center">
+                                  <p className="text-base font-medium">No packing lists found</p>
+                                  <p className="text-sm text-gray-500">Try adjusting your search or date range</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
                       </TableBody>
                     </Table>
                   </div>
+
+                  {selectedReportType === 'packing-list' && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-6 gap-4">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground">
+                          Show
+                        </p>
+                        <Select
+                          value={itemsPerPagePackingList.toString()}
+                          onValueChange={(value) => {
+                            setItemsPerPagePackingList(Number(value));
+                            setCurrentPagePackingList(1);
+                          }}
+                        >
+                          <SelectTrigger className="w-[70px]">
+                            <SelectValue placeholder={itemsPerPagePackingList.toString()} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          entries
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground hidden sm:block">
+                          Showing {packingListPagination.total > 0 ? ((currentPagePackingList - 1) * itemsPerPagePackingList) + 1 : 0} to {Math.min(currentPagePackingList * itemsPerPagePackingList, packingListPagination.total)} of {packingListPagination.total} entries
+                        </p>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPagePackingList(prev => Math.max(prev - 1, 1))}
+                            disabled={currentPagePackingList === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            Previous
+                          </Button>
+                          <div className="flex items-center justify-center text-sm font-medium bg-gray-100 px-3 py-1 rounded">
+                            Page {currentPagePackingList} of {packingListPagination.totalPages || 1}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPagePackingList(prev => Math.min(prev + 1, packingListPagination.totalPages || 1))}
+                            disabled={currentPagePackingList === packingListPagination.totalPages || packingListPagination.totalPages === 0}
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReportType === 'packing-list' && (
+                    <div className="grid gap-4 md:grid-cols-2 mt-6">
+                      <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm">
+                        <CardContent className="p-5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-blue-700">Total Packing Lists</p>
+                              <h4 className="text-2xl font-bold text-blue-900 mt-1">{packingListSummaryStats.totalPackingLists}</h4>
+                              <p className="text-xs text-blue-600 mt-1">In selected period</p>
+                            </div>
+                            <div className="p-3 bg-white bg-opacity-70 rounded-lg shadow-sm">
+                              <Package className="h-6 w-6 text-blue-600" />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-sm">
+                        <CardContent className="p-5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-green-700">Total Items</p>
+                              <h4 className="text-2xl font-bold text-green-900 mt-1">{packingListSummaryStats.totalItems}</h4>
+                              <p className="text-xs text-green-600 mt-1">In selected period</p>
+                            </div>
+                            <div className="p-3 bg-white bg-opacity-70 rounded-lg shadow-sm">
+                              <TrendingUp className="h-6 w-6 text-green-600" />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
 
                   {selectedReportType === 'purchase-order' && (
                     <div className="flex flex-col sm:flex-row items-center justify-between px-2 gap-4">

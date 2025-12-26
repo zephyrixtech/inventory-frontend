@@ -1130,6 +1130,25 @@ export const PackingListsPage = () => {
                 </div>
               </div>
             </div>
+
+            {/* Section 4: Remarks */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Box className="h-4 w-4 text-primary" />
+                <h3 className="text-base font-semibold">Remarks</h3>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remarks" className="text-sm font-medium">Remarks</Label>
+                <textarea
+                  id="remarks"
+                  value={formState.description || ''}
+                  onChange={(e) => setFormState(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full min-h-[100px] px-3 py-2 text-sm border border-input rounded-md bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary resize-vertical"
+                  placeholder="Enter any additional remarks or notes for this packing list..."
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="border-t pt-6 mt-8 flex justify-end gap-3">
