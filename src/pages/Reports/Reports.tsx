@@ -250,7 +250,12 @@ const Reports: React.FC = () => {
     totalStockValue: 0,
   });
   const [statusMessages] = useState<{ [key: string]: string }>({});
-  const [userData, setUserData] = useState<{ company_id: string, company_data: ICompany } | null>(null);
+  const [userData, setUserData] = useState<{ 
+    company_id: string, 
+    company_data: ICompany,
+    role?: string | { name?: string; role_name?: string },
+    role_name?: string 
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -320,6 +325,51 @@ const Reports: React.FC = () => {
     console.log('🔍 paginatedSales state updated:', paginatedSales);
     console.log('🔍 paginatedSales length:', paginatedSales.length);
   }, [paginatedSales]);
+
+  /**
+   * Get available report types based on user role
+   * - Admin/SuperAdmin: All report types
+   * - Purchaser: Purchase Order, Stock, Packing List reports
+   * - Biller: Sales and Stock reports
+   */
+  const getAvailableReportTypes = useCallback(() => {
+    // Use the same role extraction logic as ProtectedRoute component
+    let userRole = 'biller'; // default fallback
+    
+    if (userData) {
+      if (typeof userData.role === 'string') {
+        userRole = userData.role;
+      } else if (userData.role && typeof userData.role === 'object') {
+        userRole = userData.role.name || userData.role.role_name || 'biller';
+      } else if (userData.role_name) {
+        userRole = userData.role_name;
+      }
+    }
+    
+    console.log('🔐 User role for report filtering:', userRole);
+    console.log('🔐 Raw userData:', userData);
+
+    const reportTypes = [
+      { value: 'purchase-order', label: 'Purchase Order Report', roles: ['admin', 'superadmin', 'purchaser'] },
+      { value: 'sales', label: 'Sales Report', roles: ['admin', 'superadmin', 'biller'] },
+      { value: 'stock', label: 'Stock Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
+      { value: 'packing-list', label: 'Packing List Report', roles: ['admin', 'superadmin', 'purchaser'] }
+    ];
+
+    // If no role is found or role is admin/superadmin, return all report types
+    if (!userRole || userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'superadmin') {
+      console.log('🔐 Admin/SuperAdmin access - showing all report types');
+      return reportTypes;
+    }
+
+    // Filter report types based on user role
+    const filteredReports = reportTypes.filter(reportType => 
+      reportType.roles.includes(userRole.toLowerCase())
+    );
+    
+    console.log('🔐 Filtered report types for role', userRole, ':', filteredReports.map(r => r.value));
+    return filteredReports;
+  }, [userData]);
 
   /**
    * Fetch supplier-item relationships from the API
@@ -2076,6 +2126,22 @@ const Reports: React.FC = () => {
     setUserData(mockUserData);
   }, []);
 
+  // Validate selected report type when user data changes
+  useEffect(() => {
+    if (userData && selectedReportType) {
+      const availableReportTypes = getAvailableReportTypes();
+      const isCurrentReportTypeAvailable = availableReportTypes.some(
+        reportType => reportType.value === selectedReportType
+      );
+      
+      if (!isCurrentReportTypeAvailable) {
+        console.log(`Report type '${selectedReportType}' not available for user role, resetting selection`);
+        setSelectedReportType('');
+        setIsReportGenerated(false);
+      }
+    }
+  }, [userData, selectedReportType, getAvailableReportTypes]);
+
 
 
   // Fetch suppliers when component mounts
@@ -2368,10 +2434,17 @@ const Reports: React.FC = () => {
                           <SelectValue placeholder="Select report type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="purchase-order">Purchase Order Report</SelectItem>
-                          <SelectItem value="sales">Sales Report</SelectItem>
-                          <SelectItem value="stock">Stock Report</SelectItem>
-                          <SelectItem value="packing-list">Packing List Report</SelectItem>
+                          {getAvailableReportTypes().length > 0 ? (
+                            getAvailableReportTypes().map((reportType) => (
+                              <SelectItem key={reportType.value} value={reportType.value}>
+                                {reportType.label}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-2 py-1 text-sm text-gray-500">
+                              No report types available for your role
+                            </div>
+                          )}
                           {/* <SelectItem value="supplier">Supplier Report</SelectItem> */}
                         </SelectContent>
                       </Select>

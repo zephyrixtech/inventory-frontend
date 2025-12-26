@@ -234,7 +234,7 @@ export const DashboardLayout = () => {
       path: '/dashboard/reports',
       label: 'Reports',
       icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'admin']
+      roles: ['superadmin', 'admin', 'biller', 'purchaser']
     },
     {
       path: '/dashboard/administration/product-transmission',

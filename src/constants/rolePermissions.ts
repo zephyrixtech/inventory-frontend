@@ -103,6 +103,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Purchase Order Management',
     'Category Master',
     'Store Stock',
+    'Reports',
   ],
   biller: [
     'Dashboard',
@@ -111,7 +112,8 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Store Stock',
     'Daily Expenses',
     'Opening Balance',
-    'Sales Invoice'
+    'Sales Invoice',
+    'Reports',
   ],
   store: [
     'Dashboard',
