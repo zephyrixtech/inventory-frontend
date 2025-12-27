@@ -347,10 +347,10 @@ export default function InvoiceView() {
                       <span>Subtotal:</span>
                       <span>{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-600">
+                    {/* <div className="flex justify-between text-gray-600">
                       <span>Tax (0%):</span>
                       <span>0.00</span>
-                    </div>
+                    </div> */}
                     <div className="flex justify-between font-bold text-lg text-blue-600 border-t-2 pt-3">
                       <span>Total Amount:</span>
                       <span>{finalAmount.toFixed(2)}</span>
