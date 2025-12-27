@@ -19,10 +19,10 @@ import {
   Save,
   Package,
   DollarSign,
-  Plus,
-  Trash2,
   Calendar,
   FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import {
@@ -74,6 +74,14 @@ interface Item {
   name: string;
   code: string;
   description: string;
+  unitPrice?: number;
+  quantity?: number;
+  totalPrice?: number;
+  vendor?: {
+    _id?: string;
+    id?: string;
+    name: string;
+  };
 }
 
 const PurchaseEntryForm = () => {
@@ -85,12 +93,11 @@ const PurchaseEntryForm = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
   const [suppliersLoading, setSuppliersLoading] = useState(false);
-  const [itemsLoading, setItemsLoading] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [billNumberItems, setBillNumberItems] = useState<Item[]>([]);
   const [fetchingBillItems, setFetchingBillItems] = useState(false);
+  const [isBillSummaryCollapsed, setIsBillSummaryCollapsed] = useState(false);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchedBillNumber = useRef<string>('');
 
@@ -134,9 +141,50 @@ const PurchaseEntryForm = () => {
     }
   };
 
+  // Function to toggle bill summary collapse
+  const toggleBillSummaryCollapse = () => {
+    setIsBillSummaryCollapsed(!isBillSummaryCollapsed);
+  };
+
+  // Helper function to get unique vendors from bill items
+  const getUniqueVendors = (items: Item[]) => {
+    const vendors = items
+      .filter(item => item.vendor)
+      .map(item => item.vendor!.name);
+    return [...new Set(vendors)];
+  };
+
+  // Helper function to check if supplier should be auto-populated and disabled
+  const shouldDisableSupplierField = () => {
+    if (isViewing || isEditing) return false;
+    const uniqueVendors = getUniqueVendors(billNumberItems);
+    return billNumberItems.length > 0 && uniqueVendors.length === 1;
+  };
+
+  // Helper function to get auto-selected supplier info
+  const getAutoSelectedSupplierInfo = () => {
+    if (!shouldDisableSupplierField()) return null;
+    const uniqueVendors = getUniqueVendors(billNumberItems);
+    return uniqueVendors.length === 1 ? uniqueVendors[0] : null;
+  };
+
   // Calculate final amount and balance
   const finalAmount = watchedTotalAmount - watchedDiscount;
   const balanceAmount = finalAmount - paidAmount;
+
+  // Function to calculate total amount from items
+  const calculateTotalAmountFromItems = (itemsData: any[]) => {
+    let totalAmount = 0;
+    
+    itemsData.forEach((item: any) => {
+      const unitPrice = item.unitPrice || 0;
+      const quantity = item.quantity || 0;
+      const itemTotal = unitPrice * quantity;
+      totalAmount += itemTotal;
+    });
+    
+    return totalAmount;
+  };
 
   // Function to fetch items by bill number
   const fetchItemsByBillNumber = async (billNumber: string) => {
@@ -170,7 +218,15 @@ const PurchaseEntryForm = () => {
         name: item.name,
         code: item.code,
         description: item.description,
-        billNumber: item.billNumber
+        billNumber: item.billNumber,
+        unitPrice: item.unitPrice || 0,
+        quantity: item.quantity || 0,
+        totalPrice: (item.unitPrice || 0) * (item.quantity || 0),
+        vendor: item.vendor ? {
+          _id: item.vendor._id || item.vendor.id,
+          id: item.vendor._id || item.vendor.id,
+          name: item.vendor.name
+        } : undefined
       }));
       
       setBillNumberItems(mappedItems);
@@ -194,6 +250,7 @@ const PurchaseEntryForm = () => {
             });
           });
           
+          // Note: Total amount will be automatically calculated by the useEffect
           toast.success(`Found ${mappedItems.length} item(s) with bill number: ${billNumber}`);
         }
       }
@@ -234,6 +291,72 @@ const PurchaseEntryForm = () => {
     };
   }, [watchedBillNumber, isEditing, isViewing]);
 
+  // Auto-sync bill items total to form total amount
+  useEffect(() => {
+    if (billNumberItems.length > 0 && !isEditing && !isViewing) {
+      const calculatedTotal = calculateTotalAmountFromItems(billNumberItems);
+      const currentTotal = watch('totalAmount');
+      
+      // Always update the total amount when bill items change
+      // This ensures the total is always in sync with the bill items
+      if (calculatedTotal !== currentTotal) {
+        setValue('totalAmount', calculatedTotal);
+        
+        // Show a subtle notification that the total was auto-calculated
+        if (calculatedTotal > 0) {
+          toast.success(`Total amount auto-calculated: ₹${calculatedTotal.toFixed(2)}`, {
+            duration: 2000,
+            position: 'bottom-right'
+          });
+        }
+      }
+    }
+    
+    // Clear total amount when no bill items are found
+    if (billNumberItems.length === 0 && !isEditing && !isViewing) {
+      const currentTotal = watch('totalAmount');
+      if (currentTotal > 0) {
+        setValue('totalAmount', 0);
+      }
+    }
+  }, [billNumberItems, isEditing, isViewing, setValue, watch]);
+
+  // Auto-populate supplier based on bill items vendor information
+  useEffect(() => {
+    if (billNumberItems.length > 0 && !isEditing && !isViewing) {
+      const uniqueVendors = getUniqueVendors(billNumberItems);
+      
+      // If all items come from the same vendor, auto-select that vendor as supplier
+      if (uniqueVendors.length === 1) {
+        const vendorName = uniqueVendors[0];
+        
+        // Find the supplier that matches the vendor name
+        const matchingSupplier = suppliers.find(supplier => 
+          supplier.name.toLowerCase() === vendorName.toLowerCase()
+        );
+        
+        if (matchingSupplier) {
+          const currentSupplier = watch('supplier');
+          if (currentSupplier !== matchingSupplier.id) {
+            setValue('supplier', matchingSupplier.id);
+            toast.success(`Supplier auto-selected: ${vendorName}`, {
+              duration: 2000,
+              position: 'bottom-right'
+            });
+          }
+        }
+      }
+    }
+    
+    // Clear supplier when no bill items or multiple vendors
+    if ((billNumberItems.length === 0 || getUniqueVendors(billNumberItems).length !== 1) && !isEditing && !isViewing) {
+      const currentSupplier = watch('supplier');
+      if (currentSupplier) {
+        setValue('supplier', '');
+      }
+    }
+  }, [billNumberItems, suppliers, isEditing, isViewing, setValue, watch]);
+
   // Fetch suppliers
   useEffect(() => {
     const fetchSuppliers = async () => {
@@ -255,31 +378,6 @@ const PurchaseEntryForm = () => {
     };
 
     fetchSuppliers();
-  }, []);
-
-  // Fetch items
-  useEffect(() => {
-    const fetchItems = async () => {
-      setItemsLoading(true);
-      try {
-        const response = await inventoryService.getItems({ limit: 1000 });
-        const itemsData = response.data || [];
-        const mappedItems = itemsData.map((item: any) => ({
-          id: item._id || item.id,
-          name: item.name,
-          code: item.code,
-          description: item.description
-        }));
-        setItems(mappedItems);
-      } catch (err: any) {
-        console.error('Error fetching items:', err);
-        toast.error('Failed to load items.');
-      } finally {
-        setItemsLoading(false);
-      }
-    };
-
-    fetchItems();
   }, []);
 
   // Fetch purchase entry for editing/viewing
@@ -365,16 +463,16 @@ const PurchaseEntryForm = () => {
   };
 
   // Add new item row
-  const addItem = () => {
-    append({ item: '', description: '' });
-  };
+  // const addItem = () => {
+  //   append({ item: '', description: '' });
+  // };
 
-  // Remove item row
-  const removeItem = (index: number) => {
-    if (fields.length > 1) {
-      remove(index);
-    }
-  };
+  // // Remove item row
+  // const removeItem = (index: number) => {
+  //   if (fields.length > 1) {
+  //     remove(index);
+  //   }
+  // };
 
   if (isLoading) {
     return (
@@ -485,14 +583,27 @@ const PurchaseEntryForm = () => {
                 <div className="space-y-2">
                   <Label htmlFor="supplier" className="flex items-center gap-1 font-medium">
                     <Package className="h-4 w-4" /> Supplier <span className="text-red-500">*</span>
+                    {shouldDisableSupplierField() && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full ml-2">
+                        Auto-selected: {getAutoSelectedSupplierInfo()}
+                      </span>
+                    )}
                   </Label>
                   <Select
                     onValueChange={(value) => setValue('supplier', value)}
                     value={watch('supplier')}
-                    disabled={isViewing || suppliersLoading}
+                    disabled={isViewing || suppliersLoading || shouldDisableSupplierField()}
                   >
-                    <SelectTrigger className={`${errors.supplier ? 'border-red-300' : 'border-gray-200'}`}>
-                      <SelectValue placeholder={suppliersLoading ? 'Loading suppliers...' : 'Select supplier'} />
+                    <SelectTrigger className={`${errors.supplier ? 'border-red-300' : 'border-gray-200'} ${
+                      shouldDisableSupplierField() ? 'bg-blue-50 border-blue-200' : ''
+                    }`}>
+                      <SelectValue placeholder={
+                        suppliersLoading 
+                          ? 'Loading suppliers...' 
+                          : shouldDisableSupplierField()
+                            ? `Auto-selected from bill items: ${getAutoSelectedSupplierInfo()}`
+                            : 'Select supplier'
+                      } />
                     </SelectTrigger>
                     <SelectContent>
                       {suppliers.map((supplier) => (
@@ -508,128 +619,129 @@ const PurchaseEntryForm = () => {
                       {errors.supplier.message}
                     </p>
                   )}
+                  {shouldDisableSupplierField() && (
+                    <p className="text-sm text-blue-600 flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      Supplier automatically selected based on bill items vendor
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Items */}
-          <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl text-blue-800 flex items-center gap-2">
-                    <Package className="h-5 w-5" /> Items
-                    {billNumberItems.length > 0 && (
-                      <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                        {billNumberItems.length} from bill
+          {/* Bill Items Summary */}
+          {billNumberItems.length > 0 && watchedBillNumber && (
+            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300 bg-green-50">
+              <CardHeader className="hover:bg-green-100 transition-colors duration-200">
+                <div className="flex items-center justify-between">
+                  <div 
+                    className="cursor-pointer flex-1"
+                    onClick={toggleBillSummaryCollapse}
+                  >
+                    <CardTitle className="text-xl text-green-800 flex items-center gap-2">
+                      <Package className="h-5 w-5" /> Bill Items Summary
+                      <span className="text-sm bg-green-200 text-green-800 px-2 py-1 rounded-full">
+                        {billNumberItems.length} items
                       </span>
-                    )}
-                  </CardTitle>
-                  <CardDescription className="text-blue-600">
-                    {watchedBillNumber && billNumberItems.length > 0 
-                      ? `Items automatically loaded from bill: ${watchedBillNumber}`
-                      : 'Add items with quantities and purchase rates'
-                    }
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  {watchedBillNumber && !isViewing && (
-                    <Button 
-                      type="button" 
-                      onClick={handleRefreshBillItems} 
-                      variant="outline" 
-                      size="sm"
-                      disabled={fetchingBillItems}
-                    >
-                      {fetchingBillItems ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <Package className="h-4 w-4 mr-2" />
-                      )}
-                      Refresh Bill Items
-                    </Button>
-                  )}
-                  {!isViewing && (
-                    <Button type="button" onClick={addItem} variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Item
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                    <div className="md:col-span-2">
-                      <Label className="text-sm font-medium">Item <span className="text-red-500">*</span></Label>
-                      <Select
-                        onValueChange={(value) => {
-                          setValue(`items.${index}.item`, value);
-                          const selectedItem = items.find(item => item.id === value);
-                          if (selectedItem) {
-                            setValue(`items.${index}.description`, selectedItem.description);
-                          }
-                        }}
-                        value={watch(`items.${index}.item`)}
-                        disabled={isViewing || itemsLoading}
+                    </CardTitle>
+                    <CardDescription className="text-green-600">
+                      Items found for bill number: {watchedBillNumber} • Total: ₹{calculateTotalAmountFromItems(billNumberItems).toFixed(2)}
+                      {(() => {
+                        const uniqueVendors = getUniqueVendors(billNumberItems);
+                        if (uniqueVendors.length === 1) {
+                          return ` • Vendor: ${uniqueVendors[0]} (Auto-selected as supplier)`;
+                        } else if (uniqueVendors.length > 1) {
+                          return ` • ${uniqueVendors.length} vendors (Manual supplier selection required)`;
+                        }
+                        return '';
+                      })()}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {watchedBillNumber && !isViewing && (
+                      <Button 
+                        type="button" 
+                        onClick={handleRefreshBillItems} 
+                        variant="outline" 
+                        size="sm"
+                        disabled={fetchingBillItems}
+                        className="text-green-700 hover:text-green-800 border-green-200 hover:bg-green-100"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder={itemsLoading ? 'Loading...' : 'Select item'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* Show bill number items first if available */}
-                          {billNumberItems.length > 0 && (
-                            <>
-                              <div className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-50 border-b">
-                                Items from Bill: {watchedBillNumber}
-                              </div>
-                              {billNumberItems.map((item) => (
-                                <SelectItem key={`bill-${item.id}`} value={item.id}>
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    {item.code} - {item.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                              {items.length > 0 && (
-                                <div className="px-2 py-1 text-xs font-semibold text-gray-600 bg-gray-50 border-b border-t">
-                                  All Items
-                                </div>
-                              )}
-                            </>
-                          )}
-                          {/* Show all items */}
-                          {items.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.code} - {item.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-end">
-                      {!isViewing && fields.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeItem(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {fetchingBillItems ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Package className="h-4 w-4 mr-2" />
+                        )}
+                        Refresh Bill Items
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleBillSummaryCollapse}
+                      className="text-green-700 hover:text-green-800 hover:bg-green-200"
+                    >
+                      {isBillSummaryCollapsed ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronUp className="h-4 w-4" />
                       )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              {!isBillSummaryCollapsed && (
+                <CardContent className="pt-6">
+                  <div className="space-y-3">
+                    {billNumberItems.map((item, index) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-semibold text-sm">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{item.name}</p>
+                            <p className="text-sm text-gray-500">Code: {item.code}</p>
+                            {item.vendor && (
+                              <p className="text-xs text-blue-600 font-medium">
+                                Vendor: {item.vendor.name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {(item.quantity ?? 0) > 0 && (item.unitPrice ?? 0) > 0 ? (
+                            <>
+                              <p className="text-sm text-gray-600">
+                                Qty: {item.quantity} × ₹{(item.unitPrice ?? 0).toFixed(2)}
+                              </p>
+                              <p className="font-semibold text-green-700">
+                                ₹{(item.totalPrice ?? 0).toFixed(2)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">No pricing data</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="border-t border-green-200 pt-3 mt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-green-800">Total Amount:</span>
+                        <span className="font-bold text-green-800 text-lg">
+                          ₹{calculateTotalAmountFromItems(billNumberItems).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
+         
           {/* Pricing Summary */}
           <Card className="border-none shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader>
@@ -643,6 +755,11 @@ const PurchaseEntryForm = () => {
                   <div className="space-y-2">
                     <Label htmlFor="totalAmount" className="flex items-center gap-1 font-medium">
                       <DollarSign className="h-4 w-4" /> Total Amount <span className="text-red-500">*</span>
+                      {billNumberItems.length > 0 && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2">
+                          Auto-calculated: ₹{calculateTotalAmountFromItems(billNumberItems).toFixed(2)}
+                        </span>
+                      )}
                     </Label>
                     <Input
                       id="totalAmount"
@@ -677,7 +794,7 @@ const PurchaseEntryForm = () => {
 
                   <div className="flex justify-between text-lg font-bold">
                     <span>Final Amount:</span>
-                    <span>${finalAmount.toFixed(2)}</span>
+                    <span>₹{finalAmount.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -699,7 +816,7 @@ const PurchaseEntryForm = () => {
                   <div className="flex justify-between text-lg">
                     <span>Balance Amount:</span>
                     <span className={`font-semibold ${balanceAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      ${balanceAmount.toFixed(2)}
+                      ₹{balanceAmount.toFixed(2)}
                     </span>
                   </div>
                 </div>
