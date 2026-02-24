@@ -55,10 +55,10 @@ export const StoreStockPage = () => {
     }
   }, []);
 
-  const fetchStock = useCallback(async (page?: number) => {
+  const fetchStock = useCallback(async (page: number = 1, limit: number = 10) => {
     setLoading(true);
     try {
-      const response = await storeStockService.list({ page: page ?? pagination.page, limit: pagination.limit });
+      const response = await storeStockService.list({ page, limit });
       console.log('Store stock response:', response); // Debug log
       setRecords(response.data);
       setPagination(response.meta);
@@ -70,10 +70,10 @@ export const StoreStockPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit]);
+  }, []);
 
   useEffect(() => {
-    fetchStock(1);
+    fetchStock(1, 10);
   }, [fetchStock]);
 
   // const fetchItemsAndStores = async () => {
@@ -243,7 +243,7 @@ export const StoreStockPage = () => {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => fetchStock(pagination.page)} disabled={loading}>
+            <Button variant="outline" onClick={() => fetchStock(pagination.page, pagination.limit)} disabled={loading}>
               <RefreshCcw className="mr-2 h-4 w-4" /> Refresh
             </Button>
           </div>
@@ -332,10 +332,10 @@ export const StoreStockPage = () => {
               Showing page {pagination.page} of {pagination.totalPages}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => fetchStock(pagination.page - 1)} disabled={!pagination.hasPrevPage}>
+              <Button variant="outline" size="sm" onClick={() => fetchStock(pagination.page - 1, pagination.limit)} disabled={!pagination.hasPrevPage}>
                 Previous
               </Button>
-              <Button variant="outline" size="sm" onClick={() => fetchStock(pagination.page + 1)} disabled={!pagination.hasNextPage}>
+              <Button variant="outline" size="sm" onClick={() => fetchStock(pagination.page + 1, pagination.limit)} disabled={!pagination.hasNextPage}>
                 Next
               </Button>
             </div>

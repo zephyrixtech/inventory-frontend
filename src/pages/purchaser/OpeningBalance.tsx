@@ -101,7 +101,8 @@ export const OpeningBalancePage = () => {
   };
 
   const totalOpeningBalance = balances.reduce((sum, balance) => sum + (balance.amount ?? 0), 0);
-  const latestBalance = balances.length > 0 ? balances[0] : null;
+  const totalExpenses = balances.reduce((sum, balance) => sum + (balance.totalExpenses ?? 0), 0);
+  const remainingBalance = totalOpeningBalance - totalExpenses;
 
   return (
     <div className="space-y-6">
@@ -129,26 +130,22 @@ export const OpeningBalancePage = () => {
                 ₹{totalOpeningBalance.toFixed(2)}
               </CardContent>
             </Card>
-            {latestBalance && (
-              <>
-                <Card className="bg-red-50 border-red-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">Total Expenses</CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-3xl font-semibold text-red-600">
-                    ₹{latestBalance.totalExpenses.toFixed(2)}
-                  </CardContent>
-                </Card>
-                <Card className={latestBalance.remainingBalance >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">Remaining Balance</CardTitle>
-                  </CardHeader>
-                  <CardContent className={`text-3xl font-semibold ${latestBalance.remainingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ₹{latestBalance.remainingBalance.toFixed(2)}
-                  </CardContent>
-                </Card>
-              </>
-            )}
+            <Card className="bg-red-50 border-red-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Total Expenses</CardTitle>
+              </CardHeader>
+              <CardContent className="text-3xl font-semibold text-red-600">
+                ₹{totalExpenses.toFixed(2)}
+              </CardContent>
+            </Card>
+            <Card className={remainingBalance >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Remaining Balance</CardTitle>
+              </CardHeader>
+              <CardContent className={`text-3xl font-semibold ${remainingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ₹{remainingBalance.toFixed(2)}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Table */}
