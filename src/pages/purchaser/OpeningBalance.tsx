@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Wallet, Trash2, Plus, Pencil } from 'lucide-react';
+import { Wallet, Trash2, Plus, Pencil, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 import { dailyExpenseService, type OpeningBalance } from '@/services/dailyExpenseService';
 import toast from 'react-hot-toast';
 
@@ -16,7 +20,8 @@ export const OpeningBalancePage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formState, setFormState] = useState({
     amount: '',
-    description: ''
+    description: '',
+    date: new Date()
   });
 
   const fetchBalances = useCallback(async () => {
@@ -48,13 +53,15 @@ export const OpeningBalancePage = () => {
       if (editingId) {
         await dailyExpenseService.updateOpeningBalance(editingId, {
           amount,
-          description: formState.description
+          description: formState.description,
+          date: formState.date.toISOString()
         });
         toast.success('Opening balance updated');
       } else {
         await dailyExpenseService.createOpeningBalance({
           amount,
-          description: formState.description
+          description: formState.description,
+          date: formState.date.toISOString()
         });
         toast.success('Opening balance created');
       }
@@ -71,7 +78,8 @@ export const OpeningBalancePage = () => {
   const resetForm = () => {
     setFormState({
       amount: '',
-      description: ''
+      description: '',
+      date: new Date()
     });
     setEditingId(null);
   };
@@ -80,7 +88,8 @@ export const OpeningBalancePage = () => {
     setEditingId(balance._id || '');
     setFormState({
       amount: String(balance.amount),
-      description: balance.description
+      description: balance.description,
+      date: balance.date ? new Date(balance.date) : new Date()
     });
     setShowDialog(true);
   };
@@ -227,6 +236,31 @@ export const OpeningBalancePage = () => {
             <DialogTitle>{editingId ? 'Edit Opening Balance' : 'Add Opening Balance'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="date">Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'justify-start text-left font-normal',
+                      !formState.date && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formState.date ? format(formState.date, 'PPP') : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formState.date}
+                    onSelect={(date) => date && setFormState((prev) => ({ ...prev, date }))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="amount">Amount *</Label>
               <Input

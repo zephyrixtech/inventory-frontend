@@ -156,15 +156,29 @@ export const Inventory = () => {
     }
   };
 
-  const exportItemsToCSV = useCallback(() => {
-    if (inventory.length === 0) {
-      toast.error('No items to export');
-      return;
-    }
-
+  const exportItemsToCSV = useCallback(async () => {
     try {
+      toast.loading('Fetching all items for export...');
+      
+      // Fetch all items without pagination
+      const response = await inventoryService.getItems({
+        limit: 10000, // High limit to get all items
+        search: searchQuery || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        sortBy: sortConfig.field ?? undefined,
+        sortOrder: sortConfig.order ?? undefined,
+      });
+
+      const allItems = response.data;
+
+      if (allItems.length === 0) {
+        toast.dismiss();
+        toast.error('No items to export');
+        return;
+      }
+
       const headers = ['Item Code', 'Item Name', 'Bill Number', 'Vendor', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
-      const rows = inventory.map((item) => [
+      const rows = allItems.map((item) => [
         item.code || '',
         item.name || '',
         item.billNumber || '',
@@ -201,12 +215,15 @@ export const Inventory = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
-      toast.success('CSV exported successfully');
+      
+      toast.dismiss();
+      toast.success(`Exported ${allItems.length} items successfully`);
     } catch (error) {
       console.error('Error exporting CSV:', error);
+      toast.dismiss();
       toast.error('Failed to export CSV');
     }
-  }, [inventory]);
+  }, [searchQuery, statusFilter, sortConfig.field, sortConfig.order]);
 
   const sortedInventory = useMemo(() => {
     if (!sortConfig.field || !sortConfig.order) return inventory;

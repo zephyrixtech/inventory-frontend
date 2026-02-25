@@ -67,11 +67,11 @@ export const dailyExpenseService = {
     return apiClient.get<ApiResponse<OpeningBalance>>('/expenses/opening-balance/current');
   },
 
-  async createOpeningBalance(payload: { amount: number; description: string }) {
+  async createOpeningBalance(payload: { amount: number; description: string; date?: string }) {
     return apiClient.post<ApiResponse<OpeningBalance>>('/expenses/opening-balance', payload);
   },
 
-  async updateOpeningBalance(id: string, payload: { amount: number; description: string }) {
+  async updateOpeningBalance(id: string, payload: { amount: number; description: string; date?: string }) {
     return apiClient.put<ApiResponse<OpeningBalance>>(`/expenses/opening-balance/${id}`, payload);
   },
 
