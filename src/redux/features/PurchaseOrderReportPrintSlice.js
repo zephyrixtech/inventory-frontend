@@ -12,6 +12,8 @@ const initialState = {
     sales: {},
     stock: {},
     'packing-list': {},
+    'credit-notes': {},
+    'daily-expense': {},
   },
 };
 

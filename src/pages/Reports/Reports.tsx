@@ -40,6 +40,8 @@ import { apiClient } from '@/services/apiClient';
 import { storeStockService } from '@/services/storeStockService';
 import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { packingListReportService, type PackingListReportItem } from '@/services/packingListReportService';
+// import { reportService } from '@/services/reportService';
+import { dailyExpenseService } from '@/services/dailyExpenseService';
 import type { Supplier } from '@/types/backend';
 import type { Store } from '@/services/storeService';
 import type { StoreStock } from '@/types/backend';
@@ -154,16 +156,50 @@ interface PurchaseOrderReport {
   data: PurchaseOrderItem[];
 }
 
+interface CreditNoteReportItem {
+  _id: string;
+  amount: number;
+  description: string;
+  date: string;
+  totalExpenses: number;
+  remainingBalance: number;
+}
+
+interface DailyExpenseReportItem {
+  _id: string;
+  date: string;
+  supplierName: string;
+  type: 'purchase' | 'petty' | string;
+  description: string;
+  paymentType?: 'cash' | 'card' | 'upi' | string;
+  amount: number;
+  transactionId?: string;
+}
+
+interface CreditNoteReport {
+  title: string;
+  headers: readonly ['Date', 'Description', 'Amount', 'Total Expenses', 'Remaining Balance'];
+  data: CreditNoteReportItem[];
+}
+
+interface DailyExpenseReport {
+  title: string;
+  headers: readonly ['Date', 'Supplier', 'Type', 'Description', 'Payment', 'Amount'];
+  data: DailyExpenseReportItem[];
+}
+
 // Combined Report Data Type
 interface ReportData {
   'sales': SalesReport;
   'stock': StockReport;
   'purchase-order': PurchaseOrderReport;
   'packing-list': PackingListReport;
+  'credit-notes': CreditNoteReport;
+  'daily-expense': DailyExpenseReport;
 }
 
 // Type for report types
-type ReportType = 'sales' | 'stock' | 'purchase-order' | 'packing-list';
+type ReportType = 'sales' | 'stock' | 'purchase-order' | 'packing-list' | 'credit-notes' | 'daily-expense';
 
 type SortFieldSales = 'invoice_date' | 'invoice_number' | 'invoice_amount' | 'net_amount';
 type SortField = 'itemName' | 'supplier.name' | 'orderDate' | 'quantity' | 'unitPrice' | 'totalValue';
@@ -227,7 +263,7 @@ const Reports: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  
+
   // Debug: Log suppliers when they change
   useEffect(() => {
     console.log('Suppliers state updated:', suppliers);
@@ -250,8 +286,8 @@ const Reports: React.FC = () => {
     totalStockValue: 0,
   });
   const [statusMessages] = useState<{ [key: string]: string }>({});
-  const [userData, setUserData] = useState<{ 
-    company_id: string, 
+  const [userData, setUserData] = useState<{
+    company_id: string,
     company_data: ICompany,
     role?: string | { name?: string; role_name?: string },
     role_name?: string,
@@ -304,7 +340,7 @@ const Reports: React.FC = () => {
   const [allStocks, setAllStocks] = useState<InventoryStockReport[]>([])
   const [allStores, setAllStores] = useState<Store[]>([])
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
-  
+
   // Packing List Report State
   const [allPackingLists, setAllPackingLists] = useState<PackingListReportItem[]>([]);
   const [paginatedPackingLists, setPaginatedPackingLists] = useState<PackingListReportItem[]>([]);
@@ -321,6 +357,10 @@ const Reports: React.FC = () => {
     total: 0,
     itemsPerPage: 10
   });
+  const [allCreditNotes, setAllCreditNotes] = useState<CreditNoteReportItem[]>([]);
+  const [allDailyExpenses, setAllDailyExpenses] = useState<DailyExpenseReportItem[]>([]);
+  const [searchQueryCreditNotes, setSearchQueryCreditNotes] = useState('');
+  const [searchQueryDailyExpense, setSearchQueryDailyExpense] = useState('');
 
   // Debug: Log paginatedSales when it changes (moved after state declaration)
   useEffect(() => {
@@ -337,7 +377,7 @@ const Reports: React.FC = () => {
   const getAvailableReportTypes = useCallback(() => {
     // Use the same role extraction logic as ProtectedRoute component
     let userRole = 'biller'; // default fallback
-    
+
     if (userData) {
       if (typeof userData.role === 'string') {
         userRole = userData.role;
@@ -347,7 +387,7 @@ const Reports: React.FC = () => {
         userRole = userData.role_name;
       }
     }
-    
+
     console.log('🔐 User role for report filtering:', userRole);
     console.log('🔐 Raw userData:', userData);
 
@@ -355,7 +395,9 @@ const Reports: React.FC = () => {
       { value: 'purchase-order', label: 'Purchase Order Report', roles: ['admin', 'superadmin', 'purchaser'] },
       { value: 'sales', label: 'Sales Report', roles: ['admin', 'superadmin', 'biller'] },
       { value: 'stock', label: 'Stock Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
-      { value: 'packing-list', label: 'Packing List Report', roles: ['admin', 'superadmin', 'purchaser'] }
+      { value: 'packing-list', label: 'Packing List Report', roles: ['admin', 'superadmin', 'purchaser'] },
+      { value: 'credit-notes', label: 'Credit Notes Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
+      { value: 'daily-expense', label: 'Daily Expense Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] }
     ];
 
     // If no role is found or role is admin/superadmin, return all report types
@@ -365,10 +407,10 @@ const Reports: React.FC = () => {
     }
 
     // Filter report types based on user role
-    const filteredReports = reportTypes.filter(reportType => 
+    const filteredReports = reportTypes.filter(reportType =>
       reportType.roles.includes(userRole.toLowerCase())
     );
-    
+
     console.log('🔐 Filtered report types for role', userRole, ':', filteredReports.map(r => r.value));
     return filteredReports;
   }, [userData]);
@@ -379,7 +421,7 @@ const Reports: React.FC = () => {
    */
   const getUserRole = useCallback(() => {
     let userRole = 'biller'; // default fallback
-    
+
     if (userData) {
       if (typeof userData.role === 'string') {
         userRole = userData.role;
@@ -389,7 +431,7 @@ const Reports: React.FC = () => {
         userRole = userData.role_name;
       }
     }
-    
+
     return userRole;
   }, [userData]);
 
@@ -403,7 +445,7 @@ const Reports: React.FC = () => {
   const fetchSupplierItems = useCallback(async () => {
     try {
       console.log('Fetching supplier-item relationships...');
-      
+
       // Use the correct endpoint based on documentation: /supplier-items
       const response = await apiClient.get('/supplier-items?limit=1000');
       const data = (response as any).data || (response as any) || [];
@@ -464,6 +506,29 @@ const Reports: React.FC = () => {
         'Remarks'
       ] as const,
       data: allPackingLists
+    },
+    'credit-notes': {
+      title: 'Credit Notes Report',
+      headers: [
+        'Date',
+        'Description',
+        'Amount',
+        'Total Expenses',
+        'Remaining Balance'
+      ] as const,
+      data: allCreditNotes
+    },
+    'daily-expense': {
+      title: 'Daily Expense Report',
+      headers: [
+        'Date',
+        'Supplier',
+        'Type',
+        'Description',
+        'Payment',
+        'Amount'
+      ] as const,
+      data: allDailyExpenses
     }
   };
 
@@ -482,15 +547,15 @@ const Reports: React.FC = () => {
 
     try {
       console.log('Fetching summary stats...');
-      
+
       // Step 1: Items already have vendor field with supplier information
       // No need to fetch supplier-items relationships - use item.vendor directly
       console.log('Using item.vendor field directly for supplier relationships');
-      
+
       // Fetch all items without pagination for summary
       const itemFilters: any = {};
       const itemsResponse = await getItems(1, 1000, itemFilters);
-      
+
       if (!itemsResponse.data || itemsResponse.data.length === 0) {
         console.log('No items found for summary stats');
         setSummaryStats({
@@ -510,11 +575,11 @@ const Reports: React.FC = () => {
           // Items use createdAt field (not created_at) - API returns createdAt
           const itemCreatedAt = item.createdAt || item.created_at;
           if (!itemCreatedAt) return false; // Skip items without creation date
-          
+
           const itemDate = new Date(itemCreatedAt);
           const start = dateRange[0] ? new Date(dateRange[0]) : null;
           const end = dateRange[1] ? new Date(dateRange[1]) : null;
-          
+
           // Set time to start/end of day for proper date comparison
           if (start) {
             start.setHours(0, 0, 0, 0);
@@ -552,7 +617,7 @@ const Reports: React.FC = () => {
         const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
         return sum + (unitPrice * quantity);
       }, 0);
-      
+
       // For pendingDelivery, count items that are active (assuming active items are pending)
       const pendingDelivery = filteredItems.filter(item => (item as any).isActive !== false).length;
 
@@ -592,7 +657,7 @@ const Reports: React.FC = () => {
   const fetchPurchaseOrderItems = useCallback(async (queryParams: URLSearchParams) => {
     try {
       setIsLoading(true);
-      
+
       // Extract parameters from queryParams
       const page = parseInt(queryParams.get('page') || '1');
       const limit = parseInt(queryParams.get('limit') || '10');
@@ -621,7 +686,7 @@ const Reports: React.FC = () => {
       if (search) itemFilters.search = search;
 
       console.log('Calling getItems with filters:', itemFilters);
-      
+
       // Get a large number of items to ensure we get all items for filtering
       let itemsResponse;
       try {
@@ -639,7 +704,7 @@ const Reports: React.FC = () => {
         });
         return;
       }
-      
+
       console.log('Items API response structure:', {
         hasData: !!itemsResponse.data,
         dataType: typeof itemsResponse.data,
@@ -647,7 +712,7 @@ const Reports: React.FC = () => {
         dataLength: itemsResponse.data?.length,
         fullResponse: itemsResponse
       });
-      
+
       if (!itemsResponse.data || itemsResponse.data.length === 0) {
         console.log('❌ No items found from API');
         console.log('Items response was:', itemsResponse);
@@ -663,7 +728,7 @@ const Reports: React.FC = () => {
 
       console.log('Total items fetched:', itemsResponse.data.length);
       console.log('Sample item structure:', itemsResponse.data[0]);
-     
+
 
       // Step 5: Create suppliers map from the suppliers state
       const suppliersMap = new Map<string, Supplier>();
@@ -683,11 +748,11 @@ const Reports: React.FC = () => {
             console.log('Item missing creation date:', (item as any).id || item._id);
             return false; // Skip items without creation date
           }
-          
+
           const itemDate = new Date(itemCreatedAt);
           const start = startDate ? new Date(startDate) : null;
           const end = endDate ? new Date(endDate) : null;
-          
+
           // Set time to start/end of day for proper date comparison
           if (start) {
             start.setHours(0, 0, 0, 0);
@@ -717,7 +782,7 @@ const Reports: React.FC = () => {
       });
 
       console.log('Items after filtering:', filteredItems.length);
-      
+
       // Debug: Log why items might be filtered out
       if (filteredItems.length === 0 && itemsResponse.data.length > 0) {
         console.warn('⚠️ No items matched filters. Debugging...');
@@ -732,11 +797,11 @@ const Reports: React.FC = () => {
           vendor: sampleItemAny.vendor,
           vendorId: sampleItemAny.vendor?._id || sampleItemAny.vendor?.id,
           selectedSupplierIds,
-          matchesSupplier: selectedSupplierIds.length > 0 ? 
-            selectedSupplierIds.includes(sampleItemAny.vendor?._id || sampleItemAny.vendor?.id) : 
+          matchesSupplier: selectedSupplierIds.length > 0 ?
+            selectedSupplierIds.includes(sampleItemAny.vendor?._id || sampleItemAny.vendor?.id) :
             !!sampleItemAny.vendor
         });
-        
+
         // Check date range
         if (startDate || endDate) {
           const sampleItemAny = sampleItem as any;
@@ -762,10 +827,10 @@ const Reports: React.FC = () => {
         const itemVendor = item.vendor;
         const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
         const vendorName = itemVendor?.name || 'Unknown Supplier';
-        
+
         // Try to get full supplier details from suppliersMap
         const supplier = vendorId ? suppliersMap.get(vendorId) : null;
-        
+
         const supplierInfo = supplier ? {
           _id: supplier._id,
           name: supplier.name
@@ -773,13 +838,13 @@ const Reports: React.FC = () => {
           _id: vendorId || 'no-supplier',
           name: vendorName
         };
-        
+
         // Use correct field names from API response
         const itemName = item.name || item.item_name || 'Unnamed Item';
         const createdAt = item.created_at;
         const unitPrice = item.unitPrice || item.selling_price || 0;
         const quantity = item.availableStock || item.availableQuantity || item.quantity || 1;
-        
+
         console.log(`Transforming item ${itemName}:`, {
           vendorId,
           vendorName,
@@ -797,12 +862,12 @@ const Reports: React.FC = () => {
             isActive: (item as any).isActive
           }
         });
-        
+
         // Validate date before using it
         if (!createdAt) {
           console.warn('⚠️ Item has no valid creation date:', itemName, 'Raw item:', item);
         }
-        
+
         return {
           _id: (item as any).id || item._id,
           itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
@@ -822,7 +887,7 @@ const Reports: React.FC = () => {
       // Step 8: Apply sorting
       purchaseOrderItems.sort((a, b) => {
         let aValue: any, bValue: any;
-        
+
         switch (sortField) {
           case 'itemName':
             aValue = a.itemName;
@@ -897,13 +962,13 @@ const Reports: React.FC = () => {
   const handlePrintPreview = async () => {
     try {
       setIsLoading(true);
-      
+
       let printData;
-      
+
       // For purchase order reports, fetch fresh data directly for printing
       if (selectedReportType === 'purchase-order') {
         console.log('🖨️ Fetching fresh purchase orders data for print preview...');
-        
+
         const companyId = userData?.company_id || (userData as any)?.companyId || (userData as any)?.id;
         if (!companyId) {
           throw new Error('Company ID not found');
@@ -914,7 +979,7 @@ const Reports: React.FC = () => {
         if (searchQuery.trim()) itemFilters.search = searchQuery.trim();
 
         const itemsResponse = await getItems(1, 1000, itemFilters);
-        
+
         if (!itemsResponse.data || itemsResponse.data.length === 0) {
           throw new Error('No items found for printing');
         }
@@ -931,11 +996,11 @@ const Reports: React.FC = () => {
           if (dateRange[0] || dateRange[1]) {
             const itemCreatedAt = (item as any).createdAt || (item as any).created_at;
             if (!itemCreatedAt) return false;
-            
+
             const itemDate = new Date(itemCreatedAt);
             const start = dateRange[0] ? new Date(dateRange[0]) : null;
             const end = dateRange[1] ? new Date(dateRange[1]) : null;
-            
+
             if (start) {
               start.setHours(0, 0, 0, 0);
               if (itemDate < start) return false;
@@ -966,9 +1031,9 @@ const Reports: React.FC = () => {
           const itemVendor = (item as any).vendor;
           const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
           const vendorName = itemVendor?.name || 'Unknown Supplier';
-          
+
           const supplier = vendorId ? suppliersMap.get(vendorId) : null;
-          
+
           const supplierInfo = supplier ? {
             _id: supplier._id,
             name: supplier.name
@@ -976,12 +1041,12 @@ const Reports: React.FC = () => {
             _id: vendorId || 'no-supplier',
             name: vendorName
           };
-          
+
           const itemName = item.name || (item as any).item_name || 'Unnamed Item';
           const createdAt = (item as any).createdAt || (item as any).created_at;
           const unitPrice = item.unitPrice || (item as any).selling_price || 0;
           const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
-          
+
           return {
             _id: (item as any).id || item._id,
             itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
@@ -999,10 +1064,10 @@ const Reports: React.FC = () => {
         // Apply sorting
         const sortField = sortConfig.field || 'orderDate';
         const sortDirection = sortConfig.direction || 'desc';
-        
+
         freshPurchaseOrderItems.sort((a, b) => {
           let aValue: any, bValue: any;
-          
+
           switch (sortField) {
             case 'itemName':
               aValue = a.itemName;
@@ -1056,13 +1121,17 @@ const Reports: React.FC = () => {
         };
       } else {
         // For other report types, use existing data
-        printData = selectedReportType === 'sales' 
+        printData = selectedReportType === 'sales'
           ? { ...reportData, 'sales': { ...reportData['sales'], data: allSales } }
-          : selectedReportType === 'stock' 
+          : selectedReportType === 'stock'
             ? { ...reportData, 'stock': { ...reportData['stock'], data: allStocks } }
             : selectedReportType === 'packing-list'
               ? { ...reportData, 'packing-list': { ...reportData['packing-list'], data: allPackingLists } }
-              : reportData;
+              : selectedReportType === 'credit-notes'
+                ? { ...reportData, 'credit-notes': { ...reportData['credit-notes'], data: allCreditNotes } }
+                : selectedReportType === 'daily-expense'
+                  ? { ...reportData, 'daily-expense': { ...reportData['daily-expense'], data: allDailyExpenses } }
+                  : reportData;
       }
 
       dispatch(setPrintData({
@@ -1092,7 +1161,7 @@ const Reports: React.FC = () => {
 
     try {
       console.log('Fetching full purchase orders for print preview...');
-      
+
       // Step 1: Items already have vendor field with supplier information
       // No need to fetch supplier-items relationships - use item.vendor directly
       console.log('Using item.vendor field directly for supplier relationships');
@@ -1102,7 +1171,7 @@ const Reports: React.FC = () => {
       if (searchQuery.trim()) itemFilters.search = searchQuery.trim();
 
       const itemsResponse = await getItems(1, 1000, itemFilters);
-      
+
       if (!itemsResponse.data || itemsResponse.data.length === 0) {
         setFullPurchaseOrders([]);
         return;
@@ -1121,11 +1190,11 @@ const Reports: React.FC = () => {
           // Items use createdAt field - API returns createdAt
           const itemCreatedAt = (item as any).createdAt || (item as any).created_at;
           if (!itemCreatedAt) return false; // Skip items without creation date
-          
+
           const itemDate = new Date(itemCreatedAt);
           const start = dateRange[0] ? new Date(dateRange[0]) : null;
           const end = dateRange[1] ? new Date(dateRange[1]) : null;
-          
+
           // Set time to start/end of day for proper date comparison
           if (start) {
             start.setHours(0, 0, 0, 0);
@@ -1160,10 +1229,10 @@ const Reports: React.FC = () => {
         const itemVendor = (item as any).vendor;
         const vendorId = itemVendor?._id || itemVendor?.id || itemVendor;
         const vendorName = itemVendor?.name || 'Unknown Supplier';
-        
+
         // Try to get full supplier details from suppliersMap
         const supplier = vendorId ? suppliersMap.get(vendorId) : null;
-        
+
         const supplierInfo = supplier ? {
           _id: supplier._id,
           name: supplier.name
@@ -1171,13 +1240,13 @@ const Reports: React.FC = () => {
           _id: vendorId || 'no-supplier',
           name: vendorName
         };
-        
+
         // Use correct field names from API response
         const itemName = item.name || (item as any).item_name || 'Unnamed Item';
         const createdAt = (item as any).createdAt || (item as any).created_at;
         const unitPrice = item.unitPrice || (item as any).selling_price || 0;
         const quantity = (item as any).availableQuantity || item.availableStock || (item as any).quantity || 1;
-        
+
         return {
           _id: (item as any).id || item._id,
           itemId: (item as any).code || (item as any).item_id || (item as any).id || item._id,
@@ -1195,10 +1264,10 @@ const Reports: React.FC = () => {
       // Step 8: Apply sorting
       const sortField = sortConfig.field || 'orderDate';
       const sortDirection = sortConfig.direction || 'desc';
-      
+
       purchaseOrderItems.sort((a, b) => {
         let aValue: any, bValue: any;
-        
+
         switch (sortField) {
           case 'itemName':
             aValue = a.itemName;
@@ -1249,7 +1318,7 @@ const Reports: React.FC = () => {
   const fetchAllSales = useCallback(async () => {
     try {
       console.log('📊 Fetching all sales invoices...');
-      
+
       if (!dateRange[0] || !dateRange[1]) {
         console.log('⚠️ No date range provided, setting empty sales data');
         setAllSales([]);
@@ -1260,7 +1329,7 @@ const Reports: React.FC = () => {
       // Format dates for API
       const dateFrom = format(dateRange[0], 'yyyy-MM-dd');
       const dateTo = format(dateRange[1], 'yyyy-MM-dd');
-      
+
       console.log('📅 Fetching sales invoices from', dateFrom, 'to', dateTo);
 
       // Fetch all sales invoices (use a large limit to get all)
@@ -1300,7 +1369,7 @@ const Reports: React.FC = () => {
             allInvoices = [...allInvoices, ...invoices];
             console.log(`✅ Added ${invoices.length} invoices. Total: ${allInvoices.length}`);
           }
-          
+
           // Check if there are more pages
           if (response.meta) {
             hasMore = response.meta.hasNextPage || false;
@@ -1354,8 +1423,8 @@ const Reports: React.FC = () => {
       // Apply search filter if provided
       const filteredSales = searchQuerySales
         ? transformedSales.filter((invoice) =>
-            invoice.invoiceNumber.toLowerCase().includes(searchQuerySales.toLowerCase())
-          )
+          invoice.invoiceNumber.toLowerCase().includes(searchQuerySales.toLowerCase())
+        )
         : transformedSales;
 
       setAllSales(filteredSales);
@@ -1388,7 +1457,7 @@ const Reports: React.FC = () => {
     try {
       setIsLoading(true);
       console.log('📄 Fetching paginated sales invoices...');
-      
+
       if (!dateRange[0] || !dateRange[1]) {
         console.log('⚠️ No date range provided, setting empty paginated sales');
         setPaginatedSales([]);
@@ -1405,9 +1474,9 @@ const Reports: React.FC = () => {
       // Format dates for API
       const dateFrom = format(dateRange[0], 'yyyy-MM-dd');
       const dateTo = format(dateRange[1], 'yyyy-MM-dd');
-      
+
       console.log('📅 Paginated fetch - Date range:', dateFrom, 'to', dateTo);
-      
+
       // Determine sort field mapping
       let sortBy = 'invoiceDate';
       if (sortConfigSales.field === 'invoice_number') {
@@ -1636,7 +1705,7 @@ const Reports: React.FC = () => {
       );
 
       const stockResponses = await Promise.all(allStockPromises);
-      
+
       // Combine all stock data
       let allStockData: StoreStock[] = [];
       stockResponses.forEach(response => {
@@ -1693,11 +1762,11 @@ const Reports: React.FC = () => {
       // Apply sorting
       const sortField = sortConfigStock.field;
       const sortDirection = sortConfigStock.direction;
-      
+
       if (sortField && sortDirection) {
         filteredStocks.sort((a, b) => {
           let aValue: any, bValue: any;
-          
+
           switch (sortField) {
             case 'itemId':
               aValue = a.itemId;
@@ -1784,7 +1853,7 @@ const Reports: React.FC = () => {
       );
 
       const stockResponses = await Promise.all(allStockPromises);
-      
+
       // Combine all stock data
       let allStockData: StoreStock[] = [];
       stockResponses.forEach(response => {
@@ -1880,7 +1949,7 @@ const Reports: React.FC = () => {
         filteredPackingLists = packingLists.filter((packingList: PackingListReportItem) =>
           (packingList.boxNumber || '').toLowerCase().includes(searchLower) ||
           (packingList.cargoNumber || '').toLowerCase().includes(searchLower) ||
-          (packingList.items || []).some(item => 
+          (packingList.items || []).some(item =>
             (item.product?.name || '').toLowerCase().includes(searchLower) ||
             (item.description || '').toLowerCase().includes(searchLower)
           )
@@ -1958,6 +2027,118 @@ const Reports: React.FC = () => {
     }
   }, [selectedReportType, dateRange])
 
+  const fetchCreditNotes = useCallback(async () => {
+    if (selectedReportType !== 'credit-notes') {
+      setAllCreditNotes([]);
+      return;
+    }
+
+    try {
+      const from = dateRange[0] ? format(dateRange[0], 'yyyy-MM-dd') : undefined;
+      const to = dateRange[1] ? format(dateRange[1], 'yyyy-MM-dd') : undefined;
+
+      const queryParams = new URLSearchParams();
+      queryParams.append('limit', '1000');
+      if (from) queryParams.append('from', from);
+      if (to) queryParams.append('to', to);
+
+      const response = await apiClient.get<any>(`/expenses/opening-balance/list?${queryParams.toString()}`);
+
+      let rawData: any[] = [];
+      if (response && (response as any).data && Array.isArray((response as any).data)) {
+        rawData = (response as any).data;
+      } else if (Array.isArray(response)) {
+        rawData = response;
+      }
+
+      const transformed: CreditNoteReportItem[] = rawData.map((item: any) => ({
+        _id: item._id || item.id,
+        amount: Number(item.amount || 0),
+        description: item.description || '',
+        date: item.date || item.createdAt || new Date().toISOString(),
+        totalExpenses: Number(item.totalExpenses || 0),
+        remainingBalance: Number(item.remainingBalance || 0),
+      }));
+
+      const searchLower = searchQueryCreditNotes.trim().toLowerCase();
+      const filtered = searchLower
+        ? transformed.filter((item) =>
+          String(item.description).toLowerCase().includes(searchLower)
+        )
+        : transformed;
+
+      setAllCreditNotes(filtered);
+    } catch (error: any) {
+      console.error('Error fetching credit notes report:', error);
+      setErrorMessage(`Failed to fetch credit notes data: ${error?.message || 'Unknown error'}`);
+      setAllCreditNotes([]);
+    }
+  }, [selectedReportType, dateRange, searchQueryCreditNotes]);
+
+  const fetchDailyExpensesReport = useCallback(async () => {
+    if (selectedReportType !== 'daily-expense') {
+      setAllDailyExpenses([]);
+      return;
+    }
+
+    try {
+      // Fetch ALL expenses without date filters (same pattern as working DailyExpenses module)
+      // The API's from/to filter returns empty data — so we fetch all and filter locally
+      const response = await dailyExpenseService.list({ limit: 1000 });
+
+      let rawData: any[] = [];
+      if (response && Array.isArray((response as any).data)) {
+        rawData = (response as any).data;
+      } else if (Array.isArray(response)) {
+        rawData = response as any[];
+      }
+
+      // Apply local date filtering if dateRange is set
+      const fromDate = dateRange[0] ? new Date(dateRange[0]) : null;
+      const toDate = dateRange[1] ? new Date(dateRange[1]) : null;
+      if (fromDate || toDate) {
+        rawData = rawData.filter((item: any) => {
+          const itemDate = item.date ? new Date(item.date) : item.createdAt ? new Date(item.createdAt) : null;
+          if (!itemDate) return true;
+          if (fromDate && itemDate < fromDate) return false;
+          if (toDate) {
+            const toEnd = new Date(toDate);
+            toEnd.setHours(23, 59, 59, 999);
+            if (itemDate > toEnd) return false;
+          }
+          return true;
+        });
+      }
+
+      const transformed: DailyExpenseReportItem[] = rawData.map((item: any) => ({
+        _id: item._id || item.id,
+        date: item.date || item.createdAt || new Date().toISOString(),
+        supplierName: item.supplierName || item.supplier?.name || 'Unassigned',
+        type: item.type || 'petty',
+        description: item.description || '',
+        paymentType: item.paymentType || 'cash',
+        amount: Number(item.amount || 0),
+        transactionId: item.transactionId || '',
+      }));
+
+      const searchLower = searchQueryDailyExpense.trim().toLowerCase();
+      const filtered = searchLower
+        ? transformed.filter((item) =>
+          String(item.supplierName).toLowerCase().includes(searchLower) ||
+          String(item.type).toLowerCase().includes(searchLower) ||
+          String(item.description).toLowerCase().includes(searchLower) ||
+          (item.paymentType && String(item.paymentType).toLowerCase().includes(searchLower))
+        )
+        : transformed;
+
+      setAllDailyExpenses(filtered);
+    } catch (error: any) {
+      console.error('Error fetching daily expense report:', error);
+      setErrorMessage(`Failed to fetch daily expense data: ${error?.message || 'Unknown error'}`);
+      setAllDailyExpenses([]);
+    }
+  }, [selectedReportType, dateRange, searchQueryDailyExpense]);
+
   // Sorting function for sales report
   const handleSortStock = (field: SortFieldStock) => {
     let direction: SortDirection = 'asc';
@@ -2005,7 +2186,7 @@ const Reports: React.FC = () => {
     console.log('Date range:', dateRange);
     console.log('Selected suppliers:', selectedSuppliers);
     console.log('User data:', userData);
-    
+
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -2030,11 +2211,18 @@ const Reports: React.FC = () => {
         setIsLoading(false);
         console.log('✅ Stock report generated successfully');
       } else if (selectedReportType === 'packing-list') {
-        console.log('📊 Generating packing list report...');
+        console.log('Generating packing list report...');
         await Promise.all([fetchPaginatedPackingLists(), fetchAllPackingLists()]);
         setIsReportGenerated(true);
         setIsLoading(false);
-        console.log('✅ Packing list report generated successfully');
+      } else if (selectedReportType === 'credit-notes') {
+        await fetchCreditNotes();
+        setIsReportGenerated(true);
+        setIsLoading(false);
+      } else if (selectedReportType === 'daily-expense') {
+        await fetchDailyExpensesReport();
+        setIsReportGenerated(true);
+        setIsLoading(false);
       } else {
         console.log('⚠️ Unknown report type, setting as generated');
         setIsReportGenerated(true);
@@ -2108,6 +2296,25 @@ const Reports: React.FC = () => {
             `"${packingListItem.cargoNumber || ''}"`,
             `"${packingListItem.description || ''}"`,
           ]).flat();
+        } else if (selectedReportType === 'credit-notes') {
+          const creditItem = item as unknown as CreditNoteReportItem;
+          return [
+            `"${format(new Date(creditItem.date), 'dd MMM yyyy')}"`,
+            `"${String(creditItem.description).replace(/\"/g, '""')}"`,
+            `"${creditItem.amount.toFixed(2)}"`,
+            `"${creditItem.totalExpenses.toFixed(2)}"`,
+            `"${creditItem.remainingBalance.toFixed(2)}"`,
+          ];
+        } else if (selectedReportType === 'daily-expense') {
+          const expenseItem = item as unknown as DailyExpenseReportItem;
+          return [
+            `"${expenseItem.date ? format(new Date(expenseItem.date), 'dd MMM yyyy') : '-'}"`,
+            `"${expenseItem.supplierName}"`,
+            `"${expenseItem.type}"`,
+            `"${String(expenseItem.description || '').replace(/\"/g, '""')}"`,
+            `"${expenseItem.paymentType || ''}"`,
+            `"${expenseItem.amount.toFixed(2)}"`,
+          ];
         }
         return [];
       });
@@ -2155,7 +2362,7 @@ const Reports: React.FC = () => {
       const isCurrentReportTypeAvailable = availableReportTypes.some(
         reportType => reportType.value === selectedReportType
       );
-      
+
       if (!isCurrentReportTypeAvailable) {
         console.log(`Report type '${selectedReportType}' not available for user role, resetting selection`);
         setSelectedReportType('');
@@ -2171,15 +2378,15 @@ const Reports: React.FC = () => {
     const fetchSuppliers = async () => {
       try {
         console.log('Fetching suppliers using supplierService...');
-        
+
         const response = await supplierService.listSuppliers({
           page: 1,
           limit: 100,
           status: 'approved' // Only get approved suppliers
         });
-        
+
         console.log('Suppliers API response:', response);
-        
+
         if (response && response.data) {
           console.log('Suppliers data:', response.data);
           setSuppliers(response.data);
@@ -2201,17 +2408,17 @@ const Reports: React.FC = () => {
     const fetchStores = async () => {
       try {
         console.log('Fetching stores using storeService...');
-        
+
         // Get user role and ID for role-based store filtering
         const userRole = getUserRole();
         const userId = userData?.id || userData?._id || userData?.company_id;
-        
+
         console.log('🏪 Store filtering - User role:', userRole);
         console.log('🏪 Store filtering - User ID:', userId);
-        
+
         // Prepare store service parameters based on role
         const storeParams: any = {};
-        
+
         // Admin and SuperAdmin get all stores, others get role-filtered stores
         if (userRole.toLowerCase() !== 'admin' && userRole.toLowerCase() !== 'superadmin') {
           if (userId) {
@@ -2222,11 +2429,11 @@ const Reports: React.FC = () => {
         } else {
           console.log('🏪 Admin/SuperAdmin access - fetching all stores');
         }
-        
+
         const response = await storeService.listStores(storeParams);
-        
+
         console.log('Stores API response:', response);
-        
+
         if (response && response.data) {
           console.log('🏪 Stores data filtered by role:', response.data);
           console.log('🏪 Number of stores available:', response.data.length);
@@ -2276,6 +2483,18 @@ const Reports: React.FC = () => {
       fetchAllPackingLists();
     }
   }, [fetchPaginatedPackingLists, fetchAllPackingLists, isReportGenerated, selectedReportType, searchQueryPackingList, currentPagePackingList, itemsPerPagePackingList, dateRange]);
+
+  useEffect(() => {
+    if (isReportGenerated && selectedReportType === 'credit-notes') {
+      fetchCreditNotes();
+    }
+  }, [fetchCreditNotes, isReportGenerated, selectedReportType, searchQueryCreditNotes, dateRange]);
+
+  useEffect(() => {
+    if (isReportGenerated && selectedReportType === 'daily-expense') {
+      fetchDailyExpensesReport();
+    }
+  }, [fetchDailyExpensesReport, isReportGenerated, selectedReportType, searchQueryDailyExpense, dateRange]);
 
   const handleSort = (field: SortField) => {
     let direction: SortDirection = 'asc';
@@ -2350,7 +2569,7 @@ const Reports: React.FC = () => {
 
   const handleReportTypeChange = (value: string) => {
     // Validate the value is a valid report type
-    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order', 'packing-list'];
+    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order', 'packing-list', 'credit-notes', 'daily-expense'];
 
     if (validReportTypes.includes(value as ReportType)) {
       setSelectedReportType(value as ReportType);
@@ -2364,6 +2583,10 @@ const Reports: React.FC = () => {
     setSummaryStats({ totalOrders: 0, totalValue: 0, pendingDelivery: 0 });
     setAllPackingLists([]);
     setPackingListSummaryStats({ totalPackingLists: 0, totalItems: 0 });
+    setAllCreditNotes([]);
+    setAllDailyExpenses([]);
+    setSearchQueryCreditNotes('');
+    setSearchQueryDailyExpense('');
     setErrorMessage(null);
     setCurrentPage(1);
     setCurrentPagePackingList(1);
@@ -2378,6 +2601,8 @@ const Reports: React.FC = () => {
     setCurrentPageStock(1);
     setSearchQueryPackingList('');
     setCurrentPagePackingList(1);
+    setSearchQueryCreditNotes('');
+    setSearchQueryDailyExpense('');
   };
 
   const handleSearchChange = (value: string) => {
@@ -2515,11 +2740,11 @@ const Reports: React.FC = () => {
                               )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent 
-                            className="w-64 p-0 [&[data-side=top]]:hidden" 
-                            align="start" 
-                            side="bottom" 
-                            sideOffset={4} 
+                          <PopoverContent
+                            className="w-64 p-0 [&[data-side=top]]:hidden"
+                            align="start"
+                            side="bottom"
+                            sideOffset={4}
                             avoidCollisions={false}
                             collisionPadding={0}
                           >
@@ -2579,11 +2804,11 @@ const Reports: React.FC = () => {
                               )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent 
-                            className="w-64 p-0 [&[data-side=top]]:hidden" 
-                            align="start" 
-                            side="bottom" 
-                            sideOffset={4} 
+                          <PopoverContent
+                            className="w-64 p-0 [&[data-side=top]]:hidden"
+                            align="start"
+                            side="bottom"
+                            sideOffset={4}
                             avoidCollisions={false}
                             collisionPadding={0}
                           >
@@ -2675,6 +2900,9 @@ const Reports: React.FC = () => {
                         {selectedReportType === 'purchase-order' && <ShoppingCart className="h-6 w-6 text-blue-600" />}
                         {selectedReportType === 'sales' && <TrendingUp className="h-6 w-6 text-green-600" />}
                         {selectedReportType === 'stock' && <Package className="h-6 w-6 text-purple-600" />}
+                        {selectedReportType === 'packing-list' && <Package className="h-6 w-6 text-indigo-600" />}
+                        {selectedReportType === 'credit-notes' && <FileText className="h-6 w-6 text-amber-600" />}
+                        {selectedReportType === 'daily-expense' && <TrendingUp className="h-6 w-6 text-rose-600" />}
                       </div>
                       <div>
                         <h2 className="text-xl font-bold text-gray-800">
@@ -2805,6 +3033,56 @@ const Reports: React.FC = () => {
                               setSearchQueryPackingList(e.target.value);
                               setCurrentPagePackingList(1);
                             }}
+                            className="pl-10"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={handleFilterReset}
+                            className="px-3 py-2 text-sm"
+                          >
+                            Clear Filters
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReportType === 'credit-notes' && (
+                    <div className="mb-6 space-y-4">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative flex-1 w-full">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Search by vendor, contact, phone, email, or note..."
+                            value={searchQueryCreditNotes}
+                            onChange={(e) => setSearchQueryCreditNotes(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={handleFilterReset}
+                            className="px-3 py-2 text-sm"
+                          >
+                            Clear Filters
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReportType === 'daily-expense' && (
+                    <div className="mb-6 space-y-4">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative flex-1 w-full">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Search by supplier, type, description, or payment..."
+                            value={searchQueryDailyExpense}
+                            onChange={(e) => setSearchQueryDailyExpense(e.target.value)}
                             className="pl-10"
                           />
                         </div>
@@ -3003,6 +3281,42 @@ const Reports: React.FC = () => {
                                 <p className="flex items-center gap-1 font-semibold ps-2">
                                   Remarks
                                 </p>
+                              </TableHead>
+                            </>
+                          ) : selectedReportType === 'credit-notes' ? (
+                            <>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Date</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Vendor</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Credit Note</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Contact</p>
+                              </TableHead>
+                            </>
+                          ) : selectedReportType === 'daily-expense' ? (
+                            <>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Date</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Supplier</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Type</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Description</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Payment</p>
+                              </TableHead>
+                              <TableHead className="font-semibold text-end">
+                                <p className="pe-2">Amount</p>
                               </TableHead>
                             </>
                           ) : (
@@ -3204,6 +3518,77 @@ const Reports: React.FC = () => {
                               </TableCell>
                             </TableRow>
                           ))}
+                        {selectedReportType === 'credit-notes' && (
+                          isLoading ? (
+                            Array(6).fill(0).map((_, index) => (
+                              <TableRow key={index} className="hover:bg-gray-50">
+                                <TableCell className="py-3"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                              </TableRow>
+                            ))
+                          ) : allCreditNotes.length > 0 ? (
+                            allCreditNotes.map((item, index) => (
+                              <TableRow
+                                key={item._id || index}
+                                className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                              >
+                                <TableCell className="text-gray-700 px-4 py-3">{item.date ? format(new Date(item.date), 'dd MMM yyyy') : '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 max-w-[460px] whitespace-pre-wrap break-words">{item.description || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">₹{item.amount.toLocaleString('en-IN')}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">₹{item.totalExpenses.toLocaleString('en-IN')}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">₹{item.remainingBalance.toLocaleString('en-IN')}</TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                                <div className="flex flex-col items-center justify-center">
+                                  <p className="text-base font-medium">No credit notes found</p>
+                                  <p className="text-sm text-gray-500">Try adjusting your date range or search</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
+                        {selectedReportType === 'daily-expense' && (
+                          isLoading ? (
+                            Array(6).fill(0).map((_, index) => (
+                              <TableRow key={index} className="hover:bg-gray-50">
+                                <TableCell className="py-3"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse ml-auto"></div></TableCell>
+                              </TableRow>
+                            ))
+                          ) : allDailyExpenses.length > 0 ? (
+                            allDailyExpenses.map((item, index) => (
+                              <TableRow
+                                key={item._id || index}
+                                className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                              >
+                                <TableCell className="text-gray-700 px-4 py-3">{item.date ? format(new Date(item.date), 'dd MMM yyyy') : '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{item.supplierName}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 capitalize">{item.type}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{item.description || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 uppercase">{item.paymentType || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                                <div className="flex flex-col items-center justify-center">
+                                  <p className="text-base font-medium">No daily expenses found</p>
+                                  <p className="text-sm text-gray-500">Try adjusting your date range or search</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -3591,3 +3976,4 @@ const Reports: React.FC = () => {
 };
 
 export default Reports;
+
