@@ -100,6 +100,9 @@ type InventoryStockReport = {
   quantity: number;
   unitPrice: number;
   totalValue: number;
+  createdAt?: string;
+  shipmentDate?: string;
+  cargoNumber?: string;
 };
 
 // Packing List Report Type Definition
@@ -535,6 +538,19 @@ const Reports: React.FC = () => {
   // Type-safe helper function for getting report data
   const getReportData = <T extends ReportType>(reportType: T): ReportData[T] => {
     return reportData[reportType];
+  };
+
+  const hasShipmentDateInStockTable = paginatedStocks.some(
+    (stock) => Boolean(stock.shipmentDate) || (!stock.shipmentDate && !stock.cargoNumber && Boolean(stock.createdAt))
+  );
+  const hasCargoNumberInStockTable = paginatedStocks.some(
+    (stock) => Boolean(stock.cargoNumber)
+  );
+
+  const getStockDisplayDate = (stock: InventoryStockReport): string | undefined => {
+    if (stock.shipmentDate) return stock.shipmentDate;
+    if (!stock.shipmentDate && !stock.cargoNumber && stock.createdAt) return stock.createdAt;
+    return undefined;
   };
 
   // Fetch summary statistics for purchase orders
@@ -1724,6 +1740,7 @@ const Reports: React.FC = () => {
         const store = typeof stock.store === 'object' && stock.store !== null
           ? stock.store
           : null;
+        const packingListDetails = (stock as any).packingListDetails || {};
 
         // Handle different possible field names for product
         const productName = product?.name || (product as any)?.item_name || 'Unknown Item';
@@ -1737,7 +1754,10 @@ const Reports: React.FC = () => {
           storeName: storeName,
           quantity: stock.quantity || 0,
           unitPrice: stock.unitPrice || 0,
-          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0)
+          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0),
+          createdAt: (stock as any).createdAt,
+          shipmentDate: packingListDetails.shipmentDate || (stock as any).shipmentDate,
+          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber
         };
       });
 
@@ -1755,7 +1775,9 @@ const Reports: React.FC = () => {
         filteredStocks = filteredStocks.filter((stock: InventoryStockReport) =>
           stock.itemId.toLowerCase().includes(searchLower) ||
           stock.itemName.toLowerCase().includes(searchLower) ||
-          stock.storeName.toLowerCase().includes(searchLower)
+          stock.storeName.toLowerCase().includes(searchLower) ||
+          (stock.cargoNumber || '').toLowerCase().includes(searchLower) ||
+          (getStockDisplayDate(stock) ? format(new Date(getStockDisplayDate(stock)!), 'yyyy-MM-dd').toLowerCase().includes(searchLower) : false)
         );
       }
 
@@ -1872,6 +1894,7 @@ const Reports: React.FC = () => {
         const store = typeof stock.store === 'object' && stock.store !== null
           ? stock.store
           : null;
+        const packingListDetails = (stock as any).packingListDetails || {};
 
         // Handle different possible field names for product
         const productName = product?.name || (product as any)?.item_name || 'Unknown Item';
@@ -1885,7 +1908,10 @@ const Reports: React.FC = () => {
           storeName: storeName,
           quantity: stock.quantity || 0,
           unitPrice: stock.unitPrice || 0,
-          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0)
+          totalValue: (stock.quantity || 0) * (stock.unitPrice || 0),
+          createdAt: (stock as any).createdAt,
+          shipmentDate: packingListDetails.shipmentDate || (stock as any).shipmentDate,
+          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber
         };
       });
 
@@ -2259,6 +2285,40 @@ const Reports: React.FC = () => {
       ].join('\n');
 
       filename = `Purchase_Order_Report_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
+    } else if (selectedReportType === 'stock') {
+      const hasShipmentDate = allStocks.some(
+        (stock) => Boolean(stock.shipmentDate) || (!stock.shipmentDate && !stock.cargoNumber && Boolean(stock.createdAt))
+      );
+      const hasCargoNumber = allStocks.some((stock) => Boolean(stock.cargoNumber));
+
+      const headers = [
+        'Item ID',
+        'Item Name',
+        'Store Name',
+        'Quantity',
+        'Unit Price',
+        'Total Value',
+        ...(hasShipmentDate ? ['Date'] : []),
+        ...(hasCargoNumber ? ['Cargo Number'] : []),
+      ];
+
+      const rows = allStocks.map((stockItem) => [
+        `"${stockItem.itemId}"`,
+        `"${stockItem.itemName}"`,
+        `"${stockItem.storeName}"`,
+        `"${stockItem.quantity}"`,
+        `"${stockItem.unitPrice}"`,
+        `"${(stockItem.quantity * stockItem.unitPrice)}"`,
+        ...(hasShipmentDate ? [`"${getStockDisplayDate(stockItem) ? format(new Date(getStockDisplayDate(stockItem)!), 'dd MMM yyyy') : ''}"`] : []),
+        ...(hasCargoNumber ? [`"${stockItem.cargoNumber || ''}"`] : []),
+      ]);
+
+      csvContent = [
+        headers.join(','),
+        ...rows.map((row) => row.join(','))
+      ].join('\n');
+
+      filename = `Stock_Report_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
     } else {
       // Handle other report types with proper typing
       const report = getReportData(selectedReportType);
@@ -2274,16 +2334,6 @@ const Reports: React.FC = () => {
             `"${(salesItem.discountAmount ?? 0).toFixed(2)}"`,
             `"${(salesItem.tax_amount ?? 0).toFixed(2)}"`,
             `"${(salesItem.net_amount ?? 0).toFixed(2)}"`,
-          ];
-        } else if (selectedReportType === 'stock') {
-          const stockItem = item as unknown as InventoryStockReport;
-          return [
-            `"${stockItem.itemId}"`,
-            `"${stockItem.itemName}"`,
-            `"${stockItem.storeName}"`,
-            `"${stockItem.quantity}"`,
-            `"${stockItem.unitPrice}"`,
-            `"${(stockItem.quantity * stockItem.unitPrice)}"`,
           ];
         } else if (selectedReportType === 'packing-list') {
           const packingListItem = item as unknown as PackingListReportItem;
@@ -2345,7 +2395,7 @@ const Reports: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig]);
+  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig, allStocks]);
 
   // Fetch user data
   useEffect(() => {
@@ -3208,6 +3258,20 @@ const Reports: React.FC = () => {
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold text-end"><p className='pe-2'>Total Value</p></TableHead>
+                              {hasShipmentDateInStockTable && (
+                                <TableHead className="font-semibold">
+                                  <p className="flex items-center gap-1 font-semibold ps-2">
+                                    Date
+                                  </p>
+                                </TableHead>
+                              )}
+                              {hasCargoNumberInStockTable && (
+                                <TableHead className="font-semibold">
+                                  <p className="flex items-center gap-1 font-semibold ps-2">
+                                    Cargo Number
+                                  </p>
+                                </TableHead>
+                              )}
                             </>
                           ) : selectedReportType === 'sales' ? (
                             <>
@@ -3455,10 +3519,20 @@ const Reports: React.FC = () => {
                                 <TableCell className="text-gray-700 px-4 py-3 text-end">{stock.quantity}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 text-end">{(stock.unitPrice ?? 0).toFixed(2)}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{((stock.quantity ?? 0) * (stock.unitPrice ?? 0)).toFixed(2)}</TableCell>
+                                {hasShipmentDateInStockTable && (
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {getStockDisplayDate(stock) ? format(new Date(getStockDisplayDate(stock)!), 'dd MMM yyyy') : '-'}
+                                  </TableCell>
+                                )}
+                                {hasCargoNumberInStockTable && (
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {stock.cargoNumber || '-'}
+                                  </TableCell>
+                                )}
                               </TableRow>
                             ))) : (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={6 + (hasShipmentDateInStockTable ? 1 : 0) + (hasCargoNumberInStockTable ? 1 : 0)} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No inventory stocks found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or filters</p>

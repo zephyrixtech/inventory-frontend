@@ -49,6 +49,9 @@ type GroupedStockItem = {
     store_name: string;
     unit_price: number;
     quantity: number;
+    created_at?: string;
+    shipment_date?: string;
+    cargo_number?: string;
   }[];
 };
 
@@ -129,20 +132,33 @@ const PrintPreview: React.FC = () => {
 
   // Group stock items by item name
   const allInventoryStocks = stockItems.reduce((acc: GroupedStockItem[], item: any) => {
-    const existingItem = acc.find(i => i.item_id === item.itemId);
+    const resolvedItemId =
+      item.itemId ||
+      item.item_id ||
+      item.product?.code ||
+      item.product?.id ||
+      item.product?._id ||
+      item._id ||
+      'N/A';
+    const resolvedItemName = item.itemName || item.item_name || item.product?.name || 'Unknown Item';
+
+    const existingItem = acc.find(i => i.item_id === resolvedItemId);
     if (existingItem) {
       existingItem.stores.push({
         store_id: item.storeName || 'default',
         store_name: item.storeName || 'Default Store',
         unit_price: item.unitPrice || 0,
         quantity: item.quantity || 0,
+        created_at: item.createdAt || '',
+        shipment_date: item.shipmentDate || '',
+        cargo_number: item.cargoNumber || '',
       });
       existingItem.total_count += item.quantity || 0;
     } else {
       acc.push({
-        item_uuid: item._id || item.itemId,
-        item_id: item.itemId || item._id,
-        item_name: item.itemName || 'Unknown Item',
+        item_uuid: item._id || resolvedItemId,
+        item_id: resolvedItemId,
+        item_name: resolvedItemName,
         item_category: item.category || 'Uncategorized',
         description: item.description || '',
         selling_price: item.unitPrice || 0,
@@ -152,11 +168,25 @@ const PrintPreview: React.FC = () => {
           store_name: item.storeName || 'Default Store',
           unit_price: item.unitPrice || 0,
           quantity: item.quantity || 0,
+          created_at: item.createdAt || '',
+          shipment_date: item.shipmentDate || '',
+          cargo_number: item.cargoNumber || '',
         }],
       });
     }
     return acc;
   }, []);
+
+  const getStockDisplayDate = (store: { shipment_date?: string; cargo_number?: string; created_at?: string }) => {
+    if (store.shipment_date) return store.shipment_date;
+    if (!store.shipment_date && !store.cargo_number && store.created_at) return store.created_at;
+    return '';
+  };
+
+  const hasStockShipmentDate = allInventoryStocks.some((item) =>
+    item.stores.some((store) => Boolean(getStockDisplayDate(store)))
+  );
+  const hasStockCargoNumber = stockItems.some((item: any) => Boolean(item.cargoNumber));
 
   const totalStockQty = stockItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
   const totalStockValue = stockItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
@@ -300,7 +330,7 @@ const PrintPreview: React.FC = () => {
               <div class="page">
                 <div class="header">
                   <div>
-                    <h1 style="color: #2563eb; margin: 0;">${companyData.name}</h1>
+                    <h1 style="color: #2563eb; margin: 0; font-size: 20px; white-space: nowrap;">${companyData.name}</h1>
                     <p style="margin: 5px 0; color: #666;">${companyData.description}</p>
                     <p style="margin: 2px 0; color: #666;">${companyData.address}</p>
                     <p style="margin: 2px 0; color: #666;">${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}</p>
@@ -433,7 +463,7 @@ const PrintPreview: React.FC = () => {
             <style>
               body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
               .header { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; }
-              .company-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 5px; }
+              .company-name { font-size: 20px; font-weight: bold; color: #2563eb; margin-bottom: 5px; white-space: nowrap; }
               .report-title { font-size: 20px; font-weight: bold; color: #1e40af; text-align: right; }
               table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
               th { background-color: #f8fafc; color: #1e40af; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; }
@@ -551,9 +581,10 @@ const PrintPreview: React.FC = () => {
           .header .right-column { text-align: right; }
           .header h1 {
             color: #1e40af;
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 800;
             margin: 0;
+            white-space: nowrap;
           }
           .header h2 {
             color: #1e3a8a;
@@ -585,7 +616,6 @@ const PrintPreview: React.FC = () => {
             font-weight: 600;
             color: #1f2937;
           }
-          td:first-child { width: 40px; } /* empty column */
           tbody tr:nth-child(even) { background-color: #f9fafb; }
           tbody tr:hover { background-color: #eff6ff; transition: background-color 0.2s ease; }
           .totals-row {
@@ -626,28 +656,32 @@ const PrintPreview: React.FC = () => {
             <tbody>
               ${allInventoryStocks.map(item => `
                 <tr style="background:#f3f4f6;font-weight:bold;">
-                  <td colspan="5">${item.item_id} - ${item.item_name}</td>
+                  <td colspan="${5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}">${item.item_id} - ${item.item_name}</td>
                 </tr>
                 <tr style="background:#eff6ff;">
-                  <td></td>
+                  <td><b>Item ID</b></td>
                   <td><b>Store Name</b></td>
                   <td style="text-align:right;"><b>Quantity</b></td>
                   <td style="text-align:right;"><b>Unit Price</b></td>
                   <td style="text-align:right;"><b>Total Value</b></td>
+                  ${hasStockShipmentDate ? '<td><b>Date</b></td>' : ''}
+                  ${hasStockCargoNumber ? '<td><b>Cargo Number</b></td>' : ''}
                 </tr>
                 ${item.stores.map(store => `
                   <tr>
-                    <td></td>
+                    <td>${item.item_id || '-'}</td>
                     <td>${store.store_name}</td>
                     <td style="text-align:right;">${store.quantity}</td>
                     <td style="text-align:right;">${(store.unit_price).toFixed(2)}</td>
                     <td style="text-align:right;">${(store.quantity * store.unit_price).toFixed(2)}</td>
+                    ${hasStockShipmentDate ? `<td>${getStockDisplayDate(store) ? formatDate(getStockDisplayDate(store)) : '-'}</td>` : ''}
+                    ${hasStockCargoNumber ? `<td>${store.cargo_number || '-'}</td>` : ''}
                   </tr>
                 `).join('')}
               `).join('')}
 
               <tr class="totals-row">
-                <td colspan="2" style="text-align:right;">Grand Total</td>
+                <td colspan="${2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}" style="text-align:right;">Grand Total</td>
                 <td style="text-align:right;">${totalStockQty}</td>
                 <td></td>
                 <td style="text-align:right;">${totalStockValue.toFixed(2)}</td>
@@ -723,9 +757,10 @@ const PrintPreview: React.FC = () => {
           .header .right-column { text-align: right; }
           .header h1 {
             color: #1e40af;
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 800;
             margin: 0;
+            white-space: nowrap;
           }
           .header h2 {
             color: #1e3a8a;
@@ -1101,7 +1136,7 @@ const PrintPreview: React.FC = () => {
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{companyData.name}</h1>
+                  <h1 className="text-xl font-bold text-gray-800 whitespace-nowrap">{companyData.name}</h1>
                   <p className="text-gray-600 text-sm">{companyData.description}</p>
                 </div>
               </div>
@@ -1156,7 +1191,7 @@ const PrintPreview: React.FC = () => {
                     {/* Header Section */}
                     <div className="flex justify-between items-start mb-8 border-b pb-6 print:pb-4">
                       <div>
-                        <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                        <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                         <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                         <p className="text-gray-600 text-sm">{companyData?.address}</p>
                         <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
@@ -1327,7 +1362,7 @@ const PrintPreview: React.FC = () => {
               {/* Header */}
               <div className="flex justify-between items-start mb-8 border-b pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                   <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                   <p className="text-gray-600 text-sm">{companyData?.address}</p>
                   <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
@@ -1416,7 +1451,7 @@ const PrintPreview: React.FC = () => {
               {/* Header */}
               <div className="flex justify-between items-start mb-8 border-b pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                   <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                   <p className="text-gray-600 text-sm">{companyData?.address}</p>
                   <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
@@ -1441,7 +1476,7 @@ const PrintPreview: React.FC = () => {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
+                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
                       </tr>
                     ) : allInventoryStocks.length > 0 ? (
                       <>
@@ -1449,24 +1484,30 @@ const PrintPreview: React.FC = () => {
                           <React.Fragment key={index}>
                             {/* Item row */}
                             <tr className="bg-gray-100 border-b">
-                              <td className="py-3 px-4 font-semibold text-gray-900 text-sm" colSpan={5}>
+                              <td className="py-3 px-4 font-semibold text-gray-900 text-sm" colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}>
                                 {item.item_id} - {item.item_name}
                               </td>
                             </tr>
 
                             {/* Store details header for this item */}
                             <tr className="bg-blue-50 border-y">
-                              <td className="py-2 px-4"></td>
+                              <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Item ID</td>
                               <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Store Name</td>
                               <td className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Quantity</td>
                               <td className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Unit Price</td>
                               <td className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Total Value</td>
+                              {hasStockShipmentDate && (
+                                <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Date</td>
+                              )}
+                              {hasStockCargoNumber && (
+                                <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Cargo Number</td>
+                              )}
                             </tr>
 
                             {/* Store rows */}
                             {item.stores.map((store, sIndex) => (
                               <tr key={sIndex} className="border-b">
-                                <td className="py-2 px-4"></td>
+                                <td className="py-2 px-4 text-gray-900 text-sm">{item.item_id || '-'}</td>
                                 <td className="py-2 px-4 text-gray-900 text-sm">{store.store_name}</td>
                                 <td className="py-2 px-4 text-right text-gray-900 text-sm">{store.quantity}</td>
                                 <td className="py-2 px-4 text-right text-gray-900 text-sm">
@@ -1475,6 +1516,16 @@ const PrintPreview: React.FC = () => {
                                 <td className="py-2 px-4 text-right text-gray-900 text-sm font-semibold">
                                   {(store.quantity * store.unit_price).toFixed(2)}
                                 </td>
+                                {hasStockShipmentDate && (
+                                  <td className="py-2 px-4 text-gray-900 text-sm">
+                                    {getStockDisplayDate(store) ? formatDate(getStockDisplayDate(store)) : '-'}
+                                  </td>
+                                )}
+                                {hasStockCargoNumber && (
+                                  <td className="py-2 px-4 text-gray-900 text-sm">
+                                    {store.cargo_number || '-'}
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </React.Fragment>
@@ -1482,7 +1533,7 @@ const PrintPreview: React.FC = () => {
 
                         {/* Totals Row */}
                         <tr className="bg-blue-100 font-semibold border-t-2">
-                          <td className="py-3 px-4 text-right" colSpan={2}>
+                          <td className="py-3 px-4 text-right" colSpan={2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}>
                             Grand Total
                           </td>
                           <td className="py-3 px-4 text-right">{totalStockQty}</td>
@@ -1492,7 +1543,7 @@ const PrintPreview: React.FC = () => {
                       </>
                     ) : (
                       <tr>
-                        <td colSpan={5} className="py-8 px-4 text-center text-gray-600">
+                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)} className="py-8 px-4 text-center text-gray-600">
                           No data available for this report
                         </td>
                       </tr>
@@ -1524,7 +1575,7 @@ const PrintPreview: React.FC = () => {
             <div className="min-h-[29.7cm] p-8">
               <div className="flex justify-between items-start mb-8 border-b pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                   <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                 </div>
                 <div className="text-right">
@@ -1576,7 +1627,7 @@ const PrintPreview: React.FC = () => {
             <div className="min-h-[29.7cm] p-8">
               <div className="flex justify-between items-start mb-8 border-b pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                   <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                 </div>
                 <div className="text-right">
@@ -1640,7 +1691,7 @@ const PrintPreview: React.FC = () => {
               {/* Header */}
               <div className="flex justify-between items-start mb-8 border-b pb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-blue-600">{companyData?.name}</h1>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
                   <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
                   <p className="text-gray-600 text-sm">{companyData?.address}</p>
                   <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>

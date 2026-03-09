@@ -109,11 +109,19 @@ export interface StoreStock {
   id: string;
   product: Item;
   store?: Store;
+  createdAt?: string;
   quantity: number;
   margin: number;
   currency: 'INR' | 'AED';
   unitPrice: number;
   updatedAt: string;
+  shipmentDate?: string;
+  cargoNumber?: string;
+  packingListDetails?: {
+    _id?: string;
+    shipmentDate?: string;
+    cargoNumber?: string;
+  };
   transmissionData?: {
     originalPriceINR?: number;
     marginPercent?: number;
