@@ -3289,13 +3289,16 @@ const Reports: React.FC = () => {
                                 <p className="flex items-center gap-1 font-semibold ps-2">Date</p>
                               </TableHead>
                               <TableHead className="font-semibold">
-                                <p className="flex items-center gap-1 font-semibold ps-2">Vendor</p>
+                                <p className="flex items-center gap-1 font-semibold ps-2">Description</p>
                               </TableHead>
                               <TableHead className="font-semibold">
-                                <p className="flex items-center gap-1 font-semibold ps-2">Credit Note</p>
+                                <p className="flex items-center gap-1 font-semibold ps-2">Credit Note Amount</p>
                               </TableHead>
                               <TableHead className="font-semibold">
-                                <p className="flex items-center gap-1 font-semibold ps-2">Contact</p>
+                                <p className="flex items-center gap-1 font-semibold ps-2">Total Expenses</p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">Remaining Balance</p>
                               </TableHead>
                             </>
                           ) : selectedReportType === 'daily-expense' ? (
@@ -3526,6 +3529,7 @@ const Reports: React.FC = () => {
                                 <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
                               </TableRow>
                             ))
                           ) : allCreditNotes.length > 0 ? (
@@ -3543,7 +3547,7 @@ const Reports: React.FC = () => {
                             ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No credit notes found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your date range or search</p>
