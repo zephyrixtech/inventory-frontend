@@ -12,6 +12,7 @@ export type ModuleKey =
   | 'Supplier Management'
   | 'Store Management'
   | 'Store Stock'
+  | 'Stock Transfer'
   | 'Packing Lists'
   | 'Daily Expenses'
   | 'Opening Balance'
@@ -43,6 +44,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Supplier Management',
     'Store Management',
     'Store Stock',
+    'Stock Transfer',
     'Packing Lists',
     'Daily Expenses',
     'Opening Balance',
@@ -72,6 +74,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Supplier Management',
     'Store Management',
     'Store Stock',
+    'Stock Transfer',
     'Packing Lists',
     'Daily Expenses',
     'Opening Balance',
@@ -103,6 +106,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Purchase Order Management',
     'Category Master',
     'Store Stock',
+    'Stock Transfer',
     'Reports',
   ],
   biller: [
@@ -110,6 +114,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Customer Master',
     'Store Management',
     'Store Stock',
+    'Stock Transfer',
     'Daily Expenses',
     'Opening Balance',
     'Sales Invoice',
@@ -119,6 +124,7 @@ export const ROLE_MODULE_ACCESS: Record<UserRole, ModuleKey[]> = {
     'Dashboard',
     'Store Management',
     'Store Stock',
+    'Stock Transfer',
     'Packing Lists'
   ]
 };

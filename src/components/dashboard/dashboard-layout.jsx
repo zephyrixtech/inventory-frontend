@@ -195,6 +195,12 @@ export const DashboardLayout = () => {
       roles: ['superadmin', 'store', 'biller', 'purchaser']
     },
     {
+      path: '/dashboard/store/transfer',
+      label: 'Stock Transfer',
+      icon: <ArrowRightLeft className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin', 'purchaser', 'store']
+    },
+    {
       path: '/dashboard/purchaser/packing-lists',
       label: 'Packing Lists',
       icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" />,

@@ -7,6 +7,7 @@ export type ModuleKey =
   | 'Supplier Management'
   | 'Store Management'
   | 'Store Stock'
+  | 'Stock Transfer'
   | 'Purchase Order Management'
   | 'Inventory Management'
   | 'Sales Invoice'
@@ -36,6 +37,7 @@ export const ALL_MODULES: ModuleKey[] = [
   'Supplier Management',
   'Store Management',
   'Store Stock',
+  'Stock Transfer',
   'Purchase Order Management',
   'Inventory Management',
   'Sales Invoice',

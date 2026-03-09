@@ -127,6 +127,44 @@ export interface StoreStock {
   };
 }
 
+export interface StockTransfer {
+  _id?: string;
+  id?: string;
+  fromStore: {
+    _id: string;
+    name: string;
+    code: string;
+    country?: string;
+  };
+  toStore: {
+    _id: string;
+    name: string;
+    code: string;
+    country?: string;
+  };
+  product: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  quantity: number;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  requestedBy?: {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  approvedBy?: {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  approvedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;

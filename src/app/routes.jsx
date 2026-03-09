@@ -48,6 +48,7 @@ import { PackingListView } from '@/pages/purchaser/PackingListView';
 import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { OpeningBalancePage } from "@/pages/purchaser/OpeningBalance";
 import { StoreStockPage } from "@/pages/store/StoreStock";
+import { StockTransferPage } from "@/pages/store/StockTransfer";
 import ProductTransmissionPage from '@/pages/administration/ProductTransmissionPage';
 import PurchaseEntries from '@/pages/purchaser/PurchaseEntries';
 import PurchaseEntryForm from '@/pages/purchaser/PurchaseEntryForm';
@@ -74,6 +75,7 @@ const protectedRoutes = [
   { path: 'store/add', element: <AddStoreForm />, module: 'Store Management' },
   { path: 'store/edit/:id', element: <AddStoreForm />, module: 'Store Management' },
   { path: 'store/stock', element: <StoreStockPage />, module: 'Store Stock' },
+  { path: 'store/transfer', element: <StockTransferPage />, module: 'Stock Transfer' },
   { path: 'warehouseManagement', element: <WarehouseManagement />, module: 'Inventory Management' },
   { path: 'items', element: <ItemManagement />, module: 'Item Master' },
   { path: 'invoice', element: <SalesInvoiceList />, module: 'Sales Invoice' },
