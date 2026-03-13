@@ -5,6 +5,7 @@ export interface PaginationMeta {
   totalPages: number;
   hasNextPage: boolean;
   hasPrevPage: boolean;
+  summary?: Record<string, unknown>;
 }
 
 export interface ApiListResponse<T> {

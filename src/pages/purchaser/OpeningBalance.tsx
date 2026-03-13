@@ -10,11 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { dailyExpenseService, type OpeningBalance } from '@/services/dailyExpenseService';
+import { dailyExpenseService, type OpeningBalance, type OpeningBalanceSummary } from '@/services/dailyExpenseService';
 import toast from 'react-hot-toast';
 
 export const OpeningBalancePage = () => {
   const [balances, setBalances] = useState<OpeningBalance[]>([]);
+  const [summary, setSummary] = useState<OpeningBalanceSummary>({
+    totalOpeningBalance: 0,
+    totalExpenses: 0,
+    remainingBalance: 0
+  });
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,6 +34,10 @@ export const OpeningBalancePage = () => {
     try {
       const response = await dailyExpenseService.listOpeningBalances({ limit: 100 });
       setBalances(response.data);
+      // Extract summary from meta if available
+      if (response.meta.summary) {
+        setSummary(response.meta.summary);
+      }
     } catch (error) {
       console.error('Failed to load opening balances', error);
       toast.error('Unable to load opening balances');
@@ -109,9 +118,9 @@ export const OpeningBalancePage = () => {
     }
   };
 
-  const totalOpeningBalance = balances.reduce((sum, balance) => sum + (balance.amount ?? 0), 0);
-  const totalExpenses = balances.reduce((sum, balance) => sum + (balance.totalExpenses ?? 0), 0);
-  const remainingBalance = totalOpeningBalance - totalExpenses;
+  const totalOpeningBalance = summary.totalOpeningBalance;
+  const totalExpenses = summary.totalExpenses;
+  const remainingBalance = summary.remainingBalance;
 
   return (
     <div className="space-y-6">
@@ -165,8 +174,6 @@ export const OpeningBalancePage = () => {
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Total Expenses</TableHead>
-                  <TableHead>Remaining</TableHead>
                   <TableHead>Created By</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -174,13 +181,13 @@ export const OpeningBalancePage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Loading opening balances...
                     </TableCell>
                   </TableRow>
                 ) : balances.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No opening balance records yet.
                     </TableCell>
                   </TableRow>
@@ -196,10 +203,6 @@ export const OpeningBalancePage = () => {
                         <TableCell>{balance.date ? new Date(balance.date).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>{balance.description || '-'}</TableCell>
                         <TableCell className="font-semibold text-blue-600">₹{balance.amount?.toFixed(2)}</TableCell>
-                        <TableCell className="text-red-600">₹{balance.totalExpenses?.toFixed(2)}</TableCell>
-                        <TableCell className={balance.remainingBalance >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                          ₹{balance.remainingBalance?.toFixed(2)}
-                        </TableCell>
                         <TableCell>{createdByName}</TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="icon" onClick={() => handleEdit(balance)}>

@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { ApiListResponse, ApiResponse } from '@/types/backend';
+import type { ApiListResponse, ApiResponse, PaginationMeta } from '@/types/backend';
 
 export interface DailyExpense {
   id: string;
@@ -25,8 +25,6 @@ export interface OpeningBalance {
   amount: number;
   description: string;
   date: string;
-  totalExpenses: number;
-  remainingBalance: number;
   createdBy?: {
     id: string;
     firstName?: string;
@@ -39,6 +37,21 @@ export interface OpeningBalance {
   };
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface OpeningBalanceSummary {
+  totalOpeningBalance: number;
+  totalExpenses: number;
+  remainingBalance: number;
+}
+
+export interface OpeningBalanceListMeta extends PaginationMeta {
+  summary?: OpeningBalanceSummary;
+}
+
+export interface OpeningBalanceListResponse {
+  data: OpeningBalance[];
+  meta: OpeningBalanceListMeta;
 }
 
 export const dailyExpenseService = {
@@ -60,7 +73,7 @@ export const dailyExpenseService = {
     if (params.limit) query.append('limit', String(params.limit));
 
     const path = `/expenses/opening-balance/list${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<ApiListResponse<OpeningBalance>>(path);
+    return apiClient.get<OpeningBalanceListResponse>(path);
   },
 
   async getCurrentOpeningBalance() {
