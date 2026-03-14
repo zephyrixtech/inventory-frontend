@@ -14,6 +14,7 @@ const initialState = {
     'packing-list': {},
     'credit-notes': {},
     'daily-expense': {},
+    item: {},
   },
 };
 

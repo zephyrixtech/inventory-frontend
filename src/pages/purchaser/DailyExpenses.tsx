@@ -72,8 +72,8 @@ export const DailyExpensesPage = () => {
       const response = await dailyExpenseService.getCurrentOpeningBalance();
       setOpeningBalance(response.data.amount);
       setBalanceDescription(response.data.description);
-      setTotalExpenses(response.data.totalExpenses);
-      setRemainingBalance(response.data.remainingBalance);
+      setTotalExpenses(response.data.totalExpenses ?? 0);
+      setRemainingBalance(response.data.remainingBalance ?? 0);
     } catch (error) {
       console.error('Failed to load opening balance', error);
       setOpeningBalance(0);

@@ -40,6 +40,7 @@ import { apiClient } from '@/services/apiClient';
 import { storeStockService } from '@/services/storeStockService';
 import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { packingListReportService, type PackingListReportItem } from '@/services/packingListReportService';
+import { itemReportService, type ItemReportRow } from '@/services/itemReportService';
 // import { reportService } from '@/services/reportService';
 import { dailyExpenseService } from '@/services/dailyExpenseService';
 import type { Supplier } from '@/types/backend';
@@ -124,6 +125,8 @@ interface SalesReport {
   headers: readonly [
     'Date',
     'Invoice #',
+    'Customer',
+    'Store',
     'Gross Amount',
     'Discount',
     'Tax Amount',
@@ -191,6 +194,20 @@ interface DailyExpenseReport {
   data: DailyExpenseReportItem[];
 }
 
+interface ItemReport {
+  title: string;
+  headers: readonly [
+    'Item Name',
+    'Item Date',
+    'Supplier',
+    'Packing List Details',
+    'Cargo Number',
+    'Shipment Date',
+    'Customer'
+  ];
+  data: ItemReportRow[];
+}
+
 // Combined Report Data Type
 interface ReportData {
   'sales': SalesReport;
@@ -199,10 +216,11 @@ interface ReportData {
   'packing-list': PackingListReport;
   'credit-notes': CreditNoteReport;
   'daily-expense': DailyExpenseReport;
+  'item': ItemReport;
 }
 
 // Type for report types
-type ReportType = 'sales' | 'stock' | 'purchase-order' | 'packing-list' | 'credit-notes' | 'daily-expense';
+type ReportType = 'sales' | 'stock' | 'purchase-order' | 'packing-list' | 'credit-notes' | 'daily-expense' | 'item';
 
 type SortFieldSales = 'invoice_date' | 'invoice_number' | 'invoice_amount' | 'net_amount';
 type SortField = 'itemName' | 'supplier.name' | 'orderDate' | 'quantity' | 'unitPrice' | 'totalValue';
@@ -362,6 +380,14 @@ const Reports: React.FC = () => {
   });
   const [allCreditNotes, setAllCreditNotes] = useState<CreditNoteReportItem[]>([]);
   const [allDailyExpenses, setAllDailyExpenses] = useState<DailyExpenseReportItem[]>([]);
+
+  // Item Report State
+  const [allItemReportRows, setAllItemReportRows] = useState<ItemReportRow[]>([]);
+  const [allItemsForItemReport, setAllItemsForItemReport] = useState<any[]>([]);
+  const [selectedItemsForItemReport, setSelectedItemsForItemReport] = useState<string[]>([]);
+  const [searchQueryItemReportSelect, setSearchQueryItemReportSelect] = useState('');
+  const [isItemReportItemsLoading, setIsItemReportItemsLoading] = useState(false);
+
   const [searchQueryCreditNotes, setSearchQueryCreditNotes] = useState('');
   const [searchQueryDailyExpense, setSearchQueryDailyExpense] = useState('');
 
@@ -399,6 +425,7 @@ const Reports: React.FC = () => {
       { value: 'sales', label: 'Sales Report', roles: ['admin', 'superadmin', 'biller'] },
       { value: 'stock', label: 'Stock Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
       { value: 'packing-list', label: 'Packing List Report', roles: ['admin', 'superadmin', 'purchaser'] },
+      { value: 'item', label: 'Item Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
       { value: 'credit-notes', label: 'Credit Notes Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] },
       { value: 'daily-expense', label: 'Daily Expense Report', roles: ['admin', 'superadmin', 'purchaser', 'biller'] }
     ];
@@ -467,6 +494,8 @@ const Reports: React.FC = () => {
       headers: [
         'Date',
         'Invoice #',
+        'Customer',
+        'Store',
         'Gross Amount',
         'Discount',
         'Tax Amount',
@@ -510,6 +539,19 @@ const Reports: React.FC = () => {
       ] as const,
       data: allPackingLists
     },
+    'item': {
+      title: 'Item Report',
+      headers: [
+        'Item Name',
+        'Item Date',
+        'Supplier',
+        'Packing List Details',
+        'Cargo Number',
+        'Shipment Date',
+        'Customer'
+      ] as const,
+      data: allItemReportRows
+    },
     'credit-notes': {
       title: 'Credit Notes Report',
       headers: [
@@ -552,6 +594,12 @@ const Reports: React.FC = () => {
     if (!stock.shipmentDate && !stock.cargoNumber && stock.createdAt) return stock.createdAt;
     return undefined;
   };
+
+  const getSalesCustomerName = (invoice: any) =>
+    invoice?.customer?.name || invoice?.customerName || invoice?.customer_name || 'Walk-in Customer';
+
+  const getSalesStoreName = (invoice: any) =>
+    invoice?.store?.name || invoice?.storeName || invoice?.store_name || 'N/A';
 
   // Fetch summary statistics for purchase orders
   const fetchSummaryStats = useCallback(async () => {
@@ -1147,6 +1195,8 @@ const Reports: React.FC = () => {
                 ? { ...reportData, 'credit-notes': { ...reportData['credit-notes'], data: allCreditNotes } }
                 : selectedReportType === 'daily-expense'
                   ? { ...reportData, 'daily-expense': { ...reportData['daily-expense'], data: allDailyExpenses } }
+                  : selectedReportType === 'item'
+                    ? { ...reportData, 'item': { ...reportData['item'], data: allItemReportRows } }
                   : reportData;
       }
 
@@ -2249,6 +2299,17 @@ const Reports: React.FC = () => {
         await fetchDailyExpensesReport();
         setIsReportGenerated(true);
         setIsLoading(false);
+      } else if (selectedReportType === 'item') {
+        const from = dateRange[0] ? new Date(dateRange[0]).toISOString() : undefined;
+        const to = dateRange[1] ? new Date(dateRange[1]).toISOString() : undefined;
+        const rows = await itemReportService.getItemReport({
+          from,
+          to,
+          itemIds: selectedItemsForItemReport
+        });
+        setAllItemReportRows(rows);
+        setIsReportGenerated(true);
+        setIsLoading(false);
       } else {
         console.log('⚠️ Unknown report type, setting as generated');
         setIsReportGenerated(true);
@@ -2330,6 +2391,8 @@ const Reports: React.FC = () => {
           return [
             `"${format(new Date(salesItem.invoiceDate!), 'dd MMM yyyy')}"`,
             `"${salesItem.invoiceNumber}"`,
+            `"${String(getSalesCustomerName(salesItem)).replace(/\"/g, '""')}"`,
+            `"${String(getSalesStoreName(salesItem)).replace(/\"/g, '""')}"`,
             `"${(salesItem.invoiceAmount ?? 0).toFixed(2)}"`,
             `"${(salesItem.discountAmount ?? 0).toFixed(2)}"`,
             `"${(salesItem.tax_amount ?? 0).toFixed(2)}"`,
@@ -2365,6 +2428,17 @@ const Reports: React.FC = () => {
             `"${expenseItem.paymentType || ''}"`,
             `"${expenseItem.amount.toFixed(2)}"`,
           ];
+        } else if (selectedReportType === 'item') {
+          const itemRow = item as unknown as ItemReportRow;
+          return [
+            `"${String(itemRow.itemName || '').replace(/\"/g, '""')}"`,
+            `"${itemRow.itemDate ? format(new Date(itemRow.itemDate), 'dd MMM yyyy') : '-'}"`,
+            `"${String(itemRow.supplierName || '').replace(/\"/g, '""')}"`,
+            `"${String(itemRow.packingListDetails || '').replace(/\"/g, '""')}"`,
+            `"${String(itemRow.cargoNumber || '').replace(/\"/g, '""')}"`,
+            `"${itemRow.shipmentDate ? format(new Date(itemRow.shipmentDate), 'dd MMM yyyy') : '-'}"`,
+            `"${String(itemRow.customerName || '').replace(/\"/g, '""')}"`,
+          ];
         }
         return [];
       });
@@ -2395,7 +2469,7 @@ const Reports: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig, allStocks]);
+  }, [selectedReportType, isReportGenerated, userData, dateRange, selectedSuppliers, searchQuery, sortConfig, allStocks, allItemReportRows]);
 
   // Fetch user data
   useEffect(() => {
@@ -2503,6 +2577,27 @@ const Reports: React.FC = () => {
       fetchStores();
     }
   }, [userData, getUserRole]); // Add getUserRole as dependency
+
+  // Load items for Item Report selection (once per session)
+  useEffect(() => {
+    const loadItemReportItems = async () => {
+      if (selectedReportType !== 'item') return;
+      if (allItemsForItemReport.length > 0) return;
+
+      try {
+        setIsItemReportItemsLoading(true);
+        const response = await getItems(1, 1000, {});
+        setAllItemsForItemReport(Array.isArray((response as any)?.data) ? (response as any).data : []);
+      } catch (error) {
+        console.error('Error fetching items for item report:', error);
+        setAllItemsForItemReport([]);
+      } finally {
+        setIsItemReportItemsLoading(false);
+      }
+    };
+
+    loadItemReportItems();
+  }, [selectedReportType, allItemsForItemReport.length]);
 
   // Fetch data when relevant state changes
   useEffect(() => {
@@ -2617,9 +2712,25 @@ const Reports: React.FC = () => {
     setCurrentPageStock(1);
   };
 
+  const handleItemReportItemChange = (itemId: string) => {
+    setSelectedItemsForItemReport((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+    setIsReportGenerated(false);
+  };
+
+  const handleSelectAllItemReportItems = (checked: boolean) => {
+    if (checked) {
+      setSelectedItemsForItemReport(allItemsForItemReport.map((i: any) => i._id || i.id).filter(Boolean));
+    } else {
+      setSelectedItemsForItemReport([]);
+    }
+    setIsReportGenerated(false);
+  };
+
   const handleReportTypeChange = (value: string) => {
     // Validate the value is a valid report type
-    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order', 'packing-list', 'credit-notes', 'daily-expense'];
+    const validReportTypes: ReportType[] = ['sales', 'stock', 'purchase-order', 'packing-list', 'credit-notes', 'daily-expense', 'item'];
 
     if (validReportTypes.includes(value as ReportType)) {
       setSelectedReportType(value as ReportType);
@@ -2633,6 +2744,9 @@ const Reports: React.FC = () => {
     setSummaryStats({ totalOrders: 0, totalValue: 0, pendingDelivery: 0 });
     setAllPackingLists([]);
     setPackingListSummaryStats({ totalPackingLists: 0, totalItems: 0 });
+    setAllItemReportRows([]);
+    setSelectedItemsForItemReport([]);
+    setSearchQueryItemReportSelect('');
     setAllCreditNotes([]);
     setAllDailyExpenses([]);
     setSearchQueryCreditNotes('');
@@ -2651,6 +2765,7 @@ const Reports: React.FC = () => {
     setCurrentPageStock(1);
     setSearchQueryPackingList('');
     setCurrentPagePackingList(1);
+    setSearchQueryItemReportSelect('');
     setSearchQueryCreditNotes('');
     setSearchQueryDailyExpense('');
   };
@@ -2664,11 +2779,13 @@ const Reports: React.FC = () => {
 
 
 
-  const isFormValid = dateRange[0] && dateRange[1] && selectedReportType && (selectedReportType === "purchase-order" ? selectedSuppliers.length > 0 : true) && (selectedReportType === 'stock' ? selectedStores.length > 0 : true);
+  const isFormValid = dateRange[0] && dateRange[1] && selectedReportType && (selectedReportType === "purchase-order" ? selectedSuppliers.length > 0 : true) && (selectedReportType === 'stock' ? selectedStores.length > 0 : true) && (selectedReportType === 'item' ? selectedItemsForItemReport.length > 0 : true);
   const isAllSuppliersSelected = selectedSuppliers.length === suppliers.length && suppliers.length > 0;
   const isAllStoresSelected = selectedStores.length === allStores.length && allStores.length > 0;
   const isIndeterminate = selectedSuppliers.length > 0 && selectedSuppliers.length < suppliers.length;
   const isStoreIndeterminate = selectedStores.length > 0 && selectedStores.length < allStores.length;
+  const isAllItemReportItemsSelected = selectedItemsForItemReport.length === allItemsForItemReport.length && allItemsForItemReport.length > 0;
+  const isItemReportItemsIndeterminate = selectedItemsForItemReport.length > 0 && selectedItemsForItemReport.length < allItemsForItemReport.length;
 
   return (
     <TooltipProvider>
@@ -2706,7 +2823,7 @@ const Reports: React.FC = () => {
                     <p className="text-gray-600 text-sm">Select parameters to generate your custom report</p>
                   </div>
 
-                  <div className={`grid gap-4 items-end ${selectedReportType === 'purchase-order' || selectedReportType === 'stock' ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                  <div className={`grid gap-4 items-end ${selectedReportType === 'purchase-order' || selectedReportType === 'stock' || selectedReportType === 'item' ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
                         Date Range <span className="text-red-500">*</span>
@@ -2912,6 +3029,102 @@ const Reports: React.FC = () => {
                       </div>
                     )}
 
+                    {selectedReportType === 'item' && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Items <span className="text-red-500">*</span></label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                              disabled={isItemReportItemsLoading}
+                            >
+                              <Package className="mr-2 h-4 w-4" />
+                              {isItemReportItemsLoading ? (
+                                <span className="text-gray-400">Loading items...</span>
+                              ) : selectedItemsForItemReport.length === 0 ? (
+                                <span className="text-gray-400">Select items</span>
+                              ) : selectedItemsForItemReport.length === allItemsForItemReport.length ? (
+                                'All items selected'
+                              ) : selectedItemsForItemReport.length === 1 ? (
+                                (() => {
+                                  const found = allItemsForItemReport.find((i: any) => (i._id || i.id) === selectedItemsForItemReport[0]);
+                                  return found ? `${found.name}${found.code ? ` (${found.code})` : ''}` : '1 item selected';
+                                })()
+                              ) : (
+                                `${selectedItemsForItemReport.length} items selected`
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-80 p-0 [&[data-side=top]]:hidden"
+                            align="start"
+                            side="bottom"
+                            sideOffset={4}
+                            avoidCollisions={false}
+                            collisionPadding={0}
+                          >
+                            <div className="p-3 space-y-2">
+                              <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                                <Search className="h-4 w-4 text-gray-400" />
+                                <Input
+                                  value={searchQueryItemReportSelect}
+                                  onChange={(e) => setSearchQueryItemReportSelect(e.target.value)}
+                                  placeholder="Search items..."
+                                  className="h-8"
+                                />
+                              </div>
+
+                              <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
+                                <Checkbox
+                                  id="select-all-items"
+                                  checked={isAllItemReportItemsSelected}
+                                  onCheckedChange={handleSelectAllItemReportItems}
+                                  className={isItemReportItemsIndeterminate ? 'data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600' : ''}
+                                />
+                                <label
+                                  htmlFor="select-all-items"
+                                  className="text-sm font-semibold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-blue-700"
+                                >
+                                  Select All
+                                </label>
+                              </div>
+
+                              <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                                {allItemsForItemReport
+                                  .filter((i: any) => {
+                                    const q = searchQueryItemReportSelect.trim().toLowerCase();
+                                    if (!q) return true;
+                                    const name = String(i?.name || '').toLowerCase();
+                                    const code = String(i?.code || '').toLowerCase();
+                                    return name.includes(q) || code.includes(q);
+                                  })
+                                  .map((i: any) => {
+                                    const id = i._id || i.id;
+                                    if (!id) return null;
+                                    return (
+                                      <div key={id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`item-${id}`}
+                                          checked={selectedItemsForItemReport.includes(id)}
+                                          onCheckedChange={() => handleItemReportItemChange(id)}
+                                        />
+                                        <label
+                                          htmlFor={`item-${id}`}
+                                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                        >
+                                          {i.name}{i.code ? ` (${i.code})` : ''}
+                                        </label>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+
                     <Button
                       className="bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all duration-200 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       onClick={handleGenerateReport}
@@ -2951,6 +3164,7 @@ const Reports: React.FC = () => {
                         {selectedReportType === 'sales' && <TrendingUp className="h-6 w-6 text-green-600" />}
                         {selectedReportType === 'stock' && <Package className="h-6 w-6 text-purple-600" />}
                         {selectedReportType === 'packing-list' && <Package className="h-6 w-6 text-indigo-600" />}
+                        {selectedReportType === 'item' && <Package className="h-6 w-6 text-teal-600" />}
                         {selectedReportType === 'credit-notes' && <FileText className="h-6 w-6 text-amber-600" />}
                         {selectedReportType === 'daily-expense' && <TrendingUp className="h-6 w-6 text-rose-600" />}
                       </div>
@@ -2966,6 +3180,8 @@ const Reports: React.FC = () => {
                           )}
                           {selectedSuppliers.length > 0 &&
                             ` • ${selectedSuppliers.length === suppliers.length ? 'All' : selectedSuppliers.length} supplier${selectedSuppliers.length > 1 ? 's' : ''} selected`}
+                          {selectedReportType === 'item' && selectedItemsForItemReport.length > 0 &&
+                            ` â€¢ ${selectedItemsForItemReport.length === allItemsForItemReport.length ? 'All' : selectedItemsForItemReport.length} item${selectedItemsForItemReport.length > 1 ? 's' : ''} selected`}
                         </p>
                       </div>
                     </div>
@@ -3294,6 +3510,16 @@ const Reports: React.FC = () => {
                                 </p>
                               </TableHead>
                               <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Customer
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Store
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
                                 <p
                                   className="flex items-center justify-end gap-1 font-semibold cursor-pointer hover:text-blue-600 text-end"
                                   onClick={() => handleSortSales('invoice_amount')}
@@ -3422,6 +3648,8 @@ const Reports: React.FC = () => {
                                   <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
                                 </TableCell>
                                 <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
@@ -3472,20 +3700,22 @@ const Reports: React.FC = () => {
                             ))
                           ) : paginatedSales.length > 0 ? (
                             paginatedSales.map((item, index) => (
-                              <TableRow
-                                key={item._id}
-                                className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
-                              >
-                                <TableCell className="text-gray-700 px-4 py-3">{format(new Date(item.invoiceDate!), 'dd MMM yyyy')}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{item.invoiceNumber}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.invoiceAmount ?? 0).toFixed(2)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.discountAmount ?? 0).toFixed(2)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.tax_amount ?? 0).toFixed(2)}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{(item?.net_amount ?? 0).toFixed(2)}</TableCell>
-                              </TableRow>
+                                <TableRow
+                                  key={item._id}
+                                  className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                                >
+                                  <TableCell className="text-gray-700 px-4 py-3">{format(new Date(item.invoiceDate!), 'dd MMM yyyy')}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 font-medium">{item.invoiceNumber}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">{getSalesCustomerName(item)}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">{getSalesStoreName(item)}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.invoiceAmount ?? 0).toFixed(2)}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.discountAmount ?? 0).toFixed(2)}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 text-end">{(item?.tax_amount ?? 0).toFixed(2)}</TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3 text-end font-medium">{(item?.net_amount ?? 0).toFixed(2)}</TableCell>
+                                </TableRow>
                             ))) : (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={8} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No sales invoices found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
@@ -3662,6 +3892,45 @@ const Reports: React.FC = () => {
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No daily expenses found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your date range or search</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
+                        {selectedReportType === 'item' && (
+                          isLoading ? (
+                            Array(6).fill(0).map((_, index) => (
+                              <TableRow key={index} className="hover:bg-gray-50">
+                                <TableCell className="py-3"><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-56 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                              </TableRow>
+                            ))
+                          ) : allItemReportRows.length > 0 ? (
+                            allItemReportRows.map((row, index) => (
+                              <TableRow
+                                key={row.itemId || index}
+                                className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                              >
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{row.itemName || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.itemDate ? format(new Date(row.itemDate), 'dd MMM yyyy') : '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.supplierName || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 max-w-[520px] whitespace-pre-wrap break-words">{row.packingListDetails || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.cargoNumber || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.shipmentDate ? format(new Date(row.shipmentDate), 'dd MMM yyyy') : '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.customerName || '-'}</TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                                <div className="flex flex-col items-center justify-center">
+                                  <p className="text-base font-medium">No items found</p>
+                                  <p className="text-sm text-gray-500">Try selecting different items or date range</p>
                                 </div>
                               </TableCell>
                             </TableRow>

@@ -25,6 +25,8 @@ export interface OpeningBalance {
   amount: number;
   description: string;
   date: string;
+  totalExpenses?: number;
+  remainingBalance?: number;
   createdBy?: {
     id: string;
     firstName?: string;
@@ -40,6 +42,7 @@ export interface OpeningBalance {
 }
 
 export interface OpeningBalanceSummary {
+  [key: string]: unknown;
   totalOpeningBalance: number;
   totalExpenses: number;
   remainingBalance: number;

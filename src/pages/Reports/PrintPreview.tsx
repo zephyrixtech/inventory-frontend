@@ -104,6 +104,9 @@ const PrintPreview: React.FC = () => {
     if (selectedReportType === 'daily-expense' && reportData) {
       return (reportData as any)['daily-expense']?.data || [];
     }
+    if (selectedReportType === 'item' && reportData) {
+      return (reportData as any)['item']?.data || [];
+    }
     if (selectedReportType && reportData && reportData[selectedReportType as keyof typeof reportData]) {
       return (reportData[selectedReportType as keyof typeof reportData] as any)?.data || [];
     }
@@ -205,13 +208,30 @@ const PrintPreview: React.FC = () => {
   // Data is already available from Redux, no need to fetch
 
   // Format date helper function
-  const formatDate = (date: Date | string) => {
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return '-';
     const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return '-';
     return d.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  const getSalesCustomerName = (invoice: any) =>
+    invoice?.customer?.name || invoice?.customerName || invoice?.customer_name || 'Walk-in Customer';
+
+  const getSalesStoreName = (invoice: any) =>
+    invoice?.store?.name || invoice?.storeName || invoice?.store_name || 'N/A';
+
+  const escapeHtml = (value: unknown) => {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   };
 
 
@@ -441,7 +461,8 @@ const PrintPreview: React.FC = () => {
         <tr>
           <td>${formatDate(invoice.invoiceDate || invoice.invoice_date)}</td>
           <td>${invoice.invoiceNumber || invoice.invoice_number}</td>
-          <td>${invoice.customer?.name || invoice.customer_name || 'Walk-in Customer'}</td>
+          <td>${getSalesCustomerName(invoice)}</td>
+          <td>${getSalesStoreName(invoice)}</td>
           <td style="text-align: right;">${(invoice.subTotal || invoice.invoice_amount || 0).toFixed(2)}</td>
           <td style="text-align: right;">${(invoice.discountTotal || invoice.discount_amount || 0).toFixed(2)}</td>
           <td style="text-align: right;">${(invoice.taxAmount || invoice.tax_amount || 0).toFixed(2)}</td>
@@ -493,29 +514,30 @@ const PrintPreview: React.FC = () => {
 
              <table>
                 <thead>
-                   <tr>
-                      <th>Date</th>
-                      <th>Invoice #</th>
-                      <th>Customer</th>
-                      <th style="text-align: right;">Gross Amount</th>
-                      <th style="text-align: right;">Discount</th>
-                      <th style="text-align: right;">Tax Amount</th>
-                      <th style="text-align: right;">Net Amount</th>
-                   </tr>
-                </thead>
-                <tbody>
-                   ${tableRows}
-                </tbody>
-                <tfoot>
-                   <tr class="totals-row">
-                      <td colspan="3" style="text-align: right;">Grand Total</td>
-                      <td style="text-align: right;">${totalGross.toFixed(2)}</td>
-                      <td style="text-align: right;">${totalDiscount.toFixed(2)}</td>
-                      <td style="text-align: right;">${totalTax.toFixed(2)}</td>
-                      <td style="text-align: right;">${totalNet.toFixed(2)}</td>
-                   </tr>
-                </tfoot>
-             </table>
+                    <tr>
+                       <th>Date</th>
+                       <th>Invoice #</th>
+                       <th>Customer</th>
+                       <th>Store</th>
+                       <th style="text-align: right;">Gross Amount</th>
+                       <th style="text-align: right;">Discount</th>
+                       <th style="text-align: right;">Tax Amount</th>
+                       <th style="text-align: right;">Net Amount</th>
+                    </tr>
+                 </thead>
+                 <tbody>
+                    ${tableRows}
+                 </tbody>
+                 <tfoot>
+                    <tr class="totals-row">
+                       <td colspan="4" style="text-align: right;">Grand Total</td>
+                       <td style="text-align: right;">${totalGross.toFixed(2)}</td>
+                       <td style="text-align: right;">${totalDiscount.toFixed(2)}</td>
+                       <td style="text-align: right;">${totalTax.toFixed(2)}</td>
+                       <td style="text-align: right;">${totalNet.toFixed(2)}</td>
+                    </tr>
+                 </tfoot>
+              </table>
 
              <div style="margin-top: 20px;">
                 <h4 style="font-size: 14px; margin-bottom: 5px;">Additional Details</h4>
@@ -1012,9 +1034,26 @@ const PrintPreview: React.FC = () => {
         printWindow.print();
         printWindow.close();
       };
-    } else {
-      // Handle other report types
-      // const headers = reportData?.[selectedReportType as keyof typeof reportData]?.headers || [];
+    } else if (selectedReportType === 'item') {
+      const itemRows = data as any[];
+      if (itemRows.length === 0) {
+        toast.error('No item report data available');
+        return;
+      }
+
+      const rows = itemRows
+        .map((row: any) => `
+          <tr>
+            <td>${escapeHtml(row.itemName || '-')}</td>
+            <td>${escapeHtml(row.itemDate ? formatDate(row.itemDate) : '-')}</td>
+            <td>${escapeHtml(row.supplierName || '-')}</td>
+            <td>${escapeHtml(row.packingListDetails || '-')}</td>
+            <td>${escapeHtml(row.cargoNumber || '-')}</td>
+            <td>${escapeHtml(row.shipmentDate ? formatDate(row.shipmentDate) : '-')}</td>
+            <td>${escapeHtml(row.customerName || '-')}</td>
+          </tr>
+        `)
+        .join('');
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -1022,40 +1061,70 @@ const PrintPreview: React.FC = () => {
         return;
       }
 
-      // let tableRows = '';
-      // if (data.length > 0) {
-      //   tableRows = data.map((item: any) => {
-      //     let row = '<tr>';
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Item Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+              .header { display:flex; justify-content: space-between; align-items:flex-start; gap: 16px; border-bottom: 1px solid #ddd; padding-bottom: 12px; }
+              .company h1 { margin: 0; font-size: 18px; color: #2563eb; }
+              .company p { margin: 2px 0; font-size: 12px; color: #666; }
+              .meta { text-align: right; }
+              .meta h2 { margin: 0; font-size: 18px; color: #1e40af; }
+              .meta p { margin: 2px 0; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+              th { background-color: #f8fafc; color: #1e40af; }
+              .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="company">
+                <h1>${escapeHtml(companyData.name)}</h1>
+                <p>${escapeHtml(companyData.description)}</p>
+                <p>${escapeHtml(companyData.address)}</p>
+                <p>${escapeHtml(`${companyData.city}, ${companyData.state}, ${companyData.country}, ${companyData.postal_code}`)}</p>
+                <p>${escapeHtml(`Phone: ${companyData.phone}`)}</p>
+              </div>
+              <div class="meta">
+                <h2>ITEM REPORT</h2>
+                <p>Generated: ${escapeHtml(formatDate(new Date()))}</p>
+                <p>Range: ${escapeHtml(dateRange && dateRange[0] ? formatDate(dateRange[0]) + (dateRange[1] ? ' - ' + formatDate(dateRange[1]) : '') : 'All Time')}</p>
+              </div>
+            </div>
 
-      //     if (selectedReportType === 'stock') {
-      //       row += `
-      //         <td>${item.id}</td>
-      //         <td>${item.name}</td>
-      //         <td>${item.category}</td>
-      //         <td>${item.inStock}</td>
-      //         <td>${item.reserved}</td>
-      //         <td>${item.available}</td>
-      //         <td>${item.reorderLevel}</td>
-      //         <td>${formatDate(item.lastUpdated)}</td>
-      //       `;
-      //     } else if (selectedReportType === 'supplier') {
-      //       row += `
-      //         <td>${item.id}</td>
-      //         <td>${item.name}</td>
-      //         <td>${item.totalOrders}</td>
-      //         <td>${item.totalValue}</td>
-      //         <td>${item.onTimeDelivery}</td>
-      //         <td>${item.rating}</td>
-      //         <td>${formatDate(item.lastOrder)}</td>
-      //       `;
-      //     }
+            <table>
+              <thead>
+                <tr>
+                  <th>Item Name</th>
+                  <th>Item Date</th>
+                  <th>Supplier</th>
+                  <th>Packing List Details</th>
+                  <th>Cargo Number</th>
+                  <th>Shipment Date</th>
+                  <th>Customer</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
 
-      //     row += '</tr>';
-      //     return row;
-      //   }).join('');
-      // } else {
-      //   tableRows = `<tr><td colspan="${headers.length}" style="text-align: center; color: #666;">No data found</td></tr>`;
-      // }
+            <div class="footer">${escapeHtml((reportConfigs as any)['item']?.report_footer || 'Generated by AL LIBAS GENERAL TRADING L L C')}</div>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    } else {
+      toast.error('Print template not available for this report type');
+      return;
     }
   };
 
@@ -1387,6 +1456,7 @@ const PrintPreview: React.FC = () => {
                       <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Date</th>
                       <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Invoice #</th>
                       <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Customer</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Store</th>
                       <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Gross Amount</th>
                       <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Discount</th>
                       <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Tax Amount</th>
@@ -1399,7 +1469,8 @@ const PrintPreview: React.FC = () => {
                         <tr key={index} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 text-gray-800 text-sm">{formatDate(invoice.invoiceDate || invoice.invoice_date)}</td>
                           <td className="py-3 px-4 text-gray-800 text-sm">{invoice.invoiceNumber || invoice.invoice_number}</td>
-                          <td className="py-3 px-4 text-gray-800 text-sm">{invoice.customer?.name || invoice.customer_name || 'Walk-in Customer'}</td>
+                          <td className="py-3 px-4 text-gray-800 text-sm">{getSalesCustomerName(invoice)}</td>
+                          <td className="py-3 px-4 text-gray-800 text-sm">{getSalesStoreName(invoice)}</td>
                           <td className="py-3 px-4 text-right text-gray-800 text-sm">{(invoice.subTotal || invoice.invoice_amount || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right text-gray-800 text-sm">{(invoice.discountTotal || invoice.discount_amount || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right text-gray-800 text-sm">{(invoice.taxAmount || invoice.tax_amount || 0).toFixed(2)}</td>
@@ -1408,7 +1479,7 @@ const PrintPreview: React.FC = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="py-8 px-4 text-center text-gray-600">
+                        <td colSpan={8} className="py-8 px-4 text-center text-gray-600">
                           No sales data available for the selected range
                         </td>
                       </tr>
@@ -1416,7 +1487,7 @@ const PrintPreview: React.FC = () => {
                   </tbody>
                   <tfoot>
                     <tr className="bg-blue-100 font-semibold border-t-2">
-                      <td className="py-3 px-4 text-right" colSpan={3}>
+                      <td className="py-3 px-4 text-right" colSpan={4}>
                         Grand Total
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -1735,6 +1806,17 @@ const PrintPreview: React.FC = () => {
                               <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.onTimeDelivery}%</td>
                               <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.rating}</td>
                               <td className="py-3 px-4 text-gray-800 text-sm">{formatDate(item.lastOrder)}</td>
+                            </>
+                          )}
+                          {selectedReportType === 'item' && (
+                            <>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.itemName || '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.itemDate ? formatDate(item.itemDate) : '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.supplierName || '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.packingListDetails || '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.cargoNumber || '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.shipmentDate ? formatDate(item.shipmentDate) : '-'}</td>
+                              <td className="py-3 px-4 text-gray-800 text-sm">{item.customerName || '-'}</td>
                             </>
                           )}
                         </tr>

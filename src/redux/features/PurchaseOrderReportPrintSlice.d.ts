@@ -5,6 +5,9 @@ interface ReportConfigs {
   sales: Record<string, any>;
   stock: Record<string, any>;
   'packing-list': Record<string, any>;
+  'credit-notes'?: Record<string, any>;
+  'daily-expense'?: Record<string, any>;
+  item?: Record<string, any>;
 }
 
 interface PrintState {
