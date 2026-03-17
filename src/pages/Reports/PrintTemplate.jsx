@@ -38,7 +38,7 @@ const PrintTemplate = ({
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">AL LIBAS GENERAL TRADING L L C</h1>
+                  <h1 className="text-xl font-bold text-gray-800">AL LIBAS GENERAL TRADING L L C</h1>
                   <p className="text-gray-600 text-sm">SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING</p>
                 </div>
               </div>

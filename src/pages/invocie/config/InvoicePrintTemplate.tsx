@@ -116,7 +116,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
           }
           
           .company-info h1 {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: bold;
             color: #1e40af;
             margin: 0 0 8px 0;
