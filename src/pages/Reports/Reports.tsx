@@ -2336,8 +2336,8 @@ const Reports: React.FC = () => {
         `"${item.supplier?.name || ''}"`,
         `"${format(new Date(item.orderDate), 'dd MMM yyyy')}"`,
         item.quantity,
-        `"Rs ${item.unitPrice.toLocaleString('en-IN')}"`,
-        `"Rs ${item.totalValue.toLocaleString('en-IN')}"`,
+        item.unitPrice,
+        item.totalValue,
       ]);
 
       csvContent = [

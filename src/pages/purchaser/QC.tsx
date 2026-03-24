@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { inventoryService } from '@/services/inventoryService';
 import { qualityCheckService } from '@/services/qualityCheckService';
 import { supplierService } from '@/services/supplierService';
+import { storeService, type Store } from '@/services/storeService';
 import type { Item } from '@/types/backend';
 
 // Extended Supplier interface to include selectedSupplies
@@ -32,9 +33,11 @@ const QualityControlPage = () => {
   const [dialogRemarks, setDialogRemarks] = useState('');
   const [dialogDamagedQuantity, setDialogDamagedQuantity] = useState('0');
   const [dialogInspectorName, setDialogInspectorName] = useState('');
+  const [dialogStoreId, setDialogStoreId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [supplierMap, setSupplierMap] = useState<Record<string, { name: string; contactPerson?: string }>>({});
   const [totalPendingCount, setTotalPendingCount] = useState(0);
+  const [purchaserStores, setPurchaserStores] = useState<Store[]>([]);
 
   const getItemId = (item: Item) => item.id ?? (item as { _id?: string })._id ?? '';
 
@@ -88,6 +91,22 @@ const QualityControlPage = () => {
     fetchItems();
   }, []);
 
+  useEffect(() => {
+    const fetchPurchaserStores = async () => {
+      try {
+        const response = await storeService.listStores();
+        const stores = (response.data || []).filter((store) => store.purchaser === 'ROLE_PURCHASER');
+        setPurchaserStores(stores);
+      } catch (error) {
+        console.error('Failed to load purchaser stores', error);
+        toast.error('Unable to load purchaser stores');
+        setPurchaserStores([]);
+      }
+    };
+
+    fetchPurchaserStores();
+  }, []);
+
 
 
   const openDialog = (item: Item) => {
@@ -96,6 +115,7 @@ const QualityControlPage = () => {
     setDialogRemarks(item.qcRemarks ?? '');
     setDialogDamagedQuantity(String(item.damagedQuantity ?? 0));
     setDialogInspectorName(item.inspectorName ?? '');
+    setDialogStoreId('');
     setDialogOpen(true);
   };
 
@@ -105,6 +125,7 @@ const QualityControlPage = () => {
     setDialogItem(null);
     setDialogRemarks('');
     setDialogInspectorName('');
+    setDialogStoreId('');
   };
 
   const handleDialogSubmit = async () => {
@@ -119,6 +140,13 @@ const QualityControlPage = () => {
       dialogDamagedQuantity.trim() === '' ? 0 : Number(dialogDamagedQuantity);
     if (Number.isNaN(parsedDamage) || parsedDamage < 0) {
       toast.error('Damaged quantity must be zero or greater');
+      setSubmitting(false);
+      return;
+    }
+
+    if (dialogStatus === 'approved' && !dialogStoreId) {
+      toast.error('Please select the purchaser store for this item');
+      setSubmitting(false);
       return;
     }
     try {
@@ -127,7 +155,8 @@ const QualityControlPage = () => {
         status: dialogStatus,
         remarks: dialogRemarks,
         damagedQuantity: parsedDamage,
-        inspectorName: dialogInspectorName
+        inspectorName: dialogInspectorName,
+        storeId: dialogStatus === 'approved' ? dialogStoreId : undefined
       });
       toast.success('Quality check updated successfully');
       closeDialog();
@@ -290,6 +319,26 @@ const QualityControlPage = () => {
                 onChange={(event) => setDialogInspectorName(event.target.value)}
               />
             </div>
+            {dialogStatus === 'approved' && (
+              <div className="space-y-2">
+                <Label htmlFor="qc-store">Purchaser Store</Label>
+                <Select value={dialogStoreId} onValueChange={setDialogStoreId}>
+                  <SelectTrigger id="qc-store">
+                    <SelectValue placeholder="Select purchaser store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {purchaserStores.map((store) => {
+                      const storeId = store._id || store.id || '';
+                      return (
+                        <SelectItem key={storeId} value={storeId}>
+                          {store.name} ({store.code})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="qc-remarks">Remarks</Label>
               <Textarea

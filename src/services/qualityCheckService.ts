@@ -7,6 +7,7 @@ export interface QualityCheckPayload {
   remarks?: string;
   damagedQuantity?: number;
   inspectorName?: string;
+  storeId?: string;
 }
 
 export const qualityCheckService = {

@@ -900,7 +900,8 @@ const InventoryForm = () => {
                           className={`${errors.quantity ? 'text-red-500' : 'text-gray-700'
                             } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                         >
-                          <Package className="h-4 w-4" /> Quantity <span className="text-red-500">*</span>
+                          <Package className="h-4 w-4" /> Quantity {!isEditing && <span className="text-red-500">*</span>}
+                          {isEditing && <span className="text-xs text-gray-400 font-normal ml-1">(managed by system)</span>}
                         </Label>
                         <Input
                           id="quantity"
@@ -909,11 +910,12 @@ const InventoryForm = () => {
                           step="1"
                           placeholder="Enter quantity (e.g., 100)"
                           {...register('quantity', { valueAsNumber: true })}
+                          disabled={isEditing}
                           className={`${errors.quantity
                             ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                             : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                            } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.quantity !== null && watchedFields.quantity !== undefined ? 'border-blue-300' : ''
-                            }`}
+                            } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.quantity !== null && watchedFields.quantity !== undefined && !isEditing ? 'border-blue-300' : ''
+                            } ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                         />
                         {errors.quantity?.message && (
                           <p className="text-sm text-red-500 flex items-center gap-1 mt-1">
