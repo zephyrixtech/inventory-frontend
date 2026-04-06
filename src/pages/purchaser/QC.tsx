@@ -308,6 +308,11 @@ const QualityControlPage = () => {
                 min={0}
                 value={dialogDamagedQuantity}
                 onChange={(event) => setDialogDamagedQuantity(event.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === '-' || e.key === '+') {
+                    e.preventDefault();
+                  }
+                }}
               />
             </div>
             <div className="space-y-2">
