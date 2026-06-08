@@ -16,11 +16,7 @@ import type { PaginationMeta, StoreStock } from '@/types/backend';
 interface PackingListFormState {
   storeId: string;
   toStoreId: string;
-  boxOrBora: 'box' | 'bora'; // New field to select box or bora
-  boxNumber: string;
-  boraNumber: string; // New field for bora number
   shipmentDate?: string;
-  packingDate?: string;
   image1?: string;
   items: {
     productId: string;
@@ -33,30 +29,22 @@ interface PackingListFormState {
   }[];
   status: 'india' | 'uae';
   approvalStatus: 'draft' | 'approved';
-  // New fields
   cargoNumber?: string;
   fabricDetails?: string;
-  // Only needed fields
-  size?: string; // Packing list level size
-  description?: string; // Packing list level description
+  size?: string;
+  description?: string;
 }
 
 const DEFAULT_FORM: PackingListFormState = {
   storeId: '',
   toStoreId: '',
-  boxOrBora: 'box', // Default to box
-  boxNumber: '',
-  boraNumber: '',
   shipmentDate: '',
-  packingDate: '',
   image1: '',
   items: [],
   status: 'india',
-  approvalStatus: 'draft', // Default to draft
-  // New fields
+  approvalStatus: 'draft',
   cargoNumber: '',
   fabricDetails: '',
-  // Only needed fields
   size: '',
   description: ''
 };
@@ -241,14 +229,12 @@ export const PackingListsPage = () => {
       const response = await packingListService.get(id);
       const packingList = response.data;
 
-
       const itemsWithProductInfo = packingList.items?.map((item: any) => {
         const product = item.product;
         const productId = product?._id || product?.id || product;
         const productIdStr = typeof productId === 'string' ? productId : productId?.toString();
         const productName = product?.name || '';
         const productCode = product?.code || '';
-        // Get description and unitOfMeasure from the item itself, not the product
         const description = item.description || product?.description || '';
         const unitOfMeasure = item.unitOfMeasure || product?.unitOfMeasure || '';
 
@@ -263,26 +249,6 @@ export const PackingListsPage = () => {
         };
       }) || [];
 
-      // Determine if the boxNumber is for a box or bora
-      let boxOrBora: 'box' | 'bora' = 'box';
-      let boxNumber = '';
-      let boraNumber = '';
-
-      if (packingList.boxNumber) {
-        if (packingList.boxNumber.startsWith('BOX-')) {
-          boxOrBora = 'box';
-          boxNumber = packingList.boxNumber.replace('BOX-', '');
-        } else if (packingList.boxNumber.startsWith('BORA-')) {
-          boxOrBora = 'bora';
-          boraNumber = packingList.boxNumber.replace('BORA-', '');
-        } else {
-          // Fallback for existing data that doesn't follow the pattern
-          boxNumber = packingList.boxNumber;
-        }
-      }
-
-      // Extract store IDs - handle both string and object formats
-      // Extract store IDs - handle both string and object formats
       const extractedStoreId = typeof packingList.store === 'string' ? packingList.store :
         (packingList.store as any)?._id || (packingList.store as any)?.id || '';
 
@@ -292,19 +258,13 @@ export const PackingListsPage = () => {
       const formData: PackingListFormState = {
         storeId: extractedStoreId,
         toStoreId: extractedToStoreId,
-        boxOrBora, // New field
-        boxNumber, // Box number without prefix
-        boraNumber, // Bora number without prefix
         shipmentDate: packingList.shipmentDate ? new Date(packingList.shipmentDate).toISOString().split('T')[0] : '',
-        packingDate: packingList.packingDate ? new Date(packingList.packingDate).toISOString().split('T')[0] : '',
         image1: (packingList as any).image1 || '',
         items: itemsWithProductInfo,
         status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae',
         approvalStatus: packingList.approvalStatus || 'draft',
-        // New fields
         cargoNumber: (packingList as any).cargoNumber || '',
         fabricDetails: (packingList as any).fabricDetails || '',
-        // Only needed fields
         size: (packingList as any).size || '',
         description: (packingList as any).description || ''
       };
@@ -430,28 +390,10 @@ export const PackingListsPage = () => {
       return;
     }
 
-    // Validate that either box or bora number is provided
-    if (formState.boxOrBora === 'box' && !formState.boxNumber) {
-      toast.error('Please enter a box number');
-      return;
-    }
-
-    if (formState.boxOrBora === 'bora' && !formState.boraNumber) {
-      toast.error('Please enter a bora number');
-      return;
-    }
-
     try {
-      // Determine the boxNumber based on selection
-      const boxNumber = formState.boxOrBora === 'box'
-        ? `BOX-${formState.boxNumber}`
-        : `BORA-${formState.boraNumber}`;
-
       if (editingId) {
         await packingListService.update(editingId, {
-          boxNumber, // Send the formatted boxNumber
           shipmentDate: formState.shipmentDate || undefined,
-          packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
           items: validItems.map((item) => ({
             productId: item.productId,
@@ -463,10 +405,8 @@ export const PackingListsPage = () => {
           toStoreId: formState.toStoreId || undefined,
           status: formState.status,
           approvalStatus: formState.approvalStatus,
-          // New fields
           cargoNumber: formState.cargoNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined,
-          // Only needed fields
           size: formState.size || undefined,
           description: formState.description || undefined
         });
@@ -474,9 +414,7 @@ export const PackingListsPage = () => {
       } else {
         await packingListService.create({
           storeId: formState.storeId,
-          boxNumber, // Send the formatted boxNumber
           shipmentDate: formState.shipmentDate || undefined,
-          packingDate: formState.packingDate || undefined,
           image1: formState.image1 || undefined,
           items: validItems.map((item) => ({
             productId: item.productId,
@@ -487,10 +425,8 @@ export const PackingListsPage = () => {
           toStoreId: formState.toStoreId || undefined,
           status: formState.status,
           approvalStatus: formState.approvalStatus,
-          // New fields
           cargoNumber: formState.cargoNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined,
-          // Only needed fields
           size: formState.size || undefined,
           description: formState.description || undefined
         });
@@ -583,7 +519,6 @@ export const PackingListsPage = () => {
                   </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Approval</TableHead>
-                  <TableHead>Packing Date</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -591,13 +526,13 @@ export const PackingListsPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Loading packing lists...
                     </TableCell>
                   </TableRow>
                 ) : sortedLists.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No packing lists found.
                     </TableCell>
                   </TableRow>
@@ -626,7 +561,6 @@ export const PackingListsPage = () => {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>{packing.packingDate ? new Date(packing.packingDate).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>
                           {packing.items?.map((item: any, itemIndex: number) => {
                             const itemKey =
@@ -772,49 +706,19 @@ export const PackingListsPage = () => {
                   </select>
                 </div>
 
-                {/* Box/Bora Selection and Number Fields */}
+                {/* Cargo Number Field - Label Changed to Style Number */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Box / Bora *</Label>
-                  <div className="flex gap-2">
-                    <select
-                      className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"
-                      value={formState.boxOrBora}
-                      onChange={(e) => setFormState(prev => ({ ...prev, boxOrBora: e.target.value as 'box' | 'bora' }))}
-                    >
-                      <option value="box">Box</option>
-                      <option value="bora">Bora</option>
-                    </select>
-                    {formState.boxOrBora === 'box' ? (
-                      <Input
-                        value={formState.boxNumber}
-                        onChange={(e) => setFormState(prev => ({ ...prev, boxNumber: e.target.value }))}
-                        className="h-10 focus-visible:ring-primary/20"
-                        placeholder="Enter box number"
-                      />
-                    ) : (
-                      <Input
-                        value={formState.boraNumber}
-                        onChange={(e) => setFormState(prev => ({ ...prev, boraNumber: e.target.value }))}
-                        className="h-10 focus-visible:ring-primary/20"
-                        placeholder="Enter bora number"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* New Cargo Number Field */}
-                <div className="space-y-2">
-                  <Label htmlFor="cargoNumber" className="text-sm font-medium">Cargo Number</Label>
+                  <Label htmlFor="cargoNumber" className="text-sm font-medium">Style Number</Label>
                   <Input
                     id="cargoNumber"
                     value={formState.cargoNumber || ''}
                     onChange={(e) => setFormState(prev => ({ ...prev, cargoNumber: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
-                    placeholder="Enter cargo number"
+                    placeholder="Enter style number"
                   />
                 </div>
 
-                {/* New Fabric Details Field */}
+                {/* Fabric Details Field */}
                 <div className="space-y-2">
                   <Label htmlFor="fabricDetails" className="text-sm font-medium">Fabric Details</Label>
                   <Input
@@ -823,17 +727,6 @@ export const PackingListsPage = () => {
                     onChange={(e) => setFormState(prev => ({ ...prev, fabricDetails: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="Enter fabric details"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="packingDate" className="text-sm font-medium">Packing Date</Label>
-                  <Input
-                    id="packingDate"
-                    type="date"
-                    value={formState.packingDate}
-                    onChange={(e) => setFormState(prev => ({ ...prev, packingDate: e.target.value }))}
-                    className="h-10 focus-visible:ring-primary/20"
                   />
                 </div>
 
@@ -1167,12 +1060,12 @@ export const PackingListsPage = () => {
               onClick={handleSavePackingList}
               disabled={
                 (!editingId && !formState.storeId) ||
-                (formState.boxOrBora === 'box' ? !formState.boxNumber : !formState.boraNumber) ||
                 formState.items.length === 0 ||
                 (!editingId && formState.items.some(item => item.productId && item.quantity > item.availableQuantity && formState.storeId))
               }
               className="min-w-[160px]"
-            >              {editingId ? 'Update Packing List' : 'Create Packing List'}
+            >
+              {editingId ? 'Update Packing List' : 'Create Packing List'}
             </Button>
           </DialogFooter>
         </DialogContent>

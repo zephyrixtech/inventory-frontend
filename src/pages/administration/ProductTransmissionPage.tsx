@@ -478,7 +478,6 @@ const ProductTransmissionPage = () => {
                   <TableHead>Box Number</TableHead>
                   <TableHead>From Store</TableHead>
                   <TableHead>Items Count</TableHead>
-                  <TableHead>Packing Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Approval</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -506,12 +505,7 @@ const ProductTransmissionPage = () => {
                         <div className="text-xs text-muted-foreground">{packingList.store?.code}</div>
                       </TableCell>
                       <TableCell>{packingList.items?.length || 0}</TableCell>
-                      <TableCell>
-                        {packingList.packingDate
-                          ? new Date(packingList.packingDate).toLocaleDateString()
-                          : '-'
-                        }
-                      </TableCell>
+                      
                       <TableCell>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {packingList.status}

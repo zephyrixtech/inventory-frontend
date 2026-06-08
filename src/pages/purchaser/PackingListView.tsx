@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Box, Calendar, Package, User, CheckCircle, XCircle, Clock, Truck, Store, FileText, Image as ImageIcon, Hash, Shirt } from 'lucide-react';
+import { ArrowLeft, Box,Package, User, CheckCircle, XCircle, Clock, Truck, Store, FileText, Image as ImageIcon, Hash, Shirt } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -125,17 +125,7 @@ export const PackingListView = () => {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Packing Date</p>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {packingList.packingDate 
-                    ? new Date(packingList.packingDate).toLocaleDateString() 
-                    : 'Not set'}
-                </span>
-              </div>
-            </div>
+            
 
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Shipment Date</p>

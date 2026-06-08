@@ -9,16 +9,14 @@ export interface PackingListItemInput {
 }
 
 export interface PackingListInput {
-  boxNumber: string;
+  boxNumber?: string;
   storeId: string;
   toStoreId?: string;
   items: PackingListItemInput[];
   shipmentDate?: string;
-  packingDate?: string;
   image1?: string;
   status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   approvalStatus?: 'draft' | 'approved';
-  // New fields
   cargoNumber?: string;
   fabricDetails?: string;
   size?: string;
@@ -29,7 +27,7 @@ export interface PackingList {
   _id: string;
   id?: string;
   company?: string;
-  boxNumber: string;
+  boxNumber?: string;
   items: Array<{
     product: {
       _id: string;
@@ -41,7 +39,6 @@ export interface PackingList {
   totalQuantity: number;
   image1?: string;
   shipmentDate?: string;
-  packingDate?: string;
   store?: {
     _id: string;
     name: string;
@@ -67,7 +64,6 @@ export interface PackingList {
   approvedAt?: string;
   createdAt: string;
   updatedAt: string;
-  // New fields
   cargoNumber?: string;
   fabricDetails?: string;
 }
