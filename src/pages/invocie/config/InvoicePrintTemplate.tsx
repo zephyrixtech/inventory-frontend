@@ -21,13 +21,26 @@ interface InvoiceData {
     name: string;
     contact: string;
     address: string;
+    trn?: string;
   };
   store: {
     name: string;
     contact: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    phone?: string;
+    email?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    ifscCode?: string;
+    ibanCode?: string;
+    taxCode?: string;
   };
   items: InvoiceItem[];
   status: "paid" | "pending" | "overdue";
+  currency?: string;
 }
 
 const formatNumber = (value: number | string): string => {
@@ -35,23 +48,123 @@ const formatNumber = (value: number | string): string => {
   return isNaN(num) ? "0.00" : num.toFixed(2);
 };
 
-const generateInvoicePDF = (data: InvoiceData) => {
-  const formattedDate = format(new Date(data.date), 'dd-MM-yyyy');
-
-  const calculateTotals = () => {
-    const grossTotal = data.items.reduce((total, item) => total + item.grossAmount, 0);
-    const totalDiscount = data.items.reduce((total, item) => total + item.discount, 0);
-    const netTotal = data.items.reduce((total, item) => total + item.netAmount, 0);
-
-    return {
-      grossTotal: formatNumber(grossTotal),
-      totalDiscount: formatNumber(totalDiscount),
-      netTotal: formatNumber(netTotal)
-    };
+const numberToWords = (num: number, currency: string = 'AED'): string => {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const convertLessThanOneThousand = (n: number): string => {
+    if (n === 0) return '';
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+    return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convertLessThanOneThousand(n % 100) : '');
   };
 
-  const totals = calculateTotals();
-  const totalItems = data.items.length;
+  const convert = (n: number): string => {
+    if (n === 0) return 'Zero';
+    
+    let words = '';
+    
+    // Millions
+    const millions = Math.floor(n / 1000000);
+    if (millions > 0) {
+      words += convertLessThanOneThousand(millions) + ' Million ';
+      n %= 1000000;
+    }
+    
+    // Thousands
+    const thousands = Math.floor(n / 1000);
+    if (thousands > 0) {
+      words += convertLessThanOneThousand(thousands) + ' Thousand ';
+      n %= 1000;
+    }
+    
+    // Hundreds
+    if (n > 0) {
+      words += convertLessThanOneThousand(n);
+    }
+    
+    return words.trim();
+  };
+
+  const parts = num.toFixed(2).split('.');
+  const whole = parseInt(parts[0]);
+  const decimal = parseInt(parts[1]);
+  
+  let result = '';
+  if (currency === 'INR') {
+    result += 'Indian Rupees ' + convert(whole);
+    if (decimal > 0) {
+      result += ' and ' + convert(decimal) + ' Paise';
+    }
+  } else {
+    result += 'UAE Dirhams ' + convert(whole);
+    if (decimal > 0) {
+      result += ' and ' + convert(decimal) + ' Fils';
+    }
+  }
+  return result + ' Only';
+};
+
+const generateInvoicePDF = (data: InvoiceData) => {
+  const formattedDate = format(new Date(data.date), 'd-MMM-yy');
+  
+  // Calculate Totals
+  const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalBeforeVat = data.items.reduce((sum, item) => sum + item.grossAmount, 0);
+  const totalDiscount = data.items.reduce((sum, item) => sum + item.discount, 0);
+  const totalNet = data.items.reduce((sum, item) => sum + item.netAmount, 0);
+  
+  // Store details (AL LIBAS GENERAL TRADING L L C)
+  const storeName = "AL LIBAS GENERAL TRADING L L C";
+  const storeAddress = "SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING, AJMAN, INDUSTRIAL AREA 2, P.O.BOX :4381";
+  const storePhone = "+971-55-680-5858 / +971-55-918-7607";
+  const storeEmail = "allibastrading@gmail.com";
+  const storeTaxCode = "100389228600003";
+  const storeCity = "Ajman";
+  const storeCountry = "UAE";
+  
+  // Bank details
+  const bankName = "RAKBANK";
+  const bankAccountName = "AL LIBAS GENERAL TRADING L L C";
+  const bankAccountNumber = "0192594853001";
+  const bankIban = "AE790400000192594853001";
+  const bankSwift = "NRAKAEAK";
+
+  const getLogoMainText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'AL LIBAS';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'CASECADE';
+    const parts = name.split(' ');
+    return parts[0] || name;
+  };
+
+  const getLogoSubText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'GENERAL TRADING L L C';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'COMPUTER TRADING';
+    const parts = name.split(' ');
+    return parts.slice(1).join(' ') || '';
+  };
+
+  const getArabicMainText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'ال لباس';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'كـاسـكـيـد';
+    return '';
+  };
+
+  const getArabicSubText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'للتجارة العامة ش.ذ.م.م';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'لتجارة الكمبيوتر';
+    return '';
+  };
+
+  const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
+
+  const currencySymbolText = data.currency === 'INR' ? '₹' : 'Dhs';
+  
+  const amountInWords = numberToWords(totalNet, data.currency);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
@@ -59,12 +172,12 @@ const generateInvoicePDF = (data: InvoiceData) => {
   const itemRows = data.items.map((item, index) => {
     const vatDisplay = item.vat > 0 ? `${formatNumber(item.vat)}%` : '-';
     return `
-    <tr>
+    <tr class="item-row">
       <td class="text-center">${index + 1}</td>
       <td class="item-name">${item.name}</td>
-      <td class="text-center">${item.quantity}</td>
+      <td class="text-center font-bold">${item.quantity}</td>
       <td class="text-right">${formatNumber(item.unitPrice)}</td>
-      <td class="text-right">${formatNumber(item.grossAmount)}</td>
+      <td class="text-right font-bold">${formatNumber(item.grossAmount)}</td>
       <td class="text-center discount-cell">
         ${item.discount > 0 ? `${formatNumber(item.discount)}` : '-'}
       </td>
@@ -84,7 +197,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
         <style>
           @page {
             size: A4;
-            margin: 15mm;
+            margin: 10mm;
           }
           
           * {
@@ -92,251 +205,364 @@ const generateInvoicePDF = (data: InvoiceData) => {
           }
           
           body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            color: #1f2937;
-            line-height: 1.5;
-            font-size: 14px;
+            color: #000;
+            line-height: 1.3;
+            font-size: 11px;
           }
           
           .invoice-container {
             max-width: 100%;
             margin: 0 auto;
+            position: relative;
+            padding-bottom: 80px; /* Space for brand logos */
           }
           
           /* Header */
-          .invoice-header {
+          .header-container {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e5e7eb;
-          }
-          
-          .company-info h1 {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1e40af;
-            margin: 0 0 8px 0;
-          }
-          
-          .company-info p {
-            margin: 4px 0;
-            color: #6b7280;
-          }
-          
-          .invoice-details {
-            text-align: right;
-          }
-          
-          .invoice-details h2 {
-            font-size: 24px;
-            font-weight: bold;
-            color: #111827;
-            margin: 0 0 12px 0;
-          }
-          
-          .invoice-details p {
-            margin: 4px 0;
-            color: #6b7280;
-          }
-          
-          .status-badge {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-weight: 600;
-            text-transform: capitalize;
-            font-size: 12px;
-            margin-top: 8px;
-          }
-          
-          .status-paid { background-color: #dcfce7; color: #166534; }
-          .status-pending { background-color: #fef3c7; color: #92400e; }
-          .status-overdue { background-color: #fee2e2; color: #dc2626; }
-          
-          /* Customer Info */
-          .customer-section {
-            margin-bottom: 40px;
-          }
-          
-          .customer-info {
-            border-left: 4px solid #2563eb;
-            padding-left: 16px;
-            background-color: #f8fafc;
-            padding: 16px;
-            border-radius: 8px;
-          }
-          
-          .customer-info h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1e40af;
-            margin: 0 0 12px 0;
-          }
-          
-          .customer-info p {
-            margin: 4px 0;
-            color: #374151;
-          }
-          
-          .customer-name {
-            font-size: 16px;
-            font-weight: 600;
-            color: #111827;
-          }
-          
-          /* Summary Box */
-          .invoice-summary {
-            background-color: #f1f5f9;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border: 1px solid #e2e8f0;
-          }
-          
-          .summary-row {
-            display: flex;
-            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #c22026;
+            padding-bottom: 12px;
             margin-bottom: 8px;
           }
           
-          .summary-row:last-child {
+          .header-left {
+            flex: 1;
+          }
+          
+          .header-left .brand-name {
+            font-size: 30px;
+            font-weight: 900;
+            color: #c22026;
+            font-family: 'Arial Black', Impact, sans-serif;
+            letter-spacing: 0.5px;
+            line-height: 0.95;
+          }
+          
+          .header-left .brand-sub {
+            font-size: 13px;
+            font-weight: 700;
+            color: #444;
+            letter-spacing: 1.5px;
+            margin-top: 3px;
+          }
+          
+          .header-center {
+            flex: 0 0 80px;
+            display: flex;
+            justify-content: center;
+          }
+          
+          .header-right {
+            flex: 1;
+            text-align: right;
+          }
+          
+          .header-right .brand-name-ar {
+            font-size: 30px;
+            font-weight: bold;
+            color: #c22026;
+            direction: rtl;
+            line-height: 0.95;
+          }
+          
+          .header-right .brand-sub-ar {
+            font-size: 13px;
+            font-weight: bold;
+            color: #444;
+            direction: rtl;
+            margin-top: 3px;
+          }
+          
+          /* Invoice metadata bar */
+          .metadata-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11.5px;
+            font-weight: bold;
+            margin-bottom: 6px;
+            padding: 0 4px;
+          }
+          
+          /* Centered Store Address */
+          .store-address-box {
+            text-align: center;
+            font-size: 11px;
+            line-height: 1.35;
+            margin-bottom: 12px;
+            color: #222;
+          }
+          
+          .store-address-box .store-title {
+            font-size: 13.5px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 2px;
+          }
+          
+          /* Tax Invoice title */
+          .tax-invoice-title {
+            text-align: center;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          /* Party details section */
+          .party-details {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 8px 6px;
+            margin-bottom: 12px;
+            line-height: 1.45;
+          }
+          
+          .party-row {
+            display: flex;
+            margin-bottom: 3px;
+          }
+          
+          .party-row:last-child {
             margin-bottom: 0;
-            padding-top: 8px;
-            border-top: 1px solid #cbd5e1;
-            font-weight: 600;
-            color: #1e40af;
           }
           
-          .summary-label {
-            color: #64748b;
+          .party-label {
+            width: 90px;
+            font-weight: bold;
           }
           
-          .summary-value {
-            font-weight: 500;
+          .party-val {
+            font-weight: normal;
           }
           
-          .discount-value {
-            color: #059669;
+          .party-val.bold {
+            font-weight: bold;
           }
           
-          /* Table */
+          /* Main Items Table */
           .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
-            background-color: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #000;
+            margin-bottom: 0px;
           }
           
           .items-table th {
-            background-color: #eff6ff;
-            color: #1e40af;
-            font-weight: 600;
-            padding: 12px 8px;
-            text-align: left;
-            font-size: 13px;
-            border-bottom: 2px solid #dbeafe;
+            border: 1px solid #000;
+            padding: 5px 3px;
+            font-weight: bold;
+            font-size: 10.5px;
+            text-align: center;
+            background-color: #f5f5f5;
           }
           
           .items-table td {
-            padding: 12px 8px;
-            border-bottom: 1px solid #f1f5f9;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            padding: 5px 4px;
+            vertical-align: middle;
+            font-size: 10px;
           }
           
-          .items-table tbody tr:hover {
-            background-color: #f8fafc;
+          .items-table tr.item-row {
+            border-bottom: 1px dashed #ccc;
           }
           
-          .items-table tbody tr:last-child td {
-            border-bottom: none;
+          .items-table tr.total-row {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+            background-color: #fafafa;
+          }
+          
+          .items-table tr.total-row td {
+            font-size: 10.5px;
+            padding: 6px 4px;
           }
           
           .text-center { text-align: center; }
           .text-right { text-align: right; }
-          .font-semibold { font-weight: 600; }
+          .item-name { font-weight: bold; }
           
-          .item-name {
-            font-weight: 500;
-            color: #111827;
-          }
-          
-          .discount-cell {
-            color: #059669;
-            font-weight: 500;
-          }
-          
-          /* Totals */
-          .totals-section {
-            margin-top: 40px;
-            display: flex;
-            justify-content: flex-end;
-          }
-          
-          .totals-box {
-            width: 350px;
-            background-color: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-          }
-          
-          .total-row {
+          /* Chargeable box */
+          .chargeable-box {
+            border: 1px solid #000;
+            border-top: none;
+            padding: 5px;
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
-            padding: 4px 0;
-          }
-          
-          .total-row.final {
-            border-top: 2px solid #cbd5e1;
-            padding-top: 12px;
-            margin-top: 12px;
+            font-size: 10.5px;
             font-weight: bold;
-            font-size: 16px;
-            color: #1e40af;
+            background-color: #fafafa;
+            margin-bottom: 15px;
           }
           
-          .total-label {
-            color: #64748b;
+          /* Bank & stamp block */
+          .bottom-block {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
           }
           
-          .total-value {
-            font-weight: 500;
+          .bank-details-box {
+            width: 55%;
+            line-height: 1.4;
           }
           
-          .discount-total {
-            color: #059669;
+          .bank-details-box h4 {
+            margin: 0 0 4px 0;
+            font-size: 11px;
+            font-weight: bold;
+            text-decoration: underline;
           }
           
-          /* Footer */
-          .invoice-footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
+          .bank-row {
+            display: flex;
+            margin-bottom: 2px;
+          }
+          
+          .bank-label {
+            width: 130px;
+          }
+          
+          .declaration-box {
+            margin-top: 12px;
+            font-size: 9px;
+            color: #222;
+          }
+          
+          .declaration-box h5 {
+            margin: 0 0 2px 0;
+            font-weight: bold;
+            text-decoration: underline;
+          }
+          
+          .stamp-sign-box {
+            width: 40%;
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+          }
+          
+          .stamp-sign-box .sign-for {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 5px;
+          }
+          
+          /* Graphic double blue border stamp */
+          .blue-stamp {
+            border: 4px double #1e3a8a;
+            border-radius: 4px;
+            padding: 8px 12px;
             text-align: center;
-            color: #6b7280;
-            font-size: 13px;
+            width: 200px;
+            color: #1e3a8a;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            background-color: rgba(30, 58, 138, 0.02);
+            transform: rotate(-3deg);
+            margin: 10px 0;
+            box-shadow: 0 0 1px rgba(30, 58, 138, 0.2);
           }
           
-          .invoice-footer p {
-            margin: 4px 0;
+          .blue-stamp .stamp-title-ar {
+            font-size: 11px;
           }
           
-          /* Print specific styles */
+          .blue-stamp .stamp-title-en {
+            font-size: 10px;
+            margin-top: 2px;
+          }
+          
+          .blue-stamp .stamp-loc {
+            font-size: 8px;
+            font-weight: normal;
+            margin-top: 2px;
+          }
+          
+          .sign-authorised {
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: auto;
+            padding-top: 5px;
+          }
+          
+          /* Footer contact */
+          .footer-section {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border-top: 1.5px solid #c22026;
+            padding-top: 6px;
+            text-align: center;
+            background-color: #fff;
+          }
+          
+          .footer-gen-text {
+            font-size: 9px;
+            font-weight: bold;
+            margin-bottom: 4px;
+          }
+          
+          .footer-contact-bar {
+            font-size: 9px;
+            color: #333;
+            margin-bottom: 2px;
+          }
+          
+          .footer-address {
+            font-size: 9px;
+            color: #e21a22;
+            font-weight: bold;
+            margin-bottom: 6px;
+          }
+          
+          /* Footer Brands Grid */
+          .brands-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 10px;
+            border-top: 1px solid #ccc;
+            font-size: 8px;
+            font-weight: 800;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          
+          .brand-logo-text {
+            font-family: 'Arial Black', sans-serif;
+          }
+          
+          .brand-hik { color: #d32f2f; }
+          .brand-hilook { color: #1e3a8a; }
+          .brand-grand { color: #0284c7; }
+          .brand-ezviz { color: #f59e0b; }
+          .brand-zebra { color: #000000; }
+          .brand-dell { color: #0284c7; }
+          .brand-hp { color: #000000; }
+          
           @media print {
             body {
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
-            
             .invoice-container {
-              max-width: none;
+              padding-bottom: 0;
+            }
+            .footer-section {
+              position: fixed;
+              bottom: 0;
             }
           }
         </style>
@@ -344,98 +570,162 @@ const generateInvoicePDF = (data: InvoiceData) => {
       <body>
         <div class="invoice-container">
           <!-- Header -->
-          <div class="invoice-header">
-            <div class="company-info">
-              <h1>AL LIBAS GENERAL TRADING L L C</h1>
-              <p>SHOP NO 5</p>
-              <p>STANDARD HOMES REAL ESTATE BUILDING</p>
-              <p>AJMAN, INDUSTRIAL AREA 2, UNITED ARAB EMIRATES</p>
-              <p>P.O.BOX :4381</p>
-              <p>Phone: +971-55-680-5858 / +971-55-918-7607</p>
-              <p>Email: allibastrading@gmail.com</p>
+          <div class="header-container">
+            <div class="header-left">
+              <div class="brand-name">${getLogoMainText(storeName)}</div>
+              <div class="brand-sub">${getLogoSubText(storeName)}</div>
             </div>
-            <div class="invoice-details">
-              <h2>INVOICE</h2>
-              <p><strong>Invoice #:</strong> ${data.invoiceNumber}</p>
-              <p><strong>Date:</strong> ${formattedDate}</p>
-              <span class="status-badge status-${data.status.toLowerCase()}">${data.status}</span>
+            <div class="header-center">
+              <svg width="48" height="48" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" stroke="#c22026" stroke-width="8.5" fill="none" stroke-dasharray="210 50" transform="rotate(-40 50 50)" />
+                <circle cx="50" cy="50" r="26" stroke="#c22026" stroke-width="4" fill="none" stroke-opacity="0.35" />
+              </svg>
             </div>
-          </div>
-
-          <!-- Customer Info & Summary -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
-            <div class="customer-section">
-              <div class="customer-info">
-                <h3>Bill To</h3>
-                <p class="customer-name">${data.customer.name}</p>
-                <p>Contact: ${data.customer.contact}</p>
-                ${data.customer.address ? `<p>${data.customer.address}</p>` : ''}
-              </div>
-            </div>
-            
-            <div class="invoice-summary">
-              <div class="summary-row">
-                <span class="summary-label">Total Items:</span>
-                <span class="summary-value">${totalItems}</span>
-              </div>
-              <div class="summary-row">
-                <span class="summary-label">Gross Amount:</span>
-                <span class="summary-value">${totals.grossTotal}</span>
-              </div>
-              <div class="summary-row">
-                <span class="summary-label">Total Discount:</span>
-                <span class="summary-value discount-value">-${totals.totalDiscount}</span>
-              </div>
-              <div class="summary-row">
-                <span>Net Amount:</span>
-                <span>${totals.netTotal}</span>
-              </div>
+            <div class="header-right">
+              <div class="brand-name-ar">${getArabicMainText(storeName)}</div>
+              <div class="brand-sub-ar">${getArabicSubText(storeName)}</div>
             </div>
           </div>
-
+          
+          <!-- Invoice No & Date -->
+          <div class="metadata-bar">
+            <div>Invoice No. ${data.invoiceNumber}</div>
+            <div>Dated ${formattedDate}</div>
+          </div>
+          
+          <!-- Store address center -->
+          <div class="store-address-box">
+            <div class="store-title">${storeName}</div>
+            <div>${storeAddress}</div>
+            <div>${storePhone}</div>
+            <div>Emirate : ${storeCity} | Country : ${storeCountry}</div>
+            <div>TRN : ${storeTaxCode}</div>
+            <div>E-Mail : ${storeEmail}</div>
+          </div>
+          
+          <!-- Tax Invoice title -->
+          <div class="tax-invoice-title">Tax Invoice</div>
+          
+          <!-- Party Details -->
+          <div class="party-details">
+            <div class="party-row">
+              <div class="party-label">Party :</div>
+              <div class="party-val bold">${data.customer.name.toUpperCase()}</div>
+            </div>
+            <div class="party-row">
+              <div class="party-label">Contact :</div>
+              <div class="party-val">${data.customer.contact || "-"}</div>
+            </div>
+            <div class="party-row">
+              <div class="party-label">Address :</div>
+              <div class="party-val">${data.customer.address || "-"}</div>
+            </div>
+            ${data.customer.trn ? `
+            <div class="party-row">
+              <div class="party-label">TRN :</div>
+              <div class="party-val bold">${data.customer.trn}</div>
+            </div>
+            ` : ''}
+          </div>
+          
           <!-- Items Table -->
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 50px;">#Sl No</th>
+                <th style="width: 50px; text-align: center;">#Sl No</th>
                 <th>Item Name</th>
-                <th style="width: 50px;">Qty</th>
-                <th style="width: 75px;">Unit Price</th>
-                <th style="width: 75px;">Gross Amount</th>
-                <th style="width: 70px;">Discount</th>
-                <th style="width: 60px;">VAT</th>
-                <th style="width: 85px;">Net Amount</th>
+                <th style="width: 60px; text-align: center;">Qty</th>
+                <th style="width: 95px; text-align: right;">Unit Price</th>
+                <th style="width: 105px; text-align: right;">Gross Amount</th>
+                <th style="width: 85px; text-align: center;">Discount</th>
+                <th style="width: 75px; text-align: center;">VAT</th>
+                <th style="width: 115px; text-align: right;">Net Amount</th>
               </tr>
             </thead>
             <tbody>
               ${itemRows}
+              <tr class="total-row">
+                <td colspan="2" class="text-right" style="font-weight: bold; border-right: 1px solid #000;">Total</td>
+                <td class="text-center font-bold" style="border-right: 1px solid #000;">${totalQty}</td>
+                <td style="border-right: 1px solid #000;"></td>
+                <td class="text-right font-bold" style="border-right: 1px solid #000;">${formatNumber(totalBeforeVat)}</td>
+                <td class="text-center font-bold" style="border-right: 1px solid #000;">-${formatNumber(totalDiscount)}</td>
+                <td style="border-right: 1px solid #000;"></td>
+                <td class="text-right font-bold">${currencySymbolText} ${formatNumber(totalNet)}</td>
+              </tr>
             </tbody>
           </table>
-
-          <!-- Totals Section -->
-          <div class="totals-section">
-            <div class="totals-box">
-              <div class="total-row">
-                <span class="total-label">Gross Total:</span>
-                <span class="total-value">${totals.grossTotal}</span>
+          
+          <!-- Amount chargeable in words -->
+          <div class="chargeable-box">
+            <div>
+              <span style="font-weight: normal; color: #444;">Amount Chargeable (in words)</span><br>
+              <span style="font-size: 11.5px; text-transform: uppercase;">${amountInWords}</span>
+            </div>
+            <div style="align-self: flex-end; font-size: 10px; font-weight: normal; font-style: italic;">E. & O.E</div>
+          </div>
+          
+          <!-- Bank & Signature area -->
+          <div class="bottom-block">
+            <div class="bank-details-box">
+              <h4>Company's Bank Details</h4>
+              <div class="bank-row">
+                <div class="bank-label">A/c Holder's Name :</div>
+                <div style="font-weight: bold;">${bankAccountName}</div>
               </div>
-              <div class="total-row">
-                <span class="total-label">Total Discount:</span>
-                <span class="total-value discount-total">-${totals.totalDiscount}</span>
+              <div class="bank-row">
+                <div class="bank-label">Bank Name :</div>
+                <div>${bankName}</div>
               </div>
-              <div class="total-row final">
-                <span>Total Amount:</span>
-                <span>${totals.netTotal}</span>
+              <div class="bank-row">
+                <div class="bank-label">A/c No. :</div>
+                <div style="font-weight: bold; letter-spacing: 0.5px;">${bankAccountNumber}</div>
+              </div>
+              <div class="bank-row">
+                <div class="bank-label">IBAN :</div>
+                <div style="font-weight: bold; letter-spacing: 0.5px;">${bankIban}</div>
+              </div>
+              <div class="bank-row">
+                <div class="bank-label">Branch & SWIFT Code :</div>
+                <div>${bankSwift}</div>
+              </div>
+              
+              <!-- Declaration -->
+              <div class="declaration-box">
+                <h5>Declaration</h5>
+                <div>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
               </div>
             </div>
+            
+            <div class="stamp-sign-box">
+              <div class="sign-for">for ${storeName}</div>
+              <div style="height: 60px;"></div>
+              <div class="sign-authorised">Authorised Signatory</div>
+            </div>
           </div>
-
-          <!-- Footer -->
-          <div class="invoice-footer">
-            <p><strong>Thank you for your business!</strong></p>
-            <p>Payment Details: Bank: RAKBANK | Account: 0192594853001 | IBAN: AE790400000192594853001</p>
-            <p>For any queries, please contact us at allibastrading@gmail.com</p>
-            <p>This is a computer generated invoice</p>
+          
+          <!-- Footer bottom -->
+          <div class="footer-section">
+            <div class="footer-gen-text">This is a Computer Generated Invoice</div>
+            <div class="footer-contact-bar">
+              Tel./Mob.: ${storePhone} | Email : ${storeEmail}
+            </div>
+            <div class="footer-address">
+              Office : ${storeAddress}
+            </div>
+            
+            ${showComputerBrands ? `
+            <!-- Brand Logos grid footer -->
+            <div class="brands-grid">
+              <span class="brand-logo-text brand-hik">HIKVISION</span>
+              <span class="brand-logo-text brand-hilook">HiLook</span>
+              <span class="brand-logo-text brand-grand">GRANDSTREAM</span>
+              <span class="brand-logo-text brand-ezviz">EZVIZ</span>
+              <span class="brand-logo-text brand-zebra">ZEBRA</span>
+              <span class="brand-logo-text brand-dell">DELL</span>
+              <span class="brand-logo-text brand-hp">hp</span>
+            </div>
+            ` : ''}
           </div>
         </div>
       </body>

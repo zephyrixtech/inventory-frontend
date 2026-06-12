@@ -4,10 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Printer } from "lucide-react";
 import generateInvoicePDF from './InvoicePrintTemplate';
-import { useAppSelector } from '@/hooks/redux';
 import { toast } from 'react-hot-toast';
 
 // Using SalesInvoice type from service
@@ -18,7 +16,6 @@ export default function InvoiceView() {
   const [invoice, setInvoice] = useState<SalesInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const userInfo = useAppSelector((state) => state.user.userData);
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -71,9 +68,12 @@ export default function InvoiceView() {
     const customerPhone = typeof invoice.customer === 'object' && invoice.customer !== null
       ? invoice.customer.phone || 'N/A'
       : 'N/A';
-    // const customerEmail = typeof invoice.customer === 'object' && invoice.customer !== null
-    //   ? invoice.customer.email || ''
-    //   : '';
+    const customerAddress = typeof invoice.customer === 'object' && invoice.customer !== null
+      ? invoice.customer.billingAddress || ''
+      : '';
+    const customerTrn = typeof invoice.customer === 'object' && invoice.customer !== null
+      ? invoice.customer.taxNumber || ''
+      : '';
 
     const storeName = typeof invoice.store === 'object' && invoice.store !== null
       ? invoice.store.name
@@ -81,6 +81,17 @@ export default function InvoiceView() {
     const storeCode = typeof invoice.store === 'object' && invoice.store !== null
       ? invoice.store.code || ''
       : '';
+    const storeAddress = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.address : undefined;
+    const storeCity = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.city : undefined;
+    const storeState = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.state : undefined;
+    const storeCountry = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.country : undefined;
+    const storePhone = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.phone : undefined;
+    const storeEmail = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.email : undefined;
+    const storeBankName = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.bankName : undefined;
+    const storeBankAccountNumber = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.bankAccountNumber : undefined;
+    const storeIfscCode = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.ifscCode : undefined;
+    const storeIbanCode = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.ibanCode : undefined;
+    const storeTaxCode = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.taxCode : undefined;
 
     const invoiceData = {
       id: invoice._id || invoice.id || '',
@@ -88,11 +99,23 @@ export default function InvoiceView() {
       customer: {
         name: customerName,
         contact: customerPhone,
-        address: '',
+        address: customerAddress,
+        trn: customerTrn,
       },
       store: {
         name: storeName,
         contact: storeCode,
+        address: storeAddress,
+        city: storeCity,
+        state: storeState,
+        country: storeCountry,
+        phone: storePhone,
+        email: storeEmail,
+        bankName: storeBankName,
+        bankAccountNumber: storeBankAccountNumber,
+        ifscCode: storeIfscCode,
+        ibanCode: storeIbanCode,
+        taxCode: storeTaxCode,
       },
       items: invoice.items.map((item, index) => {
         const itemName = typeof item.item === 'object' && item.item !== null
@@ -174,217 +197,385 @@ export default function InvoiceView() {
     );
   }
 
+  const formatDate = (dateString: string) => {
+    try {
+      const d = new Date(dateString);
+      const day = d.getDate();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[d.getMonth()];
+      const year = String(d.getFullYear()).slice(-2);
+      return `${day}-${month}-${year}`;
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  const numberToWords = (num: number, currency: string = 'AED'): string => {
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertLessThanOneThousand = (n: number): string => {
+      if (n === 0) return '';
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+      return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convertLessThanOneThousand(n % 100) : '');
+    };
+
+    const convert = (n: number): string => {
+      if (n === 0) return 'Zero';
+      
+      let words = '';
+      
+      // Millions
+      const millions = Math.floor(n / 1000000);
+      if (millions > 0) {
+        words += convertLessThanOneThousand(millions) + ' Million ';
+        n %= 1000000;
+      }
+      
+      // Thousands
+      const thousands = Math.floor(n / 1000);
+      if (thousands > 0) {
+        words += convertLessThanOneThousand(thousands) + ' Thousand ';
+        n %= 1000;
+      }
+      
+      // Hundreds
+      if (n > 0) {
+        words += convertLessThanOneThousand(n);
+      }
+      
+      return words.trim();
+    };
+
+    const parts = num.toFixed(2).split('.');
+    const whole = parseInt(parts[0]);
+    const decimal = parseInt(parts[1]);
+    
+    let result = '';
+    if (currency === 'INR') {
+      result += 'Indian Rupees ' + convert(whole);
+      if (decimal > 0) {
+        result += ' and ' + convert(decimal) + ' Paise';
+      }
+    } else {
+      result += 'UAE Dirhams ' + convert(whole);
+      if (decimal > 0) {
+        result += ' and ' + convert(decimal) + ' Fils';
+      }
+    }
+    return result + ' Only';
+  };
+
+  const customerName = typeof invoice.customer === 'object' && invoice.customer !== null
+    ? invoice.customer.name
+    : 'N/A';
+  const customerPhone = typeof invoice.customer === 'object' && invoice.customer !== null
+    ? invoice.customer.phone || 'N/A'
+    : 'N/A';
+  const customerAddress = typeof invoice.customer === 'object' && invoice.customer !== null
+    ? invoice.customer.billingAddress || ''
+    : '';
+  const customerTrn = typeof invoice.customer === 'object' && invoice.customer !== null
+    ? invoice.customer.taxNumber || ''
+    : '';
+
+  const storeName = "AL LIBAS GENERAL TRADING L L C";
+  const storeAddress = "SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING, AJMAN, INDUSTRIAL AREA 2, P.O.BOX :4381";
+  const storePhone = "+971-55-680-5858 / +971-55-918-7607";
+  const storeEmail = "allibastrading@gmail.com";
+  const storeTaxCode = "100389228600003";
+  const storeCity = "Ajman";
+  const storeCountry = "UAE";
+
+  // Bank details fields
+  const bankName = "RAKBANK";
+  const bankAccountName = "AL LIBAS GENERAL TRADING L L C";
+  const bankAccountNumber = "0192594853001";
+  const bankIban = "AE790400000192594853001";
+  const bankSwift = "NRAKAEAK";
+
+  const getLogoMainText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'AL LIBAS';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'CASECADE';
+    const parts = name.split(' ');
+    return parts[0] || name;
+  };
+
+  const getLogoSubText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'GENERAL TRADING L L C';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'COMPUTER TRADING';
+    const parts = name.split(' ');
+    return parts.slice(1).join(' ') || '';
+  };
+
+  const getArabicMainText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'ال لباس';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'كـاسـكـيـد';
+    return '';
+  };
+
+  const getArabicSubText = (name: string) => {
+    const upper = name.toUpperCase();
+    if (upper.includes('LIBAS')) return 'للتجارة العامة ش.ذ.م.م';
+    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'لتجارة الكمبيوتر';
+    return '';
+  };
+
+  const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
+
+  const totalQty = invoice.items.reduce((sum, item) => sum + item.quantity, 0);
+  const amountInWords = numberToWords(finalAmount, 'AED');
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen print:p-0 print:bg-white">
-      <div className="max-w-6xl mx-auto space-y-6 print:space-y-0">
-        <div className="flex items-center justify-between print:hidden">
-           <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => window.history.back()}
-                      className="hover:bg-blue-100 transition-colors duration-200 rounded-full"
-                    >
-                      <ArrowLeft className="h-5 w-5 text-blue-600" />
-                    </Button>
+    <div className="p-6 bg-gray-100 min-h-screen print:p-0 print:bg-white flex flex-col items-center">
+      <div className="w-full max-w-5xl space-y-6 print:space-y-0">
+        {/* Navigation/Actions Header */}
+        <div className="flex items-center justify-between print:hidden w-full bg-white p-4 rounded-xl shadow-sm border border-gray-200">
           <Button
-            variant="outline"
-            onClick={handlePrint}
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+            variant="ghost"
+            size="icon"
+            onClick={() => window.history.back()}
+            className="hover:bg-gray-100 transition-colors duration-200 rounded-full"
           >
-            <Printer className="mr-2 h-4 w-4" />
-            Print
+            <ArrowLeft className="h-5 w-5 text-gray-700" />
+          </Button>
+          <Button
+            onClick={handlePrint}
+            className="bg-[#c22026] hover:bg-[#a81b20] text-white shadow-md transition-all duration-200 flex items-center gap-2 px-5 py-2 rounded-lg"
+          >
+            <Printer className="h-4.5 w-4.5" />
+            Print Invoice
           </Button>
         </div>
 
-        <Card className="border-none shadow-lg print:shadow-none print:border-none">
-          <CardContent className="p-6 print:p-8">
-            <div id="invoice-content" className="space-y-8 print:min-h-[29.7cm]">
-              {/* Header Section */}
-              <div className="flex justify-between items-start border-b border-gray-200 pb-6 print:pb-4">
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-bold text-blue-800">{'AL LIBAS GENERAL TRADING L L C'}</h1>
-                  <p className="text-gray-600">{'SHOP NO 5'}</p>
-                  <p className="text-gray-600">{ 'STANDARD HOMES REAL ESTATE BUILDING'}</p>
-                  <p className="text-gray-600">{ 'AJMAN'}, {'INDUSTRIAL AREA 2'}, { 'P.O.BOX :4381'}</p>
-                  <p className="text-gray-600">Phone: { '+971-55-680-5858 / +971-55-918-7607'}</p>
-                  {invoice.email && <p className="text-gray-600">Email: {'allibastrading@gmail.com'}</p>}
+        {/* Invoice Page Visual Container */}
+        <Card className="border border-gray-300 shadow-2xl bg-white print:shadow-none print:border-none w-full min-h-[29.7cm] p-8 md:p-12 print:p-0 flex flex-col justify-between font-sans text-black">
+          <CardContent className="p-0 flex flex-col gap-6">
+            {/* Logo and Branding Header */}
+            <div className="flex justify-between items-center border-b-3 border-[#c22026] pb-4">
+              <div className="flex-1">
+                <div className="text-3xl font-extrabold text-[#c22026] tracking-tight leading-none" style={{ fontFamily: 'Arial Black, sans-serif' }}>
+                  {getLogoMainText(storeName)}
                 </div>
-                <div className="text-right space-y-2">
-                  <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
-                  <p className="text-gray-600">Invoice #: {invoice.invoiceNumber}</p>
-                  <p className="text-gray-600">Date: {new Date(invoice.invoiceDate).toLocaleDateString()}</p>
+                <div className="text-xs font-bold text-gray-600 tracking-widest mt-1">
+                  {getLogoSubText(storeName)}
+                </div>
+              </div>
+              <div className="flex-initial px-4">
+                <svg width="48" height="48" viewBox="0 0 100 100" className="mx-auto">
+                  <circle cx="50" cy="50" r="40" stroke="#c22026" strokeWidth="8.5" fill="none" strokeDasharray="210 50" transform="rotate(-40 50 50)" />
+                  <circle cx="50" cy="50" r="26" stroke="#c22026" strokeWidth="4" fill="none" strokeOpacity="0.35" />
+                </svg>
+              </div>
+              <div className="flex-1 text-right">
+                <div className="text-3xl font-bold text-[#c22026] leading-none">
+                  {getArabicMainText(storeName)}
+                </div>
+                <div className="text-xs font-bold text-gray-600 mt-1">
+                  {getArabicSubText(storeName)}
+                </div>
+              </div>
+            </div>
+
+            {/* Invoice metadata bar */}
+            <div className="flex justify-between text-xs font-bold px-1 text-gray-800">
+              <div>Invoice No. <span className="font-normal text-black">{invoice.invoiceNumber}</span></div>
+              <div>Dated <span className="font-normal text-black">{formatDate(invoice.invoiceDate)}</span></div>
+            </div>
+
+            {/* Store centered address */}
+            <div className="text-center text-xs text-gray-800 leading-relaxed max-w-xl mx-auto space-y-0.5">
+              <div className="text-sm font-bold text-black">{storeName}</div>
+              <div>{storeAddress}</div>
+              <div>{storePhone}</div>
+              <div>Emirate : {storeCity} | Country : {storeCountry}</div>
+              <div>TRN : {storeTaxCode}</div>
+              <div>E-Mail : {storeEmail}</div>
+            </div>
+
+            {/* Title: Tax Invoice */}
+            <div className="text-center text-base font-bold uppercase tracking-wider text-black mt-2">
+              Tax Invoice
+            </div>
+
+            {/* Party details box */}
+            <div className="border-t border-b border-black py-3 px-2 text-xs space-y-1">
+              <div className="flex">
+                <div className="w-20 font-bold text-gray-700">Party :</div>
+                <div className="font-bold text-black uppercase">{customerName}</div>
+              </div>
+              <div className="flex">
+                <div className="w-20 font-bold text-gray-700">Contact :</div>
+                <div className="text-black">{customerPhone || "-"}</div>
+              </div>
+              <div className="flex">
+                <div className="w-20 font-bold text-gray-700">Address :</div>
+                <div className="text-black">{customerAddress || "-"}</div>
+              </div>
+              {customerTrn && (
+                <div className="flex">
+                  <div className="w-20 font-bold text-gray-700">TRN :</div>
+                  <div className="font-bold text-black">{customerTrn}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Table Items */}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full border-collapse border border-black text-xs">
+                <thead>
+                  <tr className="bg-gray-100 font-bold text-[11px]">
+                    <th className="border border-black p-1 text-center w-12">#Sl No</th>
+                    <th className="border border-black p-1 text-left">Item Name</th>
+                    <th className="border border-black p-1 text-center w-16">Qty</th>
+                    <th className="border border-black p-1 text-right w-24">Unit Price</th>
+                    <th className="border border-black p-1 text-right w-28">Gross Amount</th>
+                    <th className="border border-black p-1 text-center w-20">Discount</th>
+                    <th className="border border-black p-1 text-center w-20">VAT</th>
+                    <th className="border border-black p-1 text-right w-32">Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.items.map((item, index) => {
+                    const itemName = typeof item.item === 'object' && item.item !== null
+                      ? item.item.name
+                      : 'Unknown Item';
+                    const vatVal = item.vat || 0;
+                    const grossAmount = item.quantity * item.unitPrice;
+                    const discountAmount = item.discount || 0;
+                    const vatDisplay = vatVal > 0 ? `${vatVal}%` : '-';
+                    const netAmt = item.totalPrice || ((grossAmount - discountAmount) * (1 + vatVal / 100));
+
+                    return (
+                      <tr key={index} className="border-b border-gray-300">
+                        <td className="border-l border-r border-black p-1.5 text-center">{index + 1}</td>
+                        <td className="border-l border-r border-black p-1.5 font-bold">{itemName}</td>
+                        <td className="border-l border-r border-black p-1.5 text-center font-bold">{item.quantity}</td>
+                        <td className="border-l border-r border-black p-1.5 text-right">{item.unitPrice.toFixed(2)}</td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-bold">{grossAmount.toFixed(2)}</td>
+                        <td className="border-l border-r border-black p-1.5 text-center text-green-600 font-semibold">
+                          {discountAmount > 0 ? discountAmount.toFixed(2) : '-'}
+                        </td>
+                        <td className="border-l border-r border-black p-1.5 text-center text-blue-600">{vatDisplay}</td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-bold">{netAmt.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                  {/* Empty Spacer Rows to balance invoice look */}
+                  {[...Array(Math.max(0, 5 - invoice.items.length))].map((_, i) => (
+                    <tr key={`spacer-${i}`} className="h-6 border-b border-gray-200 opacity-20">
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
+                    </tr>
+                  ))}
+                  {/* Total summary row */}
+                  <tr className="border-t border-b border-black font-bold bg-gray-50">
+                    <td colSpan={2} className="border-l border-r border-black p-2 text-right">Total</td>
+                    <td className="border-l border-r border-black p-2 text-center font-bold">{totalQty}</td>
+                    <td className="border-l border-r border-black p-2"></td>
+                    <td className="border-l border-r border-black p-2 text-right font-bold">{grossTotal.toFixed(2)}</td>
+                    <td className="border-l border-r border-black p-2 text-center text-green-600 font-bold">-{totalDiscount.toFixed(2)}</td>
+                    <td className="border-l border-r border-black p-2"></td>
+                    <td className="border-l border-r border-black p-2 text-right font-bold text-[#c22026]">Dhs {finalAmount.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Amount chargeable words box */}
+            <div className="border border-black p-2 flex justify-between bg-gray-50 text-xs">
+              <div>
+                <span className="text-gray-600 block text-[10px]">Amount Chargeable (in words)</span>
+                <span className="font-bold uppercase text-black">{amountInWords}</span>
+              </div>
+              <div className="self-end text-[10px] italic font-normal text-gray-500">E. & O.E</div>
+            </div>
+
+            {/* Bank details and stamp bottom section */}
+            <div className="flex flex-col md:flex-row justify-between gap-6 mt-4">
+              <div className="flex-1 max-w-lg space-y-3">
+                <div className="text-xs space-y-1">
+                  <h4 className="font-bold underline text-black">Company's Bank Details</h4>
+                  <div className="flex">
+                    <div className="w-36 text-gray-600">A/c Holder's Name :</div>
+                    <div className="font-bold text-black">{bankAccountName}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-36 text-gray-600">Bank Name :</div>
+                    <div className="text-black">{bankName}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-36 text-gray-600">A/c No. :</div>
+                    <div className="font-bold text-black tracking-wider">{bankAccountNumber}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-36 text-gray-600">IBAN :</div>
+                    <div className="font-bold text-black tracking-wider">{bankIban}</div>
+                  </div>
+                  <div className="flex">
+                    <div className="w-36 text-gray-600">Branch & SWIFT Code :</div>
+                    <div className="text-black">{bankSwift}</div>
+                  </div>
+                </div>
+
+                {/* Declaration */}
+                <div className="text-[10px] text-gray-600 leading-relaxed pt-2">
+                  <h5 className="font-bold underline text-black mb-0.5">Declaration</h5>
+                  We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
                 </div>
               </div>
 
-              {/* Bill To and Summary Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Bill To</h3>
-                  <div className="border-l-4 border-blue-600 pl-4 space-y-1">
-                    <p className="text-lg font-medium text-gray-800">
-                      {typeof invoice.customer === 'object' && invoice.customer !== null
-                        ? invoice.customer.name
-                        : 'N/A'}
-                    </p>
-                    <p className="text-gray-600">
-                      Contact: {typeof invoice.customer === 'object' && invoice.customer !== null
-                        ? invoice.customer.phone || 'N/A'
-                        : 'N/A'}
-                    </p>
-                    {typeof invoice.customer === 'object' && invoice.customer !== null && invoice.customer.email && (
-                      <p className="text-gray-600">Email: {invoice.customer.email}</p>
-                    )}
-                  </div>
+              {/* Stamp Sign block */}
+              <div className="flex flex-col items-center md:items-end justify-between min-w-[220px]">
+                <div className="text-xs font-bold text-black text-center md:text-right">
+                  for {storeName}
                 </div>
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Invoice Summary</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Items:</span>
-                      <span className="font-medium">{invoice.items.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Gross Amount:</span>
-                      <span className="font-medium">{grossTotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Discount:</span>
-                      <span className="font-medium text-green-600">-{totalDiscount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-3">
-                      <span className="text-gray-800 font-semibold">Net Amount:</span>
-                      <span className="font-bold text-blue-600">{finalAmount.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                
+                {/* Blank Space for Physical Seal/Signature */}
+                <div className="h-16"></div>
 
-              {/* Items Table */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900">Items</h3>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader className="bg-blue-50">
-                      <TableRow>
-                        <TableHead className="text-sm font-medium text-blue-800">Item Name</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-center">Qty</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-right">Unit Price</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-center">Discount</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-center">VAT</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-right">Gross Amount</TableHead>
-                        <TableHead className="text-sm font-medium text-blue-800 text-right">Net Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {invoice.items.map((item, index) => {
-                        const itemName = typeof item.item === 'object' && item.item !== null
-                          ? item.item.name
-                          : 'Unknown Item';
-                        const grossAmount = item.quantity * item.unitPrice;
-                        const discountAmount = item.discount || 0;
-                        const discountPercentage = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
-                        const vatPercentage = item.vat || 0;
-                        const amountAfterDiscount = grossAmount - discountAmount;
-                        const vatAmount = amountAfterDiscount * (vatPercentage / 100);
-                        const netAmount = amountAfterDiscount + vatAmount;
-
-                        return (
-                          <TableRow key={item.item && typeof item.item === 'object' ? item.item._id : index} className="hover:bg-gray-50 transition-colors">
-                            <TableCell className="font-medium text-gray-800">{itemName}</TableCell>
-                            <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{item.unitPrice.toFixed(2)}</TableCell>
-                            <TableCell className="text-center">
-                              {discountPercentage > 0 ? (
-                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
-                                  {discountPercentage.toFixed(2)}%
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {vatPercentage > 0 ? (
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold">
-                                  {vatPercentage.toFixed(2)}%
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {grossAmount.toFixed(2)}
-                              {discountAmount > 0 && (
-                                <div className="text-xs text-green-600">-{discountAmount.toFixed(2)}</div>
-                              )}
-                              {vatAmount > 0 && (
-                                <div className="text-xs text-blue-600">+{vatAmount.toFixed(2)} VAT</div>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">{netAmount.toFixed(2)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Totals Section */}
-              <div className="flex justify-end">
-                <div className="w-full max-w-md">
-                  <div className="bg-gray-50 p-6 rounded-lg space-y-3">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Gross Total:</span>
-                      <span>{grossTotal.toFixed(2)}</span>
-                    </div>
-                    {totalDiscount > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Total Discount:</span>
-                        <span>-{totalDiscount.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-gray-800 font-semibold border-t pt-3">
-                      <span>Subtotal:</span>
-                      <span>{subtotal.toFixed(2)}</span>
-                    </div>
-                    {/* <div className="flex justify-between text-gray-600">
-                      <span>Tax (0%):</span>
-                      <span>0.00</span>
-                    </div> */}
-                    <div className="flex justify-between font-bold text-lg text-blue-600 border-t-2 pt-3">
-                      <span>Total Amount:</span>
-                      <span>{finalAmount.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer Section */}
-              <div className="border-t pt-6 print:pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-gray-800">Payment Instructions</h4>
-                    <p className="text-gray-600 text-sm">Please make payment via bank transfer to:</p>
-                    <p className="text-gray-600 text-sm">Bank: {userInfo?.company_data?.bank_name || 'RAKBANK'}</p>
-                    <p className="text-gray-600 text-sm">Account: {userInfo?.company_data?.bank_account_number || '0192594853001'}</p>
-                    <p className="text-gray-600 text-sm">IBAN: {userInfo?.company_data?.iban || 'AE790400000192594853001'}</p>
-                    <p className="text-gray-600 text-sm">Reference: {invoice.invoiceNumber}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-gray-800">Terms & Conditions</h4>
-                    <p className="text-gray-600 text-sm">
-                      Payment is due within 30 days. Please include the invoice number as reference.
-                      Late payments may incur additional charges.
-                    </p>
-                  </div>
-                </div>
-                <div className="text-center mt-6 text-gray-500 text-sm print:fixed print:bottom-0 print:left-0 print:right-0">
-                  <p>Thank you for your business!</p>
-                  <p>For any queries, please contact us at {userInfo?.company_data?.email || 'allibastrading@gmail.com'}</p>
+                <div className="text-xs font-bold text-black pt-4">
+                  Authorised Signatory
                 </div>
               </div>
             </div>
           </CardContent>
+
+          {/* Footer Address and Brands bar */}
+          <div className="border-t border-[#c22026] pt-4 mt-8 flex flex-col items-center text-center gap-1.5">
+            <div className="text-[10px] font-bold text-gray-600">
+              This is a Computer Generated Invoice
+            </div>
+            <div className="text-[10px] text-gray-700">
+              Tel./Mob.: {storePhone} | Email : {storeEmail}
+            </div>
+            <div className="text-[10px] text-[#c22026] font-bold">
+              Office : {storeAddress}
+            </div>
+            
+            {/* Brands grid */}
+            {showComputerBrands && (
+              <div className="w-full border-t border-gray-200 mt-2 pt-2 flex justify-between items-center text-[9px] font-black text-gray-400 tracking-wider select-none px-4">
+                <span className="text-[#d32f2f] hover:opacity-85 transition-opacity">HIKVISION</span>
+                <span className="text-[#1e3a8a] hover:opacity-85 transition-opacity">HiLook</span>
+                <span className="text-[#0284c7] hover:opacity-85 transition-opacity">GRANDSTREAM</span>
+                <span className="text-[#f59e0b] hover:opacity-85 transition-opacity">EZVIZ</span>
+                <span className="text-black hover:opacity-85 transition-opacity">ZEBRA</span>
+                <span className="text-[#0284c7] hover:opacity-85 transition-opacity">DELL</span>
+                <span className="text-black hover:opacity-85 transition-opacity">hp</span>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
     </div>

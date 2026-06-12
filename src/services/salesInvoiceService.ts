@@ -19,8 +19,31 @@ export interface SalesInvoice {
   company?: string;
   invoiceNumber: string;
   invoiceDate: string;
-  customer: string | { _id: string; name: string; customerId?: string; email?: string; phone?: string };
-  store: string | { _id: string; name: string; code?: string };
+  customer: string | { 
+    _id: string; 
+    name: string; 
+    customerId?: string; 
+    email?: string; 
+    phone?: string; 
+    billingAddress?: string; 
+    taxNumber?: string;
+  };
+  store: string | { 
+    _id: string; 
+    name: string; 
+    code?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    phone?: string;
+    email?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    ifscCode?: string;
+    ibanCode?: string;
+    taxCode?: string;
+  };
   subTotal: number;
   discountTotal: number;
   vatTotal?: number; // Total VAT amount for all items
