@@ -7,6 +7,7 @@ export type ItemReportRow = {
   supplierName: string | null;
   packingListDetails: string | null;
   cargoNumber: string | null;
+  styleNumber: string | null;
   shipmentDate: string | null;
   customerName: string | null;
 };

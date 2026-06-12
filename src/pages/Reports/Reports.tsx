@@ -115,6 +115,7 @@ interface PackingListReport {
     'Quantity',
     'Size',
     'Cargo Number',
+    'Style Number',
     'Remarks'
   ];
   data: PackingListReportItem[];
@@ -202,6 +203,7 @@ interface ItemReport {
     'Supplier',
     'Packing List Details',
     'Cargo Number',
+    'Style Number',
     'Shipment Date',
     'Customer'
   ];
@@ -535,6 +537,7 @@ const Reports: React.FC = () => {
         'Quantity',
         'Size',
         'Cargo Number',
+        'Style Number',
         'Remarks'
       ] as const,
       data: allPackingLists
@@ -547,6 +550,7 @@ const Reports: React.FC = () => {
         'Supplier',
         'Packing List Details',
         'Cargo Number',
+        'Style Number',
         'Shipment Date',
         'Customer'
       ] as const,
@@ -2407,6 +2411,7 @@ const Reports: React.FC = () => {
             `"${packingItem.quantity || 0}"`,
             `"${packingListItem.size || ''}"`,
             `"${packingListItem.cargoNumber || ''}"`,
+            `"${packingListItem.styleNumber || ''}"`,
             `"${packingListItem.description || ''}"`,
           ]).flat();
         } else if (selectedReportType === 'credit-notes') {
@@ -2436,6 +2441,7 @@ const Reports: React.FC = () => {
             `"${String(itemRow.supplierName || '').replace(/\"/g, '""')}"`,
             `"${String(itemRow.packingListDetails || '').replace(/\"/g, '""')}"`,
             `"${String(itemRow.cargoNumber || '').replace(/\"/g, '""')}"`,
+            `"${String(itemRow.styleNumber || '').replace(/\"/g, '""')}"`,
             `"${itemRow.shipmentDate ? format(new Date(itemRow.shipmentDate), 'dd MMM yyyy') : '-'}"`,
             `"${String(itemRow.customerName || '').replace(/\"/g, '""')}"`,
           ];
@@ -3569,6 +3575,11 @@ const Reports: React.FC = () => {
                               </TableHead>
                               <TableHead className="font-semibold">
                                 <p className="flex items-center gap-1 font-semibold ps-2">
+                                  Style Number
+                                </p>
+                              </TableHead>
+                              <TableHead className="font-semibold">
+                                <p className="flex items-center gap-1 font-semibold ps-2">
                                   Remarks
                                 </p>
                               </TableHead>
@@ -3781,6 +3792,7 @@ const Reports: React.FC = () => {
                                 <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
                               </TableRow>
                             ))
@@ -3810,6 +3822,9 @@ const Reports: React.FC = () => {
                                     {itemIndex === 0 ? (packingList.cargoNumber || '-') : ''}
                                   </TableCell>
                                   <TableCell className="text-gray-700 px-4 py-3">
+                                    {itemIndex === 0 ? (packingList.styleNumber || '-') : ''}
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 px-4 py-3">
                                     {itemIndex === 0 ? (packingList.description || '-') : ''}
                                   </TableCell>
                                 </TableRow>
@@ -3817,7 +3832,7 @@ const Reports: React.FC = () => {
                             )
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No packing lists found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or date range</p>
@@ -3906,6 +3921,7 @@ const Reports: React.FC = () => {
                                 <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-56 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
                               </TableRow>
@@ -3921,13 +3937,14 @@ const Reports: React.FC = () => {
                                 <TableCell className="text-gray-700 px-4 py-3">{row.supplierName || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3 max-w-[520px] whitespace-pre-wrap break-words">{row.packingListDetails || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.cargoNumber || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.styleNumber || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.shipmentDate ? format(new Date(row.shipmentDate), 'dd MMM yyyy') : '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.customerName || '-'}</TableCell>
                               </TableRow>
                             ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={8} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No items found</p>
                                   <p className="text-sm text-gray-500">Try selecting different items or date range</p>

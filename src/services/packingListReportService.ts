@@ -4,12 +4,17 @@ export interface PackingListReportItem {
   _id: string;
   boxNumber: string;
   cargoNumber?: string;
+  styleNumber?: string;
   items: Array<{
     product?: {
       _id: string;
       name: string;
       code: string;
       description?: string;
+      vendor?: {
+        _id: string;
+        name: string;
+      };
     };
     quantity: number;
     description?: string;

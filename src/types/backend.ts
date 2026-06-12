@@ -118,10 +118,12 @@ export interface StoreStock {
   updatedAt: string;
   shipmentDate?: string;
   cargoNumber?: string;
+  styleNumber?: string;
   packingListDetails?: {
     _id?: string;
     shipmentDate?: string;
     cargoNumber?: string;
+    styleNumber?: string;
   };
   transmissionData?: {
     originalPriceINR?: number;

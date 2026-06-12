@@ -859,6 +859,7 @@ const PrintPreview: React.FC = () => {
                 <th style="text-align:right;">Quantity</th>
                 <th>Size</th>
                 <th>Cargo Number</th>
+                <th>Style Number</th>
                 <th>Remarks</th>
               </tr>
             </thead>
@@ -874,6 +875,7 @@ const PrintPreview: React.FC = () => {
                     <td style="text-align:right;">${item.quantity || 0}</td>
                     <td>${item.unitOfMeasure || packingList.size || '-'}</td>
                     <td>${itemIndex === 0 ? (packingList.cargoNumber || '-') : ''}</td>
+                    <td>${itemIndex === 0 ? (packingList.styleNumber || '-') : ''}</td>
                     <td>${itemIndex === 0 ? (packingList.description || '-') : ''}</td>
                   </tr>
                 `)
@@ -1049,6 +1051,7 @@ const PrintPreview: React.FC = () => {
             <td>${escapeHtml(row.supplierName || '-')}</td>
             <td>${escapeHtml(row.packingListDetails || '-')}</td>
             <td>${escapeHtml(row.cargoNumber || '-')}</td>
+            <td>${escapeHtml(row.styleNumber || '-')}</td>
             <td>${escapeHtml(row.shipmentDate ? formatDate(row.shipmentDate) : '-')}</td>
             <td>${escapeHtml(row.customerName || '-')}</td>
           </tr>
@@ -1104,6 +1107,7 @@ const PrintPreview: React.FC = () => {
                   <th>Supplier</th>
                   <th>Packing List Details</th>
                   <th>Cargo Number</th>
+                  <th>Style Number</th>
                   <th>Shipment Date</th>
                   <th>Customer</th>
                 </tr>

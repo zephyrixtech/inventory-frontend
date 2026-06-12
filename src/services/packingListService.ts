@@ -18,6 +18,7 @@ export interface PackingListInput {
   status?: 'india' | 'uae' | 'pending' | 'in_transit' | 'approved' | 'shipped' | 'rejected';
   approvalStatus?: 'draft' | 'approved';
   cargoNumber?: string;
+  styleNumber?: string;
   fabricDetails?: string;
   size?: string;
   description?: string;
@@ -33,8 +34,14 @@ export interface PackingList {
       _id: string;
       name: string;
       code: string;
+      vendor?: {
+        _id: string;
+        name: string;
+      };
     };
     quantity: number;
+    description?: string;
+    unitOfMeasure?: string;
   }>;
   totalQuantity: number;
   image1?: string;
@@ -65,6 +72,7 @@ export interface PackingList {
   createdAt: string;
   updatedAt: string;
   cargoNumber?: string;
+  styleNumber?: string;
   fabricDetails?: string;
 }
 

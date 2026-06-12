@@ -26,10 +26,12 @@ interface PackingListFormState {
     productCode?: string;
     description?: string;
     unitOfMeasure?: string;
+    vendorName?: string;
   }[];
   status: 'india' | 'uae';
   approvalStatus: 'draft' | 'approved';
   cargoNumber?: string;
+  styleNumber?: string;
   fabricDetails?: string;
   size?: string;
   description?: string;
@@ -44,6 +46,7 @@ const DEFAULT_FORM: PackingListFormState = {
   status: 'india',
   approvalStatus: 'draft',
   cargoNumber: '',
+  styleNumber: '',
   fabricDetails: '',
   size: '',
   description: ''
@@ -207,7 +210,10 @@ export const PackingListsPage = () => {
           quantity: 1,
           availableQuantity: stockItem.quantity || 0,
           description: stockItem.product.description || '',
-          unitOfMeasure: stockItem.product.unitOfMeasure || ''
+          unitOfMeasure: stockItem.product.unitOfMeasure || '',
+          productName: stockItem.product.name || '',
+          productCode: stockItem.product.code || '',
+          vendorName: (stockItem.product as any).vendor?.name || ''
         };
       } else {
         updated[index] = { ...updated[index], [key]: value };
@@ -237,6 +243,7 @@ export const PackingListsPage = () => {
         const productCode = product?.code || '';
         const description = item.description || product?.description || '';
         const unitOfMeasure = item.unitOfMeasure || product?.unitOfMeasure || '';
+        const vendorName = product?.vendor?.name || '';
 
         return {
           productId: productIdStr || '',
@@ -245,7 +252,8 @@ export const PackingListsPage = () => {
           productName,
           productCode,
           description,
-          unitOfMeasure
+          unitOfMeasure,
+          vendorName
         };
       }) || [];
 
@@ -264,6 +272,7 @@ export const PackingListsPage = () => {
         status: (packingList.status === 'india' || packingList.status === 'uae') ? packingList.status : 'india' as 'india' | 'uae',
         approvalStatus: packingList.approvalStatus || 'draft',
         cargoNumber: (packingList as any).cargoNumber || '',
+        styleNumber: (packingList as any).styleNumber || '',
         fabricDetails: (packingList as any).fabricDetails || '',
         size: (packingList as any).size || '',
         description: (packingList as any).description || ''
@@ -292,7 +301,8 @@ export const PackingListsPage = () => {
                 ...item,
                 availableQuantity: stockItem?.quantity || item.availableQuantity || 0,
                 description: stockItem?.product?.description || item.description || '',
-                unitOfMeasure: stockItem?.product?.unitOfMeasure || item.unitOfMeasure || ''
+                unitOfMeasure: stockItem?.product?.unitOfMeasure || item.unitOfMeasure || '',
+                vendorName: (stockItem?.product as any)?.vendor?.name || item.vendorName || ''
               };
             })
           }));
@@ -406,6 +416,7 @@ export const PackingListsPage = () => {
           status: formState.status,
           approvalStatus: formState.approvalStatus,
           cargoNumber: formState.cargoNumber || undefined,
+          styleNumber: formState.styleNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined,
           size: formState.size || undefined,
           description: formState.description || undefined
@@ -426,6 +437,7 @@ export const PackingListsPage = () => {
           status: formState.status,
           approvalStatus: formState.approvalStatus,
           cargoNumber: formState.cargoNumber || undefined,
+          styleNumber: formState.styleNumber || undefined,
           fabricDetails: formState.fabricDetails || undefined,
           size: formState.size || undefined,
           description: formState.description || undefined
@@ -706,13 +718,25 @@ export const PackingListsPage = () => {
                   </select>
                 </div>
 
-                {/* Cargo Number Field - Label Changed to Style Number */}
+                {/* Cargo Number Field */}
                 <div className="space-y-2">
-                  <Label htmlFor="cargoNumber" className="text-sm font-medium">Style Number</Label>
+                  <Label htmlFor="cargoNumber" className="text-sm font-medium">Cargo Number</Label>
                   <Input
                     id="cargoNumber"
                     value={formState.cargoNumber || ''}
                     onChange={(e) => setFormState(prev => ({ ...prev, cargoNumber: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter cargo number"
+                  />
+                </div>
+
+                {/* Style Number Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="styleNumber" className="text-sm font-medium">Style Number</Label>
+                  <Input
+                    id="styleNumber"
+                    value={formState.styleNumber || ''}
+                    onChange={(e) => setFormState(prev => ({ ...prev, styleNumber: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="Enter style number"
                   />
@@ -818,8 +842,9 @@ export const PackingListsPage = () => {
                     </div>
                   )}
                   <div className="border rounded-lg overflow-hidden bg-white">
-                    <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
+                    <div className="grid grid-cols-[minmax(250px,1fr)_180px_130px_130px_80px] gap-4 bg-muted/50 px-6 py-4 border-b">
                       <div className="font-semibold text-sm">Product</div>
+                      <div className="font-semibold text-sm">Vendor</div>
                       <div className="font-semibold text-sm text-center">Available Stock</div>
                       <div className="font-semibold text-sm text-center">Quantity</div>
                       <div className="font-semibold text-sm text-center">Action</div>
@@ -841,7 +866,7 @@ export const PackingListsPage = () => {
 
                         return (
                           <div key={index} className="border-b last:border-0">
-                            <div className="grid grid-cols-[minmax(300px,1fr)_150px_150px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
+                            <div className="grid grid-cols-[minmax(250px,1fr)_180px_130px_130px_80px] gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
                               <div className="min-w-0">
                                 {editingId && !formState.storeId ? (
                                   <div className="space-y-1">
@@ -865,26 +890,43 @@ export const PackingListsPage = () => {
                                     </div>
                                   </div>
                                 ) : (
-                                  <select
-                                    className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
-                                    value={item.productId}
-                                    onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
-                                  >
-                                    <option value="">Select Product</option>
-                                    {storeStock.map((stock) => {
-                                      const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
-                                      const prodName = (stock.product as any)?.name || 'Unknown';
-                                      const prodCode = (stock.product as any)?.code || '';
-                                      const prodDesc = (stock.product as any)?.description || '';
-                                      const prodSize = (stock.product as any)?.unitOfMeasure || '';
-                                      return (
-                                        <option key={productId} value={productId}>
-                                          {prodName} {prodCode && `(${prodCode})`} {prodDesc && `- ${prodDesc}`} {prodSize && `[${prodSize}]`}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
+                                  <div className="space-y-2">
+                                    <select
+                                      className="border rounded-md px-3 py-2 text-sm bg-background w-full h-10"
+                                      value={item.productId}
+                                      onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
+                                    >
+                                      <option value="">Select Product</option>
+                                      {storeStock.map((stock) => {
+                                        const productId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
+                                        const prodName = (stock.product as any)?.name || 'Unknown';
+                                        const prodCode = (stock.product as any)?.code || '';
+                                        const prodDesc = (stock.product as any)?.description || '';
+                                        const prodSize = (stock.product as any)?.unitOfMeasure || '';
+                                        return (
+                                          <option key={productId} value={productId}>
+                                            {prodName} {prodCode && `(${prodCode})`} {prodDesc && `- ${prodDesc}`} {prodSize && `[${prodSize}]`}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                    {item.productId && (
+                                      <div className="text-xs space-y-1 pl-1">
+                                        {productCode && (
+                                          <div className="text-muted-foreground">
+                                            Code: <span className="font-medium">{productCode}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
+                              </div>
+
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  {selectedProduct?.vendor?.name || item.vendorName || '-'}
+                                </span>
                               </div>
 
                               <div className="flex justify-center">

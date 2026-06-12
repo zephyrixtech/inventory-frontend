@@ -158,6 +158,16 @@ export const PackingListView = () => {
               </div>
             )}
 
+            {packingList.styleNumber && (
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Style Number</p>
+                <div className="flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-muted-foreground" />
+                  <span>{packingList.styleNumber}</span>
+                </div>
+              </div>
+            )}
+
             {packingList.fabricDetails && (
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Fabric Details</p>
@@ -209,6 +219,7 @@ export const PackingListView = () => {
                     <h3 className="font-medium">{item.product?.name || 'Unknown Product'}</h3>
                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>Code: {item.product?.code || 'N/A'}</p>
+                      {item.product?.vendor?.name && <p>Vendor: {item.product.vendor.name}</p>}
                       {item.description && <p>Description: {item.description}</p>}
                       {item.unitOfMeasure && <p>Size: {item.unitOfMeasure}</p>}
                     </div>
