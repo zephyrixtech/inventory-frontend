@@ -28,7 +28,7 @@ export default function InvoiceView() {
       try {
         setLoading(true);
         const response = await salesInvoiceService.getInvoice(id);
-        
+
         if (response.data) {
           setInvoice(response.data);
         } else {
@@ -153,7 +153,7 @@ export default function InvoiceView() {
   };
 
   const calculateTotalDiscount = () => {
-    return invoice?.items.reduce((sum, item) => sum + (item.discount || 0), 0) || invoice?.discountTotal || 0;
+    return 0; // invoice?.items.reduce((sum, item) => sum + (item.discount || 0), 0) || invoice?.discountTotal || 0;
   };
 
   const calculateSubtotal = () => {
@@ -161,7 +161,7 @@ export default function InvoiceView() {
   };
 
   const grossTotal = calculateGrossTotal();
-  const totalDiscount = calculateTotalDiscount();
+  // const totalDiscount = calculateTotalDiscount();
   const subtotal = calculateSubtotal();
   const tax = invoice?.taxAmount || 0;
   const finalAmount = invoice?.netAmount || (subtotal + tax);
@@ -213,7 +213,7 @@ export default function InvoiceView() {
   const numberToWords = (num: number, currency: string = 'AED'): string => {
     const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
     const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-    
+
     const convertLessThanOneThousand = (n: number): string => {
       if (n === 0) return '';
       if (n < 20) return ones[n];
@@ -223,35 +223,35 @@ export default function InvoiceView() {
 
     const convert = (n: number): string => {
       if (n === 0) return 'Zero';
-      
+
       let words = '';
-      
+
       // Millions
       const millions = Math.floor(n / 1000000);
       if (millions > 0) {
         words += convertLessThanOneThousand(millions) + ' Million ';
         n %= 1000000;
       }
-      
+
       // Thousands
       const thousands = Math.floor(n / 1000);
       if (thousands > 0) {
         words += convertLessThanOneThousand(thousands) + ' Thousand ';
         n %= 1000;
       }
-      
+
       // Hundreds
       if (n > 0) {
         words += convertLessThanOneThousand(n);
       }
-      
+
       return words.trim();
     };
 
     const parts = num.toFixed(2).split('.');
     const whole = parseInt(parts[0]);
     const decimal = parseInt(parts[1]);
-    
+
     let result = '';
     if (currency === 'INR') {
       result += 'Indian Rupees ' + convert(whole);
@@ -281,10 +281,10 @@ export default function InvoiceView() {
     : '';
 
   const storeName = "AL LIBAS GENERAL TRADING L L C";
-  const storeAddress = "SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING, AJMAN, INDUSTRIAL AREA 2, P.O.BOX :4381";
+  const storeAddress = "NEW IND. AREA 2, BANGLA MARKET MAT FASHION BUILDING, SHOP NO.3 AJMAN, UAE";
   const storePhone = "+971-55-680-5858 / +971-55-918-7607";
   const storeEmail = "allibastrading@gmail.com";
-  const storeTaxCode = "100389228600003";
+  const storeTaxCode = "100062819600003";
   const storeCity = "Ajman";
   const storeCountry = "UAE";
 
@@ -434,7 +434,7 @@ export default function InvoiceView() {
                     <th className="border border-black p-1 text-center w-16">Qty</th>
                     <th className="border border-black p-1 text-right w-24">Unit Price</th>
                     <th className="border border-black p-1 text-right w-28">Gross Amount</th>
-                    <th className="border border-black p-1 text-center w-20">Discount</th>
+                    {/* <th className="border border-black p-1 text-center w-20">Discount</th> */}
                     <th className="border border-black p-1 text-center w-20">VAT</th>
                     <th className="border border-black p-1 text-right w-32">Net Amount</th>
                   </tr>
@@ -457,9 +457,9 @@ export default function InvoiceView() {
                         <td className="border-l border-r border-black p-1.5 text-center font-bold">{item.quantity}</td>
                         <td className="border-l border-r border-black p-1.5 text-right">{item.unitPrice.toFixed(2)}</td>
                         <td className="border-l border-r border-black p-1.5 text-right font-bold">{grossAmount.toFixed(2)}</td>
-                        <td className="border-l border-r border-black p-1.5 text-center text-green-600 font-semibold">
+                        {/* <td className="border-l border-r border-black p-1.5 text-center text-green-600 font-semibold">
                           {discountAmount > 0 ? discountAmount.toFixed(2) : '-'}
-                        </td>
+                        </td> */}
                         <td className="border-l border-r border-black p-1.5 text-center text-blue-600">{vatDisplay}</td>
                         <td className="border-l border-r border-black p-1.5 text-right font-bold">{netAmt.toFixed(2)}</td>
                       </tr>
@@ -473,7 +473,7 @@ export default function InvoiceView() {
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
-                      <td className="border-l border-r border-black"></td>
+                      {/* <td className="border-l border-r border-black"></td> */}
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                     </tr>
@@ -484,7 +484,7 @@ export default function InvoiceView() {
                     <td className="border-l border-r border-black p-2 text-center font-bold">{totalQty}</td>
                     <td className="border-l border-r border-black p-2"></td>
                     <td className="border-l border-r border-black p-2 text-right font-bold">{grossTotal.toFixed(2)}</td>
-                    <td className="border-l border-r border-black p-2 text-center text-green-600 font-bold">-{totalDiscount.toFixed(2)}</td>
+                    {/* <td className="border-l border-r border-black p-2 text-center text-green-600 font-bold">-{totalDiscount.toFixed(2)}</td> */}
                     <td className="border-l border-r border-black p-2"></td>
                     <td className="border-l border-r border-black p-2 text-right font-bold text-[#c22026]">Dhs {finalAmount.toFixed(2)}</td>
                   </tr>
@@ -540,7 +540,7 @@ export default function InvoiceView() {
                 <div className="text-xs font-bold text-black text-center md:text-right">
                   for {storeName}
                 </div>
-                
+
                 {/* Blank Space for Physical Seal/Signature */}
                 <div className="h-16"></div>
 
@@ -562,7 +562,7 @@ export default function InvoiceView() {
             <div className="text-[10px] text-[#c22026] font-bold">
               Office : {storeAddress}
             </div>
-            
+
             {/* Brands grid */}
             {showComputerBrands && (
               <div className="w-full border-t border-gray-200 mt-2 pt-2 flex justify-between items-center text-[9px] font-black text-gray-400 tracking-wider select-none px-4">

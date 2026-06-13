@@ -51,7 +51,7 @@ const formatNumber = (value: number | string): string => {
 const numberToWords = (num: number, currency: string = 'AED'): string => {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  
+
   const convertLessThanOneThousand = (n: number): string => {
     if (n === 0) return '';
     if (n < 20) return ones[n];
@@ -61,35 +61,35 @@ const numberToWords = (num: number, currency: string = 'AED'): string => {
 
   const convert = (n: number): string => {
     if (n === 0) return 'Zero';
-    
+
     let words = '';
-    
+
     // Millions
     const millions = Math.floor(n / 1000000);
     if (millions > 0) {
       words += convertLessThanOneThousand(millions) + ' Million ';
       n %= 1000000;
     }
-    
+
     // Thousands
     const thousands = Math.floor(n / 1000);
     if (thousands > 0) {
       words += convertLessThanOneThousand(thousands) + ' Thousand ';
       n %= 1000;
     }
-    
+
     // Hundreds
     if (n > 0) {
       words += convertLessThanOneThousand(n);
     }
-    
+
     return words.trim();
   };
 
   const parts = num.toFixed(2).split('.');
   const whole = parseInt(parts[0]);
   const decimal = parseInt(parts[1]);
-  
+
   let result = '';
   if (currency === 'INR') {
     result += 'Indian Rupees ' + convert(whole);
@@ -107,22 +107,22 @@ const numberToWords = (num: number, currency: string = 'AED'): string => {
 
 const generateInvoicePDF = (data: InvoiceData) => {
   const formattedDate = format(new Date(data.date), 'd-MMM-yy');
-  
+
   // Calculate Totals
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const totalBeforeVat = data.items.reduce((sum, item) => sum + item.grossAmount, 0);
-  const totalDiscount = data.items.reduce((sum, item) => sum + item.discount, 0);
+  // const totalDiscount = data.items.reduce((sum, item) => sum + item.discount, 0);
   const totalNet = data.items.reduce((sum, item) => sum + item.netAmount, 0);
-  
+
   // Store details (AL LIBAS GENERAL TRADING L L C)
   const storeName = "AL LIBAS GENERAL TRADING L L C";
-  const storeAddress = "SHOP NO 5, STANDARD HOMES REAL ESTATE BUILDING, AJMAN, INDUSTRIAL AREA 2, P.O.BOX :4381";
+  const storeAddress = "NEW IND. AREA 2, BANGLA MARKET MAT FASHION BUILDING, SHOP NO.3 AJMAN, UAE";
   const storePhone = "+971-55-680-5858 / +971-55-918-7607";
   const storeEmail = "allibastrading@gmail.com";
-  const storeTaxCode = "100389228600003";
+  const storeTaxCode = "100062819600003";
   const storeCity = "Ajman";
   const storeCountry = "UAE";
-  
+
   // Bank details
   const bankName = "RAKBANK";
   const bankAccountName = "AL LIBAS GENERAL TRADING L L C";
@@ -163,7 +163,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
   const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
 
   const currencySymbolText = data.currency === 'INR' ? '₹' : 'Dhs';
-  
+
   const amountInWords = numberToWords(totalNet, data.currency);
 
   const printWindow = window.open('', '_blank');
@@ -178,9 +178,9 @@ const generateInvoicePDF = (data: InvoiceData) => {
       <td class="text-center font-bold">${item.quantity}</td>
       <td class="text-right">${formatNumber(item.unitPrice)}</td>
       <td class="text-right font-bold">${formatNumber(item.grossAmount)}</td>
-      <td class="text-center discount-cell">
+      ${/* <td class="text-center discount-cell">
         ${item.discount > 0 ? `${formatNumber(item.discount)}` : '-'}
-      </td>
+      </td> */ ''}
       <td class="text-center" style="color: #2563eb;">
         ${vatDisplay}
       </td>
@@ -637,7 +637,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
                 <th style="width: 60px; text-align: center;">Qty</th>
                 <th style="width: 95px; text-align: right;">Unit Price</th>
                 <th style="width: 105px; text-align: right;">Gross Amount</th>
-                <th style="width: 85px; text-align: center;">Discount</th>
+                ${/* <th style="width: 85px; text-align: center;">Discount</th> */ ''}
                 <th style="width: 75px; text-align: center;">VAT</th>
                 <th style="width: 115px; text-align: right;">Net Amount</th>
               </tr>
@@ -649,7 +649,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
                 <td class="text-center font-bold" style="border-right: 1px solid #000;">${totalQty}</td>
                 <td style="border-right: 1px solid #000;"></td>
                 <td class="text-right font-bold" style="border-right: 1px solid #000;">${formatNumber(totalBeforeVat)}</td>
-                <td class="text-center font-bold" style="border-right: 1px solid #000;">-${formatNumber(totalDiscount)}</td>
+                ${/* <td class="text-center font-bold" style="border-right: 1px solid #000;">-${formatNumber(totalDiscount)}</td> */ ''}
                 <td style="border-right: 1px solid #000;"></td>
                 <td class="text-right font-bold">${currencySymbolText} ${formatNumber(totalNet)}</td>
               </tr>
@@ -734,7 +734,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
 
   printWindow.document.close();
   printWindow.focus();
-  
+
   // Wait for content to load before printing
   setTimeout(() => {
     printWindow.print();
