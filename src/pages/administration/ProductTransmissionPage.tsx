@@ -61,6 +61,7 @@ const ProductTransmissionPage = () => {
 
   // Transmission dialog
   const [showTransmissionDialog, setShowTransmissionDialog] = useState(false);
+  const [selectedPackingList, setSelectedPackingList] = useState<PackingList | null>(null);
   const [transmissionForm, setTransmissionForm] = useState<TransmissionFormState>({
     packingListId: '',
     fromStoreId: '',
@@ -149,6 +150,7 @@ const ProductTransmissionPage = () => {
 
   // Open transmission dialog for a packing list
   const handleTransmit = async (packingList: PackingList) => {
+    setSelectedPackingList(packingList);
     setTransmissionLoading(true);
     try {
       // Get store stock for the packing list items
@@ -358,6 +360,7 @@ const ProductTransmissionPage = () => {
 
       toast.success(`Products transmitted successfully! ${transmissionForm.items.length} items added to ${billerStores.find(s => s._id === transmissionForm.toStoreId)?.name || 'destination store'}`);
       setShowTransmissionDialog(false);
+      setSelectedPackingList(null);
       setTransmissionForm({
         packingListId: '',
         fromStoreId: '',
@@ -452,7 +455,7 @@ const ProductTransmissionPage = () => {
             <div className="flex gap-3">
               <div className="flex-1">
                 <Input
-                  placeholder="Search by box number..."
+                  placeholder="Search by cargo or style number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -475,7 +478,8 @@ const ProductTransmissionPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Box Number</TableHead>
+                  <TableHead>Cargo Number</TableHead>
+                  <TableHead>Style Number</TableHead>
                   <TableHead>From Store</TableHead>
                   <TableHead>Items Count</TableHead>
                   <TableHead>Status</TableHead>
@@ -499,7 +503,8 @@ const ProductTransmissionPage = () => {
                 ) : (
                   packingLists.map((packingList) => (
                     <TableRow key={packingList._id}>
-                      <TableCell className="font-medium">{packingList.boxNumber}</TableCell>
+                      <TableCell className="font-medium">{packingList.cargoNumber || '-'}</TableCell>
+                      <TableCell>{packingList.styleNumber || '-'}</TableCell>
                       <TableCell>
                         <div className="font-medium">{packingList.store?.name}</div>
                         <div className="text-xs text-muted-foreground">{packingList.store?.code}</div>
@@ -568,7 +573,7 @@ const ProductTransmissionPage = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5" />
-              Product Transmission Setup
+              Product Transmission Setup - {selectedPackingList?.cargoNumber || 'Details'}
             </DialogTitle>
             <DialogDescription>
               Configure margins, pricing, and destination store for product transmission. DP Price must be entered manually.
@@ -630,8 +635,26 @@ const ProductTransmissionPage = () => {
 
             {/* Transmission Summary */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Transmission Summary</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <h4 className="font-medium mb-4">Transmission Summary</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                <div>
+                  <span className="text-muted-foreground">Cargo Number:</span>
+                  <div className="font-medium">{selectedPackingList?.cargoNumber || '-'}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Style Number:</span>
+                  <div className="font-medium">{selectedPackingList?.styleNumber || '-'}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Fabric Details:</span>
+                  <div className="font-medium">{selectedPackingList?.fabricDetails || '-'}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Size:</span>
+                  <div className="font-medium">{selectedPackingList?.size || '-'}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pt-4 border-t border-gray-200">
                 <div>
                   <span className="text-muted-foreground">Total Items:</span>
                   <div className="font-medium">{transmissionForm.items.length}</div>

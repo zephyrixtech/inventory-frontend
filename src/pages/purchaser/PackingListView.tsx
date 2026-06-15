@@ -13,7 +13,9 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   in_transit: { label: 'In Transit', color: 'bg-purple-100 text-purple-800', icon: Truck },
   approved: { label: 'Approved', color: 'bg-green-100 text-green-800', icon: CheckCircle },
   shipped: { label: 'Shipped', color: 'bg-blue-100 text-blue-800', icon: Truck },
-  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800', icon: XCircle }
+  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800', icon: XCircle },
+  india: { label: 'India', color: 'bg-orange-100 text-orange-800', icon: Box },
+  uae: { label: 'UAE', color: 'bg-emerald-100 text-emerald-800', icon: Box }
 };
 
 export const PackingListView = () => {
@@ -106,11 +108,19 @@ export const PackingListView = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Box className="h-5 w-5 text-primary" />
-                {packingList.boxNumber}
+                {packingList.cargoNumber ? `Cargo # ${packingList.cargoNumber}` : 'Packing List Details'}
               </CardTitle>
               <CardDescription>Shipment details and item information</CardDescription>
             </div>
-            <StatusBadge status={packingList.status} />
+            <div className="flex gap-2">
+              <StatusBadge status={packingList.status} />
+              {packingList.approvalStatus && (
+                <Badge className={`${packingList.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'} gap-1`}>
+                  {packingList.approvalStatus === 'approved' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                  {packingList.approvalStatus.charAt(0).toUpperCase() + packingList.approvalStatus.slice(1)}
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -177,6 +187,16 @@ export const PackingListView = () => {
                 </div>
               </div>
             )}
+
+            {packingList.size && (
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Size</p>
+                <div className="flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-muted-foreground" />
+                  <span>{packingList.size}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {packingList.store && (
@@ -237,17 +257,17 @@ export const PackingListView = () => {
         </CardContent>
       </Card>
 
-      {/* Notes Section */}
-      {(packingList as any).notes && (
+      {/* Remarks Section */}
+      {packingList.description && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              Notes
+              Remarks
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-base whitespace-pre-wrap">{(packingList as any).notes}</p>
+            <p className="text-base whitespace-pre-wrap">{packingList.description}</p>
           </CardContent>
         </Card>
       )}

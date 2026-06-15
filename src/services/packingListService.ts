@@ -74,6 +74,8 @@ export interface PackingList {
   cargoNumber?: string;
   styleNumber?: string;
   fabricDetails?: string;
+  size?: string;
+  description?: string;
 }
 
 export const packingListService = {

@@ -484,7 +484,7 @@ export const PackingListsPage = () => {
             <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by box number"
+                placeholder="Search by cargo or style number"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-10"
@@ -519,10 +519,20 @@ export const PackingListsPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead onClick={() => handleSort('boxNumber')} className="cursor-pointer">
+                  <TableHead onClick={() => handleSort('cargoNumber')} className="cursor-pointer">
                     <div className="flex items-center gap-1">
-                      Box
-                      {sortConfig.field === 'boxNumber'
+                      Cargo Number
+                      {sortConfig.field === 'cargoNumber'
+                        ? sortConfig.order === 'asc'
+                          ? <ArrowUp className="h-4 w-4" />
+                          : <ArrowDown className="h-4 w-4" />
+                        : <ArrowUpDown className="h-4 w-4" />}
+                    </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort('styleNumber')} className="cursor-pointer">
+                    <div className="flex items-center gap-1">
+                      Style Number
+                      {sortConfig.field === 'styleNumber'
                         ? sortConfig.order === 'asc'
                           ? <ArrowUp className="h-4 w-4" />
                           : <ArrowDown className="h-4 w-4" />
@@ -554,7 +564,8 @@ export const PackingListsPage = () => {
                     const isDraft = packing.approvalStatus === 'draft';
                     return (
                       <TableRow key={packingId}>
-                        <TableCell className="font-medium">{packing.boxNumber}</TableCell>
+                        <TableCell className="font-medium">{packing.cargoNumber || '-'}</TableCell>
+                        <TableCell>{packing.styleNumber || '-'}</TableCell>
                         <TableCell className="capitalize">{packing.status}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -574,7 +585,7 @@ export const PackingListsPage = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {packing.items?.map((item: any, itemIndex: number) => {
+                          {packing.items?.slice(0, 2).map((item: any, itemIndex: number) => {
                             const itemKey =
                               item.id ??
                               item._id ??
@@ -587,6 +598,11 @@ export const PackingListsPage = () => {
                               </div>
                             );
                           })}
+                          {(packing.items?.length || 0) > 2 && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              +{packing.items.length - 2} more
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -751,6 +767,18 @@ export const PackingListsPage = () => {
                     onChange={(e) => setFormState(prev => ({ ...prev, fabricDetails: e.target.value }))}
                     className="h-10 focus-visible:ring-primary/20"
                     placeholder="Enter fabric details"
+                  />
+                </div>
+
+                {/* Size Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="size" className="text-sm font-medium">Size</Label>
+                  <Input
+                    id="size"
+                    value={formState.size || ''}
+                    onChange={(e) => setFormState(prev => ({ ...prev, size: e.target.value }))}
+                    className="h-10 focus-visible:ring-primary/20"
+                    placeholder="Enter size"
                   />
                 </div>
 
