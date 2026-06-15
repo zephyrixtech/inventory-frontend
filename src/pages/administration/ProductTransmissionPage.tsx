@@ -166,14 +166,19 @@ const ProductTransmissionPage = () => {
       // Create transmission items from packing list
       const transmissionItems: TransmissionItem[] = packingList.items.map(item => {
         const stockItem = storeStock.find(stock => {
-          const stockProductId = (stock.product as any)?._id || (stock.product as any)?.id || stock.product;
-          const itemProductId = item.product._id;
+          const stockProductId = String((stock.product as any)?._id || (stock.product as any)?.id || stock.product);
+          const itemProductId = String((item.product as any)?._id || item.product);
           return stockProductId === itemProductId;
         });
 
-        const originalPrice = stockItem?.unitPrice || 0;
+        const originalPrice = stockItem?.unitPrice || (stockItem?.product as any)?.unitPrice || (item.product as any)?.unitPrice || 0;
         const margin = ''; // Default margin as empty string
         const unitPrice = originalPrice;
+        
+        // Calculate initial AED price if we have an exchange rate
+        const exchangeRateNum = parseFloat(customExchangeRate) || 0;
+        const unitPriceAED = exchangeRateNum > 0 ? unitPrice * exchangeRateNum : 0;
+        
         const dpPrice = ''; // Manual entry - no auto calculation
         const finalPrice = 0; // Will be set when DP price is entered
 
@@ -186,7 +191,7 @@ const ProductTransmissionPage = () => {
           originalPrice,
           margin,
           unitPrice,
-          unitPriceAED: 0, // Will be calculated when exchange rate is set
+          unitPriceAED,
           dpPrice,
           finalPrice
         };
