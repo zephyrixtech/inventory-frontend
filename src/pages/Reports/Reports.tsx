@@ -111,7 +111,6 @@ type InventoryStockReport = {
 interface PackingListReport {
   title: string;
   headers: readonly [
-    'Box/Bora Number',
     'Item Description',
     'Quantity',
     'Size',
@@ -516,6 +515,7 @@ const Reports: React.FC = () => {
         'Quantity',
         'Unit Price',
         'Total Value',
+        'Style Number',
       ] as const,
       data: allStocks
     },
@@ -534,7 +534,6 @@ const Reports: React.FC = () => {
     'packing-list': {
       title: 'Packing List Report',
       headers: [
-        'Box/Bora Number',
         'Item Description',
         'Quantity',
         'Size',
@@ -2417,7 +2416,6 @@ const Reports: React.FC = () => {
           const packingListItem = item as unknown as PackingListReportItem;
           // Flatten items for CSV export
           return (packingListItem.items || []).map(packingItem => [
-            `"${packingListItem.boxNumber || ''}"`,
             `"${packingItem.product?.name || 'Unknown Item'} - ${packingItem.description || ''}"`,
             `"${packingItem.quantity || 0}"`,
             `"${packingListItem.size || ''}"`,
@@ -3568,11 +3566,6 @@ const Reports: React.FC = () => {
                             <>
                               <TableHead className="font-semibold">
                                 <p className="flex items-center gap-1 font-semibold ps-2">
-                                  Box/Bora Number
-                                </p>
-                              </TableHead>
-                              <TableHead className="font-semibold">
-                                <p className="flex items-center gap-1 font-semibold ps-2">
                                   Item Description
                                 </p>
                               </TableHead>
@@ -3809,9 +3802,8 @@ const Reports: React.FC = () => {
                             Array(itemsPerPagePackingList).fill(0).map((_, index) => (
                               <TableRow key={index} className="hover:bg-gray-50">
                                 <TableCell className="py-3">
-                                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                                  <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
                                 </TableCell>
-                                <TableCell><div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div></TableCell>
@@ -3826,9 +3818,6 @@ const Reports: React.FC = () => {
                                   key={`${packingList._id}-${itemIndex}`}
                                   className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${(packingIndex + itemIndex) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
                                 >
-                                  <TableCell className="text-gray-700 px-4 py-3 font-medium">
-                                    {itemIndex === 0 ? (packingList.boxNumber || '-') : ''}
-                                  </TableCell>
                                   <TableCell className="text-gray-700 px-4 py-3">
                                     <div>
                                       <div className="font-medium">{item.product?.name || 'Unknown Item'}</div>
@@ -3855,7 +3844,7 @@ const Reports: React.FC = () => {
                             )
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={6} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No packing lists found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or date range</p>

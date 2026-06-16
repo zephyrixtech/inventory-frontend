@@ -52,6 +52,7 @@ type GroupedStockItem = {
     created_at?: string;
     shipment_date?: string;
     cargo_number?: string;
+    style_number?: string;
   }[];
 };
 
@@ -859,7 +860,6 @@ const PrintPreview: React.FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Box/Bora Number</th>
                 <th>Item Description</th>
                 <th style="text-align:right;">Quantity</th>
                 <th>Size</th>
@@ -872,7 +872,6 @@ const PrintPreview: React.FC = () => {
               ${packingListItems.flatMap((packingList: any) =>
         (packingList.items || []).map((item: any, itemIndex: number) => `
                   <tr>
-                    <td>${itemIndex === 0 ? (packingList.boxNumber || '-') : ''}</td>
                     <td>
                       <strong>${item.product?.name || 'Unknown Item'}</strong>
                       ${item.description ? `<br><small style="color: #666;">${item.description}</small>` : ''}
@@ -1772,6 +1771,73 @@ const PrintPreview: React.FC = () => {
               </div>
             </div>
           </div>
+        ) : selectedReportType === 'packing-list' ? (
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200">
+            <div className="min-h-[29.7cm] p-8">
+              <div className="flex justify-between items-start mb-8 border-b pb-6">
+                <div>
+                  <h1 className="text-xl font-bold text-blue-600 whitespace-nowrap">{companyData?.name}</h1>
+                  <p className="text-gray-600 mt-1 text-sm">{companyData?.description}</p>
+                  <p className="text-gray-600 text-sm">{companyData?.address}</p>
+                  <p className="text-gray-600 text-sm">{companyData?.city}, {companyData?.state}, {companyData?.country}, {companyData?.postal_code}</p>
+                  <p className="text-gray-600 text-sm">Phone: {companyData?.phone}</p>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-xl font-bold text-blue-800">PACKING LIST REPORT</h2>
+                  <p className="text-gray-600 mt-1 text-sm">Generated: {formatDate(new Date())}</p>
+                  <p className="text-gray-600 text-sm">
+                    {dateRange && dateRange[0] && dateRange[1]
+                      ? `${formatDate(dateRange[0])} - ${formatDate(dateRange[1])}`
+                      : 'All Time'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-50 border-y">
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Item Description</th>
+                      <th className="py-2 px-4 text-right text-blue-800 font-medium text-sm">Quantity</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Size</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Cargo Number</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Style Number</th>
+                      <th className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packingListItems.length > 0 ? (
+                      packingListItems.flatMap((packingList: any, plIndex: number) =>
+                        (packingList.items || []).map((item: any, itemIndex: number) => (
+                          <tr key={`${plIndex}-${itemIndex}`} className="border-b">
+                            <td className="py-3 px-4 text-sm text-gray-800">
+                              <strong className="block font-semibold">{item.product?.name || 'Unknown Item'}</strong>
+                              {item.description && <span className="text-xs text-gray-500">{item.description}</span>}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-right text-gray-800">{item.quantity || 0}</td>
+                            <td className="py-3 px-4 text-sm text-gray-800">{item.unitOfMeasure || packingList.size || '-'}</td>
+                            <td className="py-3 px-4 text-sm text-gray-800">{itemIndex === 0 ? (packingList.cargoNumber || '-') : ''}</td>
+                            <td className="py-3 px-4 text-sm text-gray-800">{itemIndex === 0 ? (packingList.styleNumber || '-') : ''}</td>
+                            <td className="py-3 px-4 text-sm text-gray-800">{itemIndex === 0 ? (packingList.description || '-') : ''}</td>
+                          </tr>
+                        ))
+                      )
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-8 px-4 text-center text-gray-600">No packing lists found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-12 border-t pt-8">
+                <div className="text-center text-gray-500 text-xs">
+                  <p>{(reportConfigs as any)['packing-list']?.report_footer || `Generated on ${formatDate(new Date())} by AL LIBAS GENERAL TRADING L L C`}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           // Other Report Types (Stock, Supplier, etc.)
           <div className="bg-white rounded-lg shadow-lg border border-gray-200">
@@ -1825,17 +1891,18 @@ const PrintPreview: React.FC = () => {
                               <td className="py-3 px-4 text-gray-800 text-sm">{formatDate(item.lastOrder)}</td>
                             </>
                           )}
-                          {selectedReportType === 'item' && (
-                            <>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.itemName || '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.itemDate ? formatDate(item.itemDate) : '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.supplierName || '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.packingListDetails || '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.cargoNumber || '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.shipmentDate ? formatDate(item.shipmentDate) : '-'}</td>
-                              <td className="py-3 px-4 text-gray-800 text-sm">{item.customerName || '-'}</td>
-                            </>
-                          )}
+                           {selectedReportType === 'item' && (
+                             <>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.itemName || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.itemDate ? formatDate(item.itemDate) : '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.supplierName || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.packingListDetails || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.cargoNumber || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.styleNumber || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.shipmentDate ? formatDate(item.shipmentDate) : '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.customerName || '-'}</td>
+                             </>
+                           )}
                         </tr>
                       ))
                     ) : (

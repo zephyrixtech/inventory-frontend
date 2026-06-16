@@ -656,6 +656,18 @@ const generateInvoicePDF = (data: InvoiceData) => {
             <tbody>
               ${itemRows}
               ${spacerRow}
+              <!-- Total Row -->
+              <tr class="total-row" style="border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; font-weight: bold;">
+                <td class="text-center"></td>
+                <td style="text-align: left; font-weight: bold;">Total</td>
+                <td class="text-right font-bold">${formatNumber(totalQty)} Pecs</td>
+                <td class="text-right"></td>
+                <td class="text-center"></td>
+                <td class="text-center"></td>
+                <td class="text-right font-bold">${formatNumber(totalBeforeVat)}</td>
+                <td class="text-right font-bold">${formatNumber(totalVat)}</td>
+                <td class="text-right font-bold">${formatNumber(totalNet)}</td>
+              </tr>
               <!-- Bottom box containing Chargeable/VAT words and the right-side summary -->
               <tr style="border-top: 1.5px solid #000;">
                 <!-- Left side: Amount Chargeable and VAT Amount in words -->
