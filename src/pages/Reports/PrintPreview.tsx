@@ -155,6 +155,7 @@ const PrintPreview: React.FC = () => {
         created_at: item.createdAt || '',
         shipment_date: item.shipmentDate || '',
         cargo_number: item.cargoNumber || '',
+        style_number: item.styleNumber || '',
       });
       existingItem.total_count += item.quantity || 0;
     } else {
@@ -174,6 +175,7 @@ const PrintPreview: React.FC = () => {
           created_at: item.createdAt || '',
           shipment_date: item.shipmentDate || '',
           cargo_number: item.cargoNumber || '',
+          style_number: item.styleNumber || '',
         }],
       });
     }
@@ -190,6 +192,7 @@ const PrintPreview: React.FC = () => {
     item.stores.some((store) => Boolean(getStockDisplayDate(store)))
   );
   const hasStockCargoNumber = stockItems.some((item: any) => Boolean(item.cargoNumber));
+  const hasStockStyleNumber = stockItems.some((item: any) => Boolean(item.styleNumber));
 
   const totalStockQty = stockItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
   const totalStockValue = stockItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0);
@@ -678,7 +681,7 @@ const PrintPreview: React.FC = () => {
             <tbody>
               ${allInventoryStocks.map(item => `
                 <tr style="background:#f3f4f6;font-weight:bold;">
-                  <td colspan="${5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}">${item.item_id} - ${item.item_name}</td>
+                  <td colspan="${5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)}">${item.item_id} - ${item.item_name}</td>
                 </tr>
                 <tr style="background:#eff6ff;">
                   <td><b>Item ID</b></td>
@@ -688,6 +691,7 @@ const PrintPreview: React.FC = () => {
                   <td style="text-align:right;"><b>Total Value</b></td>
                   ${hasStockShipmentDate ? '<td><b>Date</b></td>' : ''}
                   ${hasStockCargoNumber ? '<td><b>Cargo Number</b></td>' : ''}
+                  ${hasStockStyleNumber ? '<td><b>Style Number</b></td>' : ''}
                 </tr>
                 ${item.stores.map(store => `
                   <tr>
@@ -698,12 +702,13 @@ const PrintPreview: React.FC = () => {
                     <td style="text-align:right;">${(store.quantity * store.unit_price).toFixed(2)}</td>
                     ${hasStockShipmentDate ? `<td>${getStockDisplayDate(store) ? formatDate(getStockDisplayDate(store)) : '-'}</td>` : ''}
                     ${hasStockCargoNumber ? `<td>${store.cargo_number || '-'}</td>` : ''}
+                    ${hasStockStyleNumber ? `<td>${store.style_number || '-'}</td>` : ''}
                   </tr>
                 `).join('')}
               `).join('')}
 
               <tr class="totals-row">
-                <td colspan="${2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}" style="text-align:right;">Grand Total</td>
+                <td colspan="${2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)}" style="text-align:right;">Grand Total</td>
                 <td style="text-align:right;">${totalStockQty}</td>
                 <td></td>
                 <td style="text-align:right;">${totalStockValue.toFixed(2)}</td>
@@ -1551,7 +1556,7 @@ const PrintPreview: React.FC = () => {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
+                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)} className="py-3 px-4 text-center text-gray-600">Loading items...</td>
                       </tr>
                     ) : allInventoryStocks.length > 0 ? (
                       <>
@@ -1559,7 +1564,7 @@ const PrintPreview: React.FC = () => {
                           <React.Fragment key={index}>
                             {/* Item row */}
                             <tr className="bg-gray-100 border-b">
-                              <td className="py-3 px-4 font-semibold text-gray-900 text-sm" colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}>
+                              <td className="py-3 px-4 font-semibold text-gray-900 text-sm" colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)}>
                                 {item.item_id} - {item.item_name}
                               </td>
                             </tr>
@@ -1576,6 +1581,9 @@ const PrintPreview: React.FC = () => {
                               )}
                               {hasStockCargoNumber && (
                                 <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Cargo Number</td>
+                              )}
+                              {hasStockStyleNumber && (
+                                <td className="py-2 px-4 text-left text-blue-800 font-medium text-sm">Style Number</td>
                               )}
                             </tr>
 
@@ -1601,6 +1609,11 @@ const PrintPreview: React.FC = () => {
                                     {store.cargo_number || '-'}
                                   </td>
                                 )}
+                                {hasStockStyleNumber && (
+                                  <td className="py-2 px-4 text-gray-900 text-sm">
+                                    {store.style_number || '-'}
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </React.Fragment>
@@ -1608,7 +1621,7 @@ const PrintPreview: React.FC = () => {
 
                         {/* Totals Row */}
                         <tr className="bg-blue-100 font-semibold border-t-2">
-                          <td className="py-3 px-4 text-right" colSpan={2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)}>
+                          <td className="py-3 px-4 text-right" colSpan={2 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)}>
                             Grand Total
                           </td>
                           <td className="py-3 px-4 text-right">{totalStockQty}</td>
@@ -1618,7 +1631,7 @@ const PrintPreview: React.FC = () => {
                       </>
                     ) : (
                       <tr>
-                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0)} className="py-8 px-4 text-center text-gray-600">
+                        <td colSpan={5 + (hasStockShipmentDate ? 1 : 0) + (hasStockCargoNumber ? 1 : 0) + (hasStockStyleNumber ? 1 : 0)} className="py-8 px-4 text-center text-gray-600">
                           No data available for this report
                         </td>
                       </tr>

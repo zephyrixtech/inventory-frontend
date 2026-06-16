@@ -45,7 +45,7 @@ interface InvoiceData {
 
 const formatNumber = (value: number | string): string => {
   const num = typeof value === 'string' ? parseFloat(value) : value;
-  return isNaN(num) ? "0.00" : num.toFixed(2);
+  return isNaN(num) ? "0.00" : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const numberToWords = (num: number, currency: string = 'AED'): string => {
@@ -111,6 +111,7 @@ const generateInvoicePDF = (data: InvoiceData) => {
   // Calculate Totals
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const totalBeforeVat = data.items.reduce((sum, item) => sum + item.grossAmount, 0);
+  const totalVat = data.items.reduce((sum, item) => sum + item.vatAmount, 0);
   // const totalDiscount = data.items.reduce((sum, item) => sum + item.discount, 0);
   const totalNet = data.items.reduce((sum, item) => sum + item.netAmount, 0);
 
@@ -162,32 +163,41 @@ const generateInvoicePDF = (data: InvoiceData) => {
 
   const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
 
-  const currencySymbolText = data.currency === 'INR' ? '₹' : 'Dhs';
-
   const amountInWords = numberToWords(totalNet, data.currency);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
 
   const itemRows = data.items.map((item, index) => {
-    const vatDisplay = item.vat > 0 ? `${formatNumber(item.vat)}%` : '-';
     return `
     <tr class="item-row">
       <td class="text-center">${index + 1}</td>
-      <td class="item-name">${item.name}</td>
-      <td class="text-center font-bold">${item.quantity}</td>
+      <td class="item-name" style="font-weight: bold; text-align: left;">${item.name}</td>
+      <td class="text-right">${formatNumber(item.quantity)} Pecs</td>
       <td class="text-right">${formatNumber(item.unitPrice)}</td>
+      <td class="text-center">Pecs</td>
+      <td class="text-center">${item.vat} %</td>
       <td class="text-right font-bold">${formatNumber(item.grossAmount)}</td>
-      ${/* <td class="text-center discount-cell">
-        ${item.discount > 0 ? `${formatNumber(item.discount)}` : '-'}
-      </td> */ ''}
-      <td class="text-center" style="color: #2563eb;">
-        ${vatDisplay}
-      </td>
-      <td class="text-right font-semibold">${formatNumber(item.netAmount)}</td>
+      <td class="text-right">${formatNumber(item.vatAmount)}</td>
+      <td class="text-right">${formatNumber(item.netAmount)}</td>
     </tr>
   `;
   }).join('');
+
+  const spacerRowHeight = Math.max(40, 240 - data.items.length * 35);
+  const spacerRow = data.items.length < 8 ? `
+    <tr style="height: ${spacerRowHeight}px;">
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  ` : '';
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -632,37 +642,70 @@ const generateInvoicePDF = (data: InvoiceData) => {
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 50px; text-align: center;">#Sl No</th>
-                <th>Item Name</th>
-                <th style="width: 60px; text-align: center;">Qty</th>
-                <th style="width: 95px; text-align: right;">Unit Price</th>
-                <th style="width: 105px; text-align: right;">Gross Amount</th>
-                ${/* <th style="width: 85px; text-align: center;">Discount</th> */ ''}
-                <th style="width: 75px; text-align: center;">VAT</th>
-                <th style="width: 115px; text-align: right;">Net Amount</th>
+                <th style="width: 50px; text-align: center;">SI<br/>No.</th>
+                <th style="text-align: left;">Description of Goods</th>
+                <th style="width: 110px; text-align: right;">Quantity</th>
+                <th style="width: 80px; text-align: right;">Rate</th>
+                <th style="width: 60px; text-align: center;">per</th>
+                <th style="width: 60px; text-align: center;">VAT<br/>%</th>
+                <th style="width: 110px; text-align: right;">Amount</th>
+                <th style="width: 95px; text-align: right;">VAT<br/>(AED)</th>
+                <th style="width: 125px; text-align: right;">Total<br/>Incl.VAT(AED)</th>
               </tr>
             </thead>
             <tbody>
               ${itemRows}
-              <tr class="total-row">
-                <td colspan="2" class="text-right" style="font-weight: bold; border-right: 1px solid #000;">Total</td>
-                <td class="text-center font-bold" style="border-right: 1px solid #000;">${totalQty}</td>
-                <td style="border-right: 1px solid #000;"></td>
-                <td class="text-right font-bold" style="border-right: 1px solid #000;">${formatNumber(totalBeforeVat)}</td>
-                ${/* <td class="text-center font-bold" style="border-right: 1px solid #000;">-${formatNumber(totalDiscount)}</td> */ ''}
-                <td style="border-right: 1px solid #000;"></td>
-                <td class="text-right font-bold">${currencySymbolText} ${formatNumber(totalNet)}</td>
+              ${spacerRow}
+              <!-- Bottom box containing Chargeable/VAT words and the right-side summary -->
+              <tr style="border-top: 1.5px solid #000;">
+                <!-- Left side: Amount Chargeable and VAT Amount in words -->
+                <td colspan="3" rowspan="3" style="border: 1px solid #000; padding: 10px; vertical-align: top; background-color: #fff; text-align: left;">
+                  <div style="margin-bottom: 15px;">
+                    <span style="font-size: 9px; color: #555; display: block;">Amount Chargeable (in words)</span>
+                    <span style="font-weight: bold; text-transform: uppercase; font-size: 10.5px; display: block; margin-top: 3px; line-height: 1.35; color: #000;">
+                      ${amountInWords} (AED ${formatNumber(totalNet)})
+                    </span>
+                  </div>
+                  <div>
+                    <span style="font-size: 9px; color: #555; display: block;">VAT Amount (in words)</span>
+                    <span style="font-weight: bold; text-transform: uppercase; font-size: 10.5px; display: block; margin-top: 3px; line-height: 1.35; color: #000;">
+                      ${numberToWords(totalVat, data.currency)} (AED ${formatNumber(totalVat)})
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Right side Row 1: Taxable Value -->
+                <td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: left; font-size: 10px; background-color: #fff; font-weight: normal; color: #000;">
+                  Taxable Value
+                </td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: right; font-size: 10px; background-color: #fff; font-weight: normal; color: #000;">
+                  ${formatNumber(totalBeforeVat)}
+                </td>
+              </tr>
+
+              <tr>
+                <!-- Right side Row 2: Value Added Tax 5 % -->
+                <td colspan="5" style="border: 1px solid #000; padding: 8px; text-align: left; font-size: 10px; background-color: #fff; font-weight: normal; color: #000;">
+                  Value Added Tax 5 %
+                </td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: right; font-size: 10px; background-color: #fff; font-weight: normal; color: #000;">
+                  ${formatNumber(totalVat)}
+                </td>
+              </tr>
+
+              <tr style="font-weight: bold;">
+                <!-- Right side Row 3: Invoice Total -->
+                <td colspan="5" style="border: 1px solid #000; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 10px 8px; text-align: left; font-size: 11px; background-color: #fff; color: #000;">
+                  Invoice Total
+                </td>
+                <td style="border: 1px solid #000; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 10px 8px; text-align: right; font-size: 11px; background-color: #fff; color: #000;">
+                  ${formatNumber(totalNet)}
+                </td>
               </tr>
             </tbody>
           </table>
-          
-          <!-- Amount chargeable in words -->
-          <div class="chargeable-box">
-            <div>
-              <span style="font-weight: normal; color: #444;">Amount Chargeable (in words)</span><br>
-              <span style="font-size: 11.5px; text-transform: uppercase;">${amountInWords}</span>
-            </div>
-            <div style="align-self: flex-end; font-size: 10px; font-weight: normal; font-style: italic;">E. & O.E</div>
+          <div style="text-align: right; font-size: 9px; font-style: italic; margin-top: 4px; padding-right: 4px; color: #555;">
+            E. & O.E
           </div>
           
           <!-- Bank & Signature area -->

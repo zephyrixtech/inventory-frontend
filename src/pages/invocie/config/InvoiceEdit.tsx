@@ -754,14 +754,14 @@ export default function InvoiceEdit() {
     const itemAvailableStocks = await getAvailableStock(tempSuppliesData) || [];
 
     // Append to invoice form fields
-    tempSuppliesData.forEach((supply) => {
+    const itemsToAppend = tempSuppliesData.map((supply) => {
       // Get availableStock and converted unitPrice from filteredSupplies if present, otherwise from API
       const filteredSupply = filteredSupplies.find(item => item.id === supply.id);
       const stockInfo = itemAvailableStocks.find(item => item.item_id === supply.id);
       const availableStock = filteredSupply?.availableStock ?? stockInfo?.total_qty ?? 0;
       const convertedPrice = filteredSupply?.price ?? stockInfo?.unitPrice ?? supply.price;
 
-      append({
+      return {
         id: supply.id,
         name: supply.name,
         quantity: 1,
@@ -770,8 +770,12 @@ export default function InvoiceEdit() {
         vat: 0, // Default VAT to 0%
         total: convertedPrice,
         availableStock,
-      });
+      };
     });
+
+    if (itemsToAppend.length > 0) {
+      append(itemsToAppend);
+    }
 
     // Clear validation errors
     clearValidationErrors();

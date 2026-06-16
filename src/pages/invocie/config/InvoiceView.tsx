@@ -143,6 +143,7 @@ export default function InvoiceView() {
       }),
       date: invoice.invoiceDate,
       status: 'pending' as const,
+      currency: 'AED',
     };
 
     generateInvoicePDF(invoiceData);
@@ -160,11 +161,21 @@ export default function InvoiceView() {
     return calculateGrossTotal() - calculateTotalDiscount();
   };
 
+  const calculateTotalVat = () => {
+    return invoice?.items.reduce((sum, item) => {
+      const grossAmount = item.quantity * item.unitPrice;
+      const discountAmount = item.discount || 0;
+      const vatPercentage = item.vat || 0;
+      return sum + (item.vatAmount || ((grossAmount - discountAmount) * (vatPercentage / 100)));
+    }, 0) || invoice?.vatTotal || 0;
+  };
+
   const grossTotal = calculateGrossTotal();
   // const totalDiscount = calculateTotalDiscount();
   const subtotal = calculateSubtotal();
   const tax = invoice?.taxAmount || 0;
-  const finalAmount = invoice?.netAmount || (subtotal + tax);
+  const totalVat = calculateTotalVat();
+  const finalAmount = invoice?.netAmount || (subtotal + totalVat + tax);
 
   if (loading) {
     return (
@@ -327,9 +338,6 @@ export default function InvoiceView() {
 
   const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
 
-  const totalQty = invoice.items.reduce((sum, item) => sum + item.quantity, 0);
-  const amountInWords = numberToWords(finalAmount, 'AED');
-
   return (
     <div className="p-6 bg-gray-100 min-h-screen print:p-0 print:bg-white flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6 print:space-y-0">
@@ -428,15 +436,16 @@ export default function InvoiceView() {
             <div className="overflow-x-auto w-full">
               <table className="w-full border-collapse border border-black text-xs">
                 <thead>
-                  <tr className="bg-gray-100 font-bold text-[11px]">
-                    <th className="border border-black p-1 text-center w-12">#Sl No</th>
-                    <th className="border border-black p-1 text-left">Item Name</th>
-                    <th className="border border-black p-1 text-center w-16">Qty</th>
-                    <th className="border border-black p-1 text-right w-24">Unit Price</th>
-                    <th className="border border-black p-1 text-right w-28">Gross Amount</th>
-                    {/* <th className="border border-black p-1 text-center w-20">Discount</th> */}
-                    <th className="border border-black p-1 text-center w-20">VAT</th>
-                    <th className="border border-black p-1 text-right w-32">Net Amount</th>
+                  <tr className="bg-gray-100 font-bold text-[11px] border-b border-black text-black">
+                    <th className="border border-black p-1 text-center w-12">SI<br/>No.</th>
+                    <th className="border border-black p-1 text-left">Description of Goods</th>
+                    <th className="border border-black p-1 text-right w-28">Quantity</th>
+                    <th className="border border-black p-1 text-right w-20">Rate</th>
+                    <th className="border border-black p-1 text-center w-16">per</th>
+                    <th className="border border-black p-1 text-center w-16">VAT<br/>%</th>
+                    <th className="border border-black p-1 text-right w-28">Amount</th>
+                    <th className="border border-black p-1 text-right w-24">VAT<br/>(AED)</th>
+                    <th className="border border-black p-1 text-right w-32">Total<br/>Incl.VAT(AED)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -446,59 +455,100 @@ export default function InvoiceView() {
                       : 'Unknown Item';
                     const vatVal = item.vat || 0;
                     const grossAmount = item.quantity * item.unitPrice;
-                    const discountAmount = item.discount || 0;
-                    const vatDisplay = vatVal > 0 ? `${vatVal}%` : '-';
-                    const netAmt = item.totalPrice || ((grossAmount - discountAmount) * (1 + vatVal / 100));
+                    const vatAmount = grossAmount * (vatVal / 100);
+                    const netAmt = grossAmount + vatAmount;
 
                     return (
                       <tr key={index} className="border-b border-gray-300">
                         <td className="border-l border-r border-black p-1.5 text-center">{index + 1}</td>
-                        <td className="border-l border-r border-black p-1.5 font-bold">{itemName}</td>
-                        <td className="border-l border-r border-black p-1.5 text-center font-bold">{item.quantity}</td>
-                        <td className="border-l border-r border-black p-1.5 text-right">{item.unitPrice.toFixed(2)}</td>
-                        <td className="border-l border-r border-black p-1.5 text-right font-bold">{grossAmount.toFixed(2)}</td>
-                        {/* <td className="border-l border-r border-black p-1.5 text-center text-green-600 font-semibold">
-                          {discountAmount > 0 ? discountAmount.toFixed(2) : '-'}
-                        </td> */}
-                        <td className="border-l border-r border-black p-1.5 text-center text-blue-600">{vatDisplay}</td>
-                        <td className="border-l border-r border-black p-1.5 text-right font-bold">{netAmt.toFixed(2)}</td>
+                        <td className="border-l border-r border-black p-1.5 font-bold text-left">{itemName}</td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-normal">
+                          {item.quantity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Pecs
+                        </td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-normal">
+                          {item.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="border-l border-r border-black p-1.5 text-center font-normal">Pecs</td>
+                        <td className="border-l border-r border-black p-1.5 text-center font-normal">{vatVal} %</td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-bold">
+                          {grossAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-normal">
+                          {vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="border-l border-r border-black p-1.5 text-right font-normal">
+                          {netAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
                       </tr>
                     );
                   })}
-                  {/* Empty Spacer Rows to balance invoice look */}
-                  {[...Array(Math.max(0, 5 - invoice.items.length))].map((_, i) => (
-                    <tr key={`spacer-${i}`} className="h-6 border-b border-gray-200 opacity-20">
+                  {/* Empty Spacer Row to balance invoice look */}
+                  {invoice.items.length < 8 && (
+                    <tr style={{ height: `${Math.max(40, 240 - invoice.items.length * 35)}px` }}>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
-                      {/* <td className="border-l border-r border-black"></td> */}
+                      <td className="border-l border-r border-black"></td>
+                      <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                       <td className="border-l border-r border-black"></td>
                     </tr>
-                  ))}
-                  {/* Total summary row */}
-                  <tr className="border-t border-b border-black font-bold bg-gray-50">
-                    <td colSpan={2} className="border-l border-r border-black p-2 text-right">Total</td>
-                    <td className="border-l border-r border-black p-2 text-center font-bold">{totalQty}</td>
-                    <td className="border-l border-r border-black p-2"></td>
-                    <td className="border-l border-r border-black p-2 text-right font-bold">{grossTotal.toFixed(2)}</td>
-                    {/* <td className="border-l border-r border-black p-2 text-center text-green-600 font-bold">-{totalDiscount.toFixed(2)}</td> */}
-                    <td className="border-l border-r border-black p-2"></td>
-                    <td className="border-l border-r border-black p-2 text-right font-bold text-[#c22026]">Dhs {finalAmount.toFixed(2)}</td>
+                  )}
+                  {/* Bottom box containing Chargeable/VAT words and the right-side summary */}
+                  <tr className="border-t border-black">
+                    {/* Left side: Amount Chargeable and VAT Amount in words */}
+                    <td colSpan={3} rowSpan={3} className="border border-black p-2.5 align-top text-xs bg-white text-black">
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-gray-600 block text-[10px]">Amount Chargeable (in words)</span>
+                          <span className="font-bold text-black uppercase block mt-1 leading-snug">
+                            {numberToWords(finalAmount, 'AED')} (AED {finalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600 block text-[10px]">VAT Amount (in words)</span>
+                          <span className="font-bold text-black uppercase block mt-1 leading-snug">
+                            {numberToWords(totalVat, 'AED')} (AED {totalVat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Right side Row 1: Taxable Value */}
+                    <td colSpan={5} className="border border-black p-2 text-left font-normal text-xs bg-white text-black">
+                      Taxable Value
+                    </td>
+                    <td className="border border-black p-2 text-right font-normal text-xs bg-white text-black">
+                      {grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    {/* Right side Row 2: Value Added Tax 5 % */}
+                    <td colSpan={5} className="border border-black p-2 text-left font-normal text-xs bg-white text-black">
+                      Value Added Tax 5 %
+                    </td>
+                    <td className="border border-black p-2 text-right font-normal text-xs bg-white text-black">
+                      {totalVat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+
+                  <tr className="font-bold text-sm">
+                    {/* Right side Row 3: Invoice Total */}
+                    <td colSpan={5} className="border-t-2 border-b-2 border-l border-r border-black p-2.5 text-left bg-white text-black text-sm">
+                      Invoice Total
+                    </td>
+                    <td className="border-t-2 border-b-2 border-l border-r border-black p-2.5 text-right bg-white text-black text-sm">
+                      {finalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-
-            {/* Amount chargeable words box */}
-            <div className="border border-black p-2 flex justify-between bg-gray-50 text-xs">
-              <div>
-                <span className="text-gray-600 block text-[10px]">Amount Chargeable (in words)</span>
-                <span className="font-bold uppercase text-black">{amountInWords}</span>
+              <div className="text-right text-[10px] italic font-normal text-gray-600 mt-1 mr-1">
+                E. & O.E
               </div>
-              <div className="self-end text-[10px] italic font-normal text-gray-500">E. & O.E</div>
             </div>
 
             {/* Bank details and stamp bottom section */}

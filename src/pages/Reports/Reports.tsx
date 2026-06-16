@@ -104,6 +104,7 @@ type InventoryStockReport = {
   createdAt?: string;
   shipmentDate?: string;
   cargoNumber?: string;
+  styleNumber?: string;
 };
 
 // Packing List Report Type Definition
@@ -145,6 +146,7 @@ interface StockReport {
     'Quantity',
     'Unit Price',
     'Total Value',
+    'Style Number',
   ];
   data: InventoryStockReport[];
 }
@@ -591,6 +593,9 @@ const Reports: React.FC = () => {
   );
   const hasCargoNumberInStockTable = paginatedStocks.some(
     (stock) => Boolean(stock.cargoNumber)
+  );
+  const hasStyleNumberInStockTable = paginatedStocks.some(
+    (stock) => Boolean(stock.styleNumber)
   );
 
   const getStockDisplayDate = (stock: InventoryStockReport): string | undefined => {
@@ -1811,7 +1816,8 @@ const Reports: React.FC = () => {
           totalValue: (stock.quantity || 0) * (stock.unitPrice || 0),
           createdAt: (stock as any).createdAt,
           shipmentDate: packingListDetails.shipmentDate || (stock as any).shipmentDate,
-          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber
+          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber,
+          styleNumber: packingListDetails.styleNumber || (stock as any).styleNumber
         };
       });
 
@@ -1831,6 +1837,7 @@ const Reports: React.FC = () => {
           stock.itemName.toLowerCase().includes(searchLower) ||
           stock.storeName.toLowerCase().includes(searchLower) ||
           (stock.cargoNumber || '').toLowerCase().includes(searchLower) ||
+          (stock.styleNumber || '').toLowerCase().includes(searchLower) ||
           (getStockDisplayDate(stock) ? format(new Date(getStockDisplayDate(stock)!), 'yyyy-MM-dd').toLowerCase().includes(searchLower) : false)
         );
       }
@@ -1965,7 +1972,8 @@ const Reports: React.FC = () => {
           totalValue: (stock.quantity || 0) * (stock.unitPrice || 0),
           createdAt: (stock as any).createdAt,
           shipmentDate: packingListDetails.shipmentDate || (stock as any).shipmentDate,
-          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber
+          cargoNumber: packingListDetails.cargoNumber || (stock as any).cargoNumber,
+          styleNumber: packingListDetails.styleNumber || (stock as any).styleNumber
         };
       });
 
@@ -2355,6 +2363,7 @@ const Reports: React.FC = () => {
         (stock) => Boolean(stock.shipmentDate) || (!stock.shipmentDate && !stock.cargoNumber && Boolean(stock.createdAt))
       );
       const hasCargoNumber = allStocks.some((stock) => Boolean(stock.cargoNumber));
+      const hasStyleNumber = allStocks.some((stock) => Boolean(stock.styleNumber));
 
       const headers = [
         'Item ID',
@@ -2365,6 +2374,7 @@ const Reports: React.FC = () => {
         'Total Value',
         ...(hasShipmentDate ? ['Date'] : []),
         ...(hasCargoNumber ? ['Cargo Number'] : []),
+        ...(hasStyleNumber ? ['Style Number'] : []),
       ];
 
       const rows = allStocks.map((stockItem) => [
@@ -2376,6 +2386,7 @@ const Reports: React.FC = () => {
         `"${(stockItem.quantity * stockItem.unitPrice)}"`,
         ...(hasShipmentDate ? [`"${getStockDisplayDate(stockItem) ? format(new Date(getStockDisplayDate(stockItem)!), 'dd MMM yyyy') : ''}"`] : []),
         ...(hasCargoNumber ? [`"${stockItem.cargoNumber || ''}"`] : []),
+        ...(hasStyleNumber ? [`"${stockItem.styleNumber || ''}"`] : []),
       ]);
 
       csvContent = [
@@ -3494,6 +3505,13 @@ const Reports: React.FC = () => {
                                   </p>
                                 </TableHead>
                               )}
+                              {hasStyleNumberInStockTable && (
+                                <TableHead className="font-semibold">
+                                  <p className="flex items-center gap-1 font-semibold ps-2">
+                                    Style Number
+                                  </p>
+                                </TableHead>
+                              )}
                             </>
                           ) : selectedReportType === 'sales' ? (
                             <>
@@ -3770,10 +3788,15 @@ const Reports: React.FC = () => {
                                     {stock.cargoNumber || '-'}
                                   </TableCell>
                                 )}
+                                {hasStyleNumberInStockTable && (
+                                  <TableCell className="text-gray-700 px-4 py-3">
+                                    {stock.styleNumber || '-'}
+                                  </TableCell>
+                                )}
                               </TableRow>
                             ))) : (
                             <TableRow>
-                              <TableCell colSpan={6 + (hasShipmentDateInStockTable ? 1 : 0) + (hasCargoNumberInStockTable ? 1 : 0)} className="text-center text-gray-500 py-8">
+                              <TableCell colSpan={6 + (hasShipmentDateInStockTable ? 1 : 0) + (hasCargoNumberInStockTable ? 1 : 0) + (hasStyleNumberInStockTable ? 1 : 0)} className="text-center text-gray-500 py-8">
                                 <div className="flex flex-col items-center justify-center">
                                   <p className="text-base font-medium">No inventory stocks found</p>
                                   <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
