@@ -587,12 +587,10 @@ export default function InvoiceEdit() {
         }
 
         // Filter items to only include those that have stock in the selected store
-        // and match the search term
+        // (the backend has already filtered items matching the search term)
         const filteredItems = response.data.filter(item => {
           const itemId = item._id || item.id;
-          return availableProductIds.includes(itemId) && 
-                 (item.name?.toLowerCase().includes(itemSearchTerm.toLowerCase()) ||
-                  item.description?.toLowerCase().includes(itemSearchTerm.toLowerCase()));
+          return availableProductIds.includes(itemId);
         });
 
         // Map filtered items to Supply format with actual stock and converted price from selected store
