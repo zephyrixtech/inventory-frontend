@@ -3,6 +3,7 @@ import { Warehouse, RefreshCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import toast from 'react-hot-toast';
 import { storeStockService } from '@/services/storeStockService';
@@ -251,81 +252,190 @@ export const StoreStockPage = () => {
         <CardContent className="space-y-4">
 
 
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Store</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Margin %</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Unit Price</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Source</TableHead>
-                  {/* <TableHead className="text-right">Actions</TableHead> */}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Loading store stock...
-                    </TableCell>
-                  </TableRow>
-                ) : records.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No stock available. Items will automatically appear here when they pass Quality Control (QC status = "approved").
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  records.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell>
-                        <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {record.store?.code}
-                          {(record.store as any)?.biller && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Biller
-                            </span>
-                          )}
-                          {(record.store as any)?.purchaser && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Purchaser
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>
-                        <div className="text-xs text-muted-foreground">Code: {record.product?.code}</div>
-                      </TableCell>
-                      <TableCell>{record.margin}%</TableCell>
-                      <TableCell>{record.currency}</TableCell>
-                      <TableCell>{record.unitPrice.toFixed(2)}</TableCell>
-                      <TableCell>{record.quantity}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Auto QC
-                        </span>
-                      </TableCell>
-                      {/* <TableCell className="text-right space-x-2">
+          {loading ? (
+            <div className="border rounded-lg p-8 text-center text-muted-foreground">
+              Loading store stock...
+            </div>
+          ) : userRole === 'admin' || userRole === 'superadmin' ? (
+            <Tabs defaultValue="biller" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-4">
+                <TabsTrigger value="biller">Biller Stores Stock</TabsTrigger>
+                <TabsTrigger value="other">Other Stores Stock</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="biller" className="space-y-4">
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Store</TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Style Number</TableHead>
+                        <TableHead>Margin %</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Source</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {records.filter(r => (r.store as any)?.biller === 'ROLE_BILLER').length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                            No biller store stock found on this page.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        records.filter(r => (r.store as any)?.biller === 'ROLE_BILLER').map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>
+                              <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {record.store?.code}
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Biller
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>
+                              <div className="text-xs text-muted-foreground">Code: {record.product?.code}</div>
+                            </TableCell>
+                            <TableCell className="font-semibold text-blue-600">
+                              {record.styleNumber || record.packingListDetails?.styleNumber || '-'}
+                            </TableCell>
+                            <TableCell>{record.margin}%</TableCell>
+                            <TableCell>{record.currency}</TableCell>
+                            <TableCell>{record.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell>{record.quantity}</TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-850">
+                                Transmitted
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenEditModal(record)}
-                        >
-                          <Pen className="h-4 w-4" />
-                        </Button>
-                      </TableCell> */}
+              <TabsContent value="other" className="space-y-4">
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Store</TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Margin %</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Source</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {records.filter(r => (r.store as any)?.biller !== 'ROLE_BILLER').length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                            No other store stock found on this page.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        records.filter(r => (r.store as any)?.biller !== 'ROLE_BILLER').map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>
+                              <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {record.store?.code}
+                                {(record.store as any)?.purchaser && (
+                                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Purchaser
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>
+                              <div className="text-xs text-muted-foreground">Code: {record.product?.code}</div>
+                            </TableCell>
+                            <TableCell>{record.margin}%</TableCell>
+                            <TableCell>{record.currency}</TableCell>
+                            <TableCell>{record.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell>{record.quantity}</TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Auto QC
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Store</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Style Number</TableHead>
+                    <TableHead>Margin %</TableHead>
+                    <TableHead>Currency</TableHead>
+                    <TableHead>Unit Price</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Source</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {records.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        No stock available. Items will automatically appear here when they pass Quality Control (QC status = "approved").
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : (
+                    records.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          <div className="font-medium">{record.store?.name ?? 'N/A'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {record.store?.code}
+                            {(record.store as any)?.biller && (
+                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Biller
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{record.product?.name ?? 'Unnamed Item'}</div>
+                          <div className="text-xs text-muted-foreground">Code: {record.product?.code}</div>
+                        </TableCell>
+                        <TableCell className="font-semibold text-blue-600">
+                          {record.styleNumber || record.packingListDetails?.styleNumber || '-'}
+                        </TableCell>
+                        <TableCell>{record.margin}%</TableCell>
+                        <TableCell>{record.currency}</TableCell>
+                        <TableCell>{record.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell>{record.quantity}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {(record.store as any)?.biller ? 'Transmitted' : 'Auto QC'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <div>

@@ -83,6 +83,7 @@ export const getItems = async (
     search?: string;
     status?: string;
     qcStatus?: string;
+    styleAndCodeOnly?: string;
   } = {}
 ): Promise<PaginatedItemsResponse> => {
   try {
@@ -94,6 +95,7 @@ export const getItems = async (
     if (filters.search) params.append('search', filters.search);
     if (filters.status) params.append('status', filters.status);
     if (filters.qcStatus) params.append('qcStatus', filters.qcStatus);
+    if (filters.styleAndCodeOnly) params.append('styleAndCodeOnly', filters.styleAndCodeOnly);
     
     const response = await apiClient.get<ItemResponse>(`/items?${params.toString()}`);
     

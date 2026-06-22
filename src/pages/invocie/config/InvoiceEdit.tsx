@@ -55,10 +55,12 @@ type Store = {
 // Define Supply type
 type Supply = {
   id: string;
+  productId: string;
   name: string;
   description: string;
   price: number;
   availableStock?: number;
+  styleNumbers?: string[];
 };
 
 // Schema for invoice items
@@ -71,6 +73,7 @@ const invoiceItemSchema = z.object({
   vat: z.number().min(0, 'VAT cannot be negative').max(100, 'VAT cannot exceed 100%').optional(),
   total: z.number().min(0, 'Total cannot be negative'),
   availableStock: z.number().min(0).optional(),
+  styleNumbers: z.array(z.string()).optional(),
 }).refine(
   (data) => data.quantity <= (data.availableStock ?? Infinity),
   { message: 'Quantity exceeds available stock', path: ['quantity'] }
@@ -100,6 +103,7 @@ interface InvoiceItem {
   discount?: number;
   vat?: number;
   availableStock?: number;
+  styleNumbers?: string[];
 }
 
 type Customer = {
@@ -292,6 +296,7 @@ export default function InvoiceEdit() {
               vat: vat, // VAT percentage
               total: total,
               availableStock: 0,
+              styleNumbers: (item as any).styleNumber ? [(item as any).styleNumber] : [],
             };
           });
 
@@ -315,8 +320,10 @@ export default function InvoiceEdit() {
                   ? stock.product._id || stock.product.id
                   : String(stock.product);
                 if (itemIds.includes(productId)) {
-                  stockMap[productId] = stock.quantity || 0;
-                  priceMap[productId] = stock.unitPrice || 0; // Store converted unit price
+                  const styleNum = stock.styleNumber || '';
+                  const key = `${productId}_${styleNum}`;
+                  stockMap[key] = stock.quantity || 0;
+                  priceMap[key] = stock.unitPrice || 0; // Store converted unit price
                 }
               });
             }
@@ -327,7 +334,8 @@ export default function InvoiceEdit() {
           setDisplayStockMap(stockMap);
 
           const previousQuantitiesMap: Record<string, number> = invoiceItems.reduce((acc, it) => {
-            acc[it.id] = Number(it.quantity) || 0;
+            const key = `${it.id}_${it.styleNumbers?.[0] || ''}`;
+            acc[key] = Number(it.quantity) || 0;
             return acc;
           }, {} as Record<string, number>);
 
@@ -339,10 +347,13 @@ export default function InvoiceEdit() {
             contactNumber: customer?.phone || '',
             email: customer?.email || '',
             billingAddress: '',
-            items: invoiceItems.map((item) => ({
-              ...item,
-              availableStock: (stockMap[item.id] ?? 0) + (previousQuantitiesMap[item.id] || 0),
-            })),
+            items: invoiceItems.map((item) => {
+              const key = `${item.id}_${item.styleNumbers?.[0] || ''}`;
+              return {
+                ...item,
+                availableStock: (stockMap[key] ?? 0) + (previousQuantitiesMap[key] || 0),
+              };
+            }),
             additionalCharges: 0,
           };
           reset(nextValues);
@@ -366,13 +377,17 @@ export default function InvoiceEdit() {
           setSelectedStore(storeId || '');
 
           setSelectedSupplies(
-            invoiceItems.map((item) => ({
-              id: item.id,
-              name: item.name,
-              description: '',
-              price: priceMap[item.id] || item.unitPrice, // Use converted price if available
-              availableStock: (stockMap[item.id] ?? 0) + (previousQuantitiesMap[item.id] || 0),
-            }))
+            invoiceItems.map((item) => {
+              const key = `${item.id}_${item.styleNumbers?.[0] || ''}`;
+              return {
+                id: item.id,
+                productId: item.id,
+                name: item.name,
+                description: '',
+                price: priceMap[key] || item.unitPrice, // Use converted price if available
+                availableStock: (stockMap[key] ?? 0) + (previousQuantitiesMap[key] || 0),
+              };
+            })
           );
         } catch (err: any) {
           setError(`Failed to load invoice data: ${err.message || 'Unknown error'}`);
@@ -530,7 +545,7 @@ export default function InvoiceEdit() {
     clearValidationErrors();
   };
 
-  // Item search - now filtered by selected store stock
+  // Item search - now queries the selected store stock directly
   useEffect(() => {
     const fetchSupplies = async () => {
       if (!itemSearchTerm.trim() || itemSearchTerm.trim().length < 3 || !selectedStore) {
@@ -540,10 +555,12 @@ export default function InvoiceEdit() {
       }
 
       try {
-        // First, fetch store stock for the selected store to get available items
+        // Fetch store stock for the selected store matching search term directly
         const stockResponse = await storeStockService.list({ 
-          storeId: selectedStore, 
-          limit: 1000 
+          storeId: selectedStore,
+          search: itemSearchTerm.trim(),
+          styleOnly: true,
+          limit: 100 
         });
 
         if (!stockResponse.data || stockResponse.data.length === 0) {
@@ -552,56 +569,18 @@ export default function InvoiceEdit() {
           return;
         }
 
-        // Get all product IDs that have stock in this store with their converted prices
-        const stockMap: Record<string, number> = {};
-        const priceMap: Record<string, number> = {}; // Store converted unit prices
-        const availableProductIds: string[] = [];
-
-        stockResponse.data.forEach((stock) => {
-          const productId = typeof stock.product === 'object' && stock.product !== null
-            ? stock.product._id || stock.product.id
-            : String(stock.product);
-          
-          if (productId && stock.quantity > 0) { // Only include items with positive stock
-            stockMap[productId] = stock.quantity;
-            priceMap[productId] = stock.unitPrice || 0; // Use converted unitPrice from store stock
-            availableProductIds.push(productId);
-          }
-        });
-
-        if (availableProductIds.length === 0) {
-          setFilteredSupplies([]);
-          setShowSuppliesDropdown(true);
-          return;
-        }
-
-        // Fetch all items to get their details
-        const response = await getItems(1, 200, {
-          search: itemSearchTerm.trim(),
-        });
-
-        if (!response.data || response.data.length === 0) {
-          setFilteredSupplies([]);
-          setShowSuppliesDropdown(true);
-          return;
-        }
-
-        // Filter items to only include those that have stock in the selected store
-        // (the backend has already filtered items matching the search term)
-        const filteredItems = response.data.filter(item => {
-          const itemId = item._id || item.id;
-          return availableProductIds.includes(itemId);
-        });
-
-        // Map filtered items to Supply format with actual stock and converted price from selected store
-        const mappedSupplies: Supply[] = filteredItems.map((item) => {
+        // Map store stock records directly to Supply format
+        const mappedSupplies: Supply[] = stockResponse.data.map((stock) => {
+          const item = stock.product;
           const itemId = item._id || item.id;
           return {
-            id: itemId,
+            id: stock.id || (stock as any)._id,
+            productId: itemId,
             name: item.name || 'Unnamed Item',
             description: item.description || 'No description',
-            price: priceMap[itemId] || item.unitPrice || 0, // Use converted price from store stock
-            availableStock: stockMap[itemId] || 0,
+            price: stock.unitPrice || item.unitPrice || 0, // Use unitPrice from store stock
+            availableStock: stock.quantity || 0,
+            styleNumbers: stock.styleNumber ? [stock.styleNumber] : [],
           };
         });
 
@@ -662,9 +641,11 @@ export default function InvoiceEdit() {
                 // Create object matching Supply type exactly
                 const supplyItem: Supply = {
                   id: item._id || item.id,
+                  productId: item._id || item.id,
                   name: item.name || 'Unnamed Item',
                   description: item.description || 'No description',
                   price: item.unitPrice || 0,
+                  styleNumbers: (item as any).styleNumbers || [],
                 };
 
                 // Only add availableStock if it exists
@@ -697,40 +678,7 @@ export default function InvoiceEdit() {
   };
 
   // Get available stock and converted prices using store-stock API for selected store
-  const getAvailableStock = async (items: Supply[]) => {
-    try {
-      const itemIds = items.map((item) => item.id);
 
-      // Fetch store stock for these items from the selected store only
-      const stockResponse = await storeStockService.list({ 
-        storeId: selectedStore,
-        limit: 1000 
-      });
-      if (!stockResponse.data) return [];
-
-      // Map stock data to item_id format with converted unit price
-      return stockResponse.data
-        .filter((stock) => {
-          const productId = typeof stock.product === 'object' && stock.product !== null
-            ? stock.product._id || stock.product.id
-            : String(stock.product);
-          return itemIds.includes(productId);
-        })
-        .map((stock) => {
-          const productId = typeof stock.product === 'object' && stock.product !== null
-            ? stock.product._id || stock.product.id
-            : String(stock.product);
-          return {
-            item_id: productId,
-            total_qty: stock.quantity || 0,
-            unitPrice: stock.unitPrice || 0, // Include converted unit price
-          };
-        });
-    } catch (err: any) {
-      console.error('Unexpected stock fetch error:', err);
-      return [];
-    }
-  };
 
   const handleConfirmSupplies = async () => {
     // Fetch data for new supplies
@@ -749,18 +697,15 @@ export default function InvoiceEdit() {
     ];
     setSelectedSupplies(newSelectedSupplies);
 
-    const itemAvailableStocks = await getAvailableStock(tempSuppliesData) || [];
 
     // Append to invoice form fields
     const itemsToAppend = tempSuppliesData.map((supply) => {
-      // Get availableStock and converted unitPrice from filteredSupplies if present, otherwise from API
       const filteredSupply = filteredSupplies.find(item => item.id === supply.id);
-      const stockInfo = itemAvailableStocks.find(item => item.item_id === supply.id);
-      const availableStock = filteredSupply?.availableStock ?? stockInfo?.total_qty ?? 0;
-      const convertedPrice = filteredSupply?.price ?? stockInfo?.unitPrice ?? supply.price;
+      const availableStock = filteredSupply?.availableStock ?? supply.availableStock ?? 0;
+      const convertedPrice = filteredSupply?.price ?? supply.price ?? 0;
 
       return {
-        id: supply.id,
+        id: supply.productId,
         name: supply.name,
         quantity: 1,
         unitPrice: convertedPrice, // Use converted price from store stock
@@ -768,6 +713,7 @@ export default function InvoiceEdit() {
         vat: 0, // Default VAT to 0%
         total: convertedPrice,
         availableStock,
+        styleNumbers: supply.styleNumbers || [],
       };
     });
 
@@ -1046,6 +992,7 @@ export default function InvoiceEdit() {
           unitPrice: item.unitPrice || 0,
           discount: item.discount || 0, // This is percentage
           vat: item.vat || 0, // VAT percentage
+          styleNumber: item.styleNumbers?.[0] || '',
         })),
         taxAmount: 0, // Can be added later if needed
         notes: data.billingAddress || undefined,
@@ -1417,7 +1364,7 @@ export default function InvoiceEdit() {
                   </Label>
                   <div className="relative">
                     <Input
-                      placeholder={selectedStore ? "Search for items by name or description..." : "Please select a store first"}
+                      placeholder={selectedStore ? "Search for items by style number or code..." : "Please select a store first"}
                       value={itemSearchTerm}
                       onChange={(e) => setItemSearchTerm(e.target.value)}
                       onFocus={() => selectedStore && setShowSuppliesDropdown(true)}
@@ -1464,10 +1411,15 @@ export default function InvoiceEdit() {
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
                                     <Package className="h-3 w-3 text-gray-400" />
-                                    <p className="font-medium text-gray-900 text-sm">{supply.name}</p>
+                                    <p className="font-medium text-gray-900 text-sm">
+                                      {supply.name} {supply.styleNumbers && supply.styleNumbers.length > 0 && `(${supply.styleNumbers.join(', ')})`}
+                                    </p>
                                   </div>
                                   <p className="text-xs text-gray-500 ml-5">{supply.description}</p>
                                   <p className="text-xs text-gray-500 ml-5">Stock: {supply.availableStock ?? 0}</p>
+                                  {supply.styleNumbers && supply.styleNumbers.length > 0 && (
+                                    <p className="text-xs text-blue-600 font-semibold ml-5">Style Number: {supply.styleNumbers.join(', ')}</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-right ml-4">
@@ -1542,8 +1494,11 @@ export default function InvoiceEdit() {
                       <table className="w-full">
                         <thead className="bg-blue-50">
                           <tr>
-                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[25%]">
+                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[20%]">
                               Item Name
+                            </th>
+                            <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[15%]">
+                              Style Number
                             </th>
                             <th className="px-4 py-2 text-left text-sm font-medium text-blue-800">
                               Quantity
@@ -1576,7 +1531,7 @@ export default function InvoiceEdit() {
                                     <p className="font-medium text-gray-900">{field?.name}</p>
                                     <p className="text-xs text-gray-500 mt-1">
                                       Available Stock:{' '}
-                                      {displayStockMap[field?.id as string] ??
+                                      {displayStockMap[`${field?.id}_${field?.styleNumbers?.[0] || ''}`] ??
                                         field?.availableStock ??
                                         0}
                                     </p>
@@ -1592,6 +1547,13 @@ export default function InvoiceEdit() {
                                         {errors.items[index]?.id?.message}
                                       </p>
                                     )}
+                                  </div>
+                                </td>
+
+                                {/* Style Number */}
+                                <td className="px-4 py-3 align-top">
+                                  <div className="font-semibold text-blue-600">
+                                    {field?.styleNumbers?.join(', ') || '-'}
                                   </div>
                                 </td>
 
