@@ -86,8 +86,9 @@ export const PackingListsPage = () => {
   const loadPackingLists = useCallback(async (page?: number) => {
     setLoading(true);
     try {
+      const currentPage = page ?? pagination.page;
       const response = await packingListService.list({
-        page: page ?? pagination.page,
+        page: currentPage,
         limit: pagination.limit,
         status: statusFilter,
         approvalStatus: approvalStatusFilter,
@@ -103,7 +104,7 @@ export const PackingListsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, searchQuery, statusFilter, approvalStatusFilter]);
+  }, [pagination.limit, searchQuery, statusFilter, approvalStatusFilter]);
 
   const loadStores = useCallback(async () => {
     try {
@@ -143,10 +144,28 @@ export const PackingListsPage = () => {
     }
   }, []);
 
+  // Load stores on mount
+  useEffect(() => {
+    loadStores();
+  }, [loadStores]);
+
+  // Initial load of packing lists on mount
   useEffect(() => {
     loadPackingLists(1);
-    loadStores();
-  }, [loadPackingLists, loadStores]);
+  }, []);
+
+  // Refresh packing lists when filters change
+  useEffect(() => {
+    loadPackingLists(1);
+  }, [statusFilter, approvalStatusFilter]);
+
+  // Debounced search for packing lists
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadPackingLists(1);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (formState.storeId) {

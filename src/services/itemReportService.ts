@@ -2,9 +2,17 @@ import { apiClient } from './apiClient';
 
 export type ItemReportRow = {
   itemId: string;
+  itemCode: string | null;
   itemName: string;
+  billNumber: string | null;
   itemDate: string | null;
   supplierName: string | null;
+  quantity: number;
+  damagedQuantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  paidAmount: number;
+  returnAmount: number;
   packingListDetails: string | null;
   cargoNumber: string | null;
   styleNumber: string | null;

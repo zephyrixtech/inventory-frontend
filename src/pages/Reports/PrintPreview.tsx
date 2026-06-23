@@ -1050,9 +1050,17 @@ const PrintPreview: React.FC = () => {
       const rows = itemRows
         .map((row: any) => `
           <tr>
+            <td>${escapeHtml(row.itemCode || '-')}</td>
             <td>${escapeHtml(row.itemName || '-')}</td>
+            <td>${escapeHtml(row.billNumber || '-')}</td>
             <td>${escapeHtml(row.itemDate ? formatDate(row.itemDate) : '-')}</td>
             <td>${escapeHtml(row.supplierName || '-')}</td>
+            <td>${row.quantity ?? 0}</td>
+            <td>${row.damagedQuantity ?? 0}</td>
+            <td>₹${(row.unitPrice ?? 0).toFixed(2)}</td>
+            <td>₹${(row.totalAmount ?? 0).toFixed(2)}</td>
+            <td>₹${(row.paidAmount ?? 0).toFixed(2)}</td>
+            <td>₹${(row.returnAmount ?? 0).toFixed(2)}</td>
             <td>${escapeHtml(row.packingListDetails || '-')}</td>
             <td>${escapeHtml(row.cargoNumber || '-')}</td>
             <td>${escapeHtml(row.styleNumber || '-')}</td>
@@ -1106,9 +1114,17 @@ const PrintPreview: React.FC = () => {
             <table>
               <thead>
                 <tr>
+                  <th>Item ID</th>
                   <th>Item Name</th>
+                  <th>Bill Number</th>
                   <th>Item Date</th>
                   <th>Supplier</th>
+                  <th>Quantity</th>
+                  <th>Damaged Qty</th>
+                  <th>Unit Price</th>
+                  <th>Total Amount</th>
+                  <th>Paid Amount</th>
+                  <th>Return Amount</th>
                   <th>Packing List Details</th>
                   <th>Cargo Number</th>
                   <th>Style Number</th>
@@ -1884,7 +1900,7 @@ const PrintPreview: React.FC = () => {
                             <>
                               <td className="py-3 px-4 text-gray-800 text-sm">{item.id}</td>
                               <td className="py-3 px-4 text-gray-800 text-sm">{item.name}</td>
-                              <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.totalOrders}</td>
+                          <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.totalOrders}</td>
                               <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.totalValue.toFixed(2)}</td>
                               <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.onTimeDelivery}%</td>
                               <td className="py-3 px-4 text-right text-gray-800 text-sm">{item.rating}</td>
@@ -1893,10 +1909,18 @@ const PrintPreview: React.FC = () => {
                           )}
                            {selectedReportType === 'item' && (
                              <>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.itemCode || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.itemName || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.billNumber || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.itemDate ? formatDate(item.itemDate) : '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.supplierName || '-'}</td>
-                               <td className="py-3 px-4 text-gray-800 text-sm">{item.packingListDetails || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.quantity ?? 0}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.damagedQuantity ?? 0}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">₹{item.unitPrice?.toFixed(2) || '0.00'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">₹{item.paidAmount?.toFixed(2) || '0.00'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">₹{item.returnAmount?.toFixed(2) || '0.00'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm max-w-[200px] truncate">{item.packingListDetails || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.cargoNumber || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.styleNumber || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.shipmentDate ? formatDate(item.shipmentDate) : '-'}</td>

@@ -38,7 +38,6 @@ const ItemManagement = () => {
     const [priceRange, setPriceRange] = useState({ min: '', max: '' });
     const [stockFilter, setStockFilter] = useState({ min: '', max: '' });
     const [items, setItems] = useState<Item[]>([]);
-    const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
     const [manufacturers, setManufacturers] = useState<{ id: string; name: string }[]>([]);
@@ -47,26 +46,28 @@ const ItemManagement = () => {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            // In a real implementation, we would use the filters here
-            const response = await getItems(currentPage, itemsPerPage);
-            // For now, we'll convert the response to match our Item interface
-            // In a real implementation, this would come directly from the API
-            const apiItems: Item[] = [
-                {
-                    id: 'MARBALHD01',
-                    name: 'Maruti Baleno Headlight',
-                    description: 'Maruti headlight baleno set',
-                    category: 'Lights',
-                    manufacturer: 'Maruti Suzuki',
-                    model: 'Baleno',
-                    unitPrice: 100.50,
-                    sellingPrice: 120.00,
-                    minStockLevel: 5,
-                    maxStockLevel: 20
-                }
-            ];
+            // Fetch all items (large limit) for full client-side search & filtering
+            const response = await getItems(1, 10000);
+            
+            // Map the API response to the Item interface
+            const apiItems: Item[] = (response.data as any[]).map((item: any) => ({
+                id: item.code || item._id || '',
+                name: item.name || '',
+                description: item.description || '',
+                category: item.billNumber || '', // billNumber maps to category/bill column
+                manufacturer: item.manufacturer || '',
+                model: item.model || '',
+                unitPrice: item.unitPrice || 0,
+                sellingPrice: item.unitPrice || 0,
+                minStockLevel: item.minStockLevel || 0,
+                maxStockLevel: item.maxStockLevel || 0,
+                quantity: item.quantity || 0,
+                vendor: item.vendor ? { name: item.vendor.name || '' } : undefined,
+                paidAmount: item.additionalAttributes?.paidAmount || 0,
+                returnAmount: item.additionalAttributes?.returnAmount || 0
+            }));
+            
             setItems(apiItems);
-            setTotalPages(response.meta?.totalPages || 1);
         } catch (error) {
             console.error('Error fetching items:', error);
         } finally {
@@ -89,7 +90,7 @@ const ItemManagement = () => {
     useEffect(() => {
         fetchItems();
         fetchFilters();
-    }, [currentPage]);
+    }, []);
 
     const handleSearch = (query: string) => {
         setSearchQuery(query);
@@ -166,8 +167,19 @@ const ItemManagement = () => {
             matchesModel && matchesPriceRange && matchesStockLevel;
     });
 
-    // Pagination
-    const indexOfLastItem = currentPage * itemsPerPage;
+    // Reset to page 1 when filters or search query change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, selectedCategory, selectedManufacturer, selectedModel, priceRange, stockFilter]);
+
+    // Calculate total pages dynamically based on filtered items count
+    const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+
+    // Clamp current page to make sure it doesn't exceed totalPages
+    const displayPage = Math.min(currentPage, totalPages);
+
+    // Pagination slicing
+    const indexOfLastItem = displayPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
 
