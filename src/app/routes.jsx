@@ -43,6 +43,9 @@ import { StockTransferPage } from "@/pages/store/StockTransfer";
 import ProductTransmissionPage from '@/pages/administration/ProductTransmissionPage';
 import PurchaseEntries from '@/pages/purchaser/PurchaseEntries';
 import PurchaseEntryForm from '@/pages/purchaser/PurchaseEntryForm';
+// import InventoryManagement from '@/pages/management/inventoryManagement/list/InventoryManagement';
+// import InventoryItemForm from '@/pages/management/inventoryManagement/config/InventoryItemForm';
+
 
 const protectedRoutes = [
   { path: '', element: <InventoryDashboard />, module: 'Dashboard' },
@@ -84,7 +87,34 @@ const protectedRoutes = [
   { path: 'category-master/add', element: <CategoryForm />, module: 'Category Master' },
   { path: 'category-master/edit/:id', element: <CategoryForm />, module: 'Category Master' },
   { path: 'audit-trial', element: <AuditTrial />, module: 'Audit Trail' },
-  { path: 'administration/product-transmission', element: <ProductTransmissionPage />, module: 'Product Transmission' }
+  { path: 'administration/product-transmission', element: <ProductTransmissionPage />, module: 'Product Transmission' },
+  { path: 'reports', element: <Reports /> },
+  { path: 'print-preview/:id', element: <PrintPreview /> },
+  { path: 'print-preview', element: <PrintPreview /> },
+  { path: 'report/preview', element: <PrintPreview />, module: 'Reports' },
+  { path: 'stock', element: <StoreStockPage /> },
+  { path: 'stock-transfer', element: <StockTransferPage /> },
+  { path: 'transfer', element: <StockTransferPage /> },
+  { path: 'qc', element: <QualityControlPage /> },
+  { path: 'qc/add', element: <QualityControlPage /> },
+  { path: 'qc/edit/:id', element: <QualityControlPage /> },
+  { path: 'qc/view/:id', element: <QualityControlPage /> },
+  { path: 'warehouseManagement', element: <WarehouseManagement />, module: 'Inventory Management' },
+  { path: 'items', element: <ItemManagement />, module: 'Item Master' },
+  { path: 'invoice', element: <SalesInvoiceList />, module: 'Sales Invoice' },
+  { path: 'invoice/view/:id', element: <InvoiceView />, module: 'Sales Invoice' },
+  { path: 'invoice/edit/:id', element: <InvoiceEdit />, module: 'Sales Invoice' },
+  { path: 'invoice/add', element: <InvoiceEdit />, module: 'Sales Invoice' },
+  // { path: 'inventoryManagement', element: <InventoryManagement />, module: 'Inventory Management' },
+  // { path: 'inventory/add', element: <InventoryItemForm />, module: 'Inventory Management' },
+  // { path: 'inventory/edit/:id', element: <InventoryItemForm />, module: 'Inventory Management' },
+  { path: 'administration', element: <CompanyAdministration />, module: 'Administration' },
+  { path: 'administration/currency', element: <CurrencyRatesPage />, module: 'Administration' },
+  { path: 'category-master', element: <CategoryManagement />, module: 'Category Master' },
+  { path: 'category-master/add', element: <CategoryForm />, module: 'Category Master' },
+  { path: 'category-master/edit/:id', element: <CategoryForm />, module: 'Category Master' },
+  { path: 'audit-trial', element: <AuditTrial />, module: 'Audit Trail' },
+
 ];
 
 const unprotectedRoutes = [
