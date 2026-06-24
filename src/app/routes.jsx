@@ -21,14 +21,6 @@ import AddStoreForm from '@/pages/management/storeManagement/config/AddStoreForm
 import SupplierForm from '@/pages/management/supplierManagement/config/SupplierForm';
 import { StoreManagement } from '@/pages/management/storeManagement/list/StoreManagement';
 import InventoryForm from '@/pages/inventory/config/inventory-form';
-import PurchaseOrderForm from '@/pages/management/purchaseManagement/config/PurchaseOrderForm';
-import PurchaseOrderList from '@/pages/management/purchaseManagement/list/PurchaseManagement';
-import WorkflowConfiguration from '@/pages/workflow/WorkflowConfig';
-import InventoryManagement from '@/pages/management/inventoryManagement/list/InventoryManagement';
-import InventoryItemForm from '@/pages/management/inventoryManagement/config/InventoryItemForm';
-import PurchaseOrderView from '@/pages/management/purchaseManagement/config/PurchaseOrderView';
-import Approvals from '@/pages/Approval/Approvals';
-import ApprovalsView from '@/pages/Approval/ApprovalsView';
 import PrintPreview from '@/pages/Reports/PrintPreview';
 import CompanyAdministration from '@/pages/administration/CompanyAdministration';
 import NotificationForm from '@/pages/Notifications/config/NotificationForm';
@@ -39,11 +31,10 @@ import CustomerForm from '@/pages/customer/config/CustomerForm';
 import { CustomerManagement } from '@/pages/customer/list/CustomerManagement';
 import CustomerView from '@/pages/customer/config/CustomerView';
 import NotFoundPage from '@/pages/alert/NotFoundPage';
-import { RoleManagement } from '@/pages/management/roleManagement/RoleManagement';
 import AuthRedirectPage from '@/pages/auth/authRedirect';
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 import QualityControlPage from '@/pages/purchaser/QC';
-import {PackingListsPage} from '@/pages/purchaser/PackingLists'
+import { PackingListsPage } from '@/pages/purchaser/PackingLists';
 import { PackingListView } from '@/pages/purchaser/PackingListView';
 import { DailyExpensesPage } from "@/pages/purchaser/DailyExpenses";
 import { OpeningBalancePage } from "@/pages/purchaser/OpeningBalance";
@@ -53,13 +44,11 @@ import ProductTransmissionPage from '@/pages/administration/ProductTransmissionP
 import PurchaseEntries from '@/pages/purchaser/PurchaseEntries';
 import PurchaseEntryForm from '@/pages/purchaser/PurchaseEntryForm';
 
-
 const protectedRoutes = [
   { path: '', element: <InventoryDashboard />, module: 'Dashboard' },
   { path: 'users', element: <UsersManagement />, module: 'Users' },
   { path: 'users/add', element: <UserForm />, module: 'Users' },
   { path: 'users/edit/:id', element: <UserForm />, module: 'Users' },
-  { path: 'role-management', element: <RoleManagement />, module: 'Users' },
   { path: 'item-master', element: <Inventory />, module: 'Item Master' },
   { path: 'item-master/add', element: <InventoryForm />, module: 'Item Master' },
   { path: 'item-master/edit/:id', element: <InventoryForm />, module: 'Item Master' },
@@ -76,50 +65,33 @@ const protectedRoutes = [
   { path: 'store/edit/:id', element: <AddStoreForm />, module: 'Store Management' },
   { path: 'store/stock', element: <StoreStockPage />, module: 'Store Stock' },
   { path: 'store/transfer', element: <StockTransferPage />, module: 'Stock Transfer' },
-  { path: 'warehouseManagement', element: <WarehouseManagement />, module: 'Inventory Management' },
-  { path: 'items', element: <ItemManagement />, module: 'Item Master' },
-  { path: 'invoice', element: <SalesInvoiceList />, module: 'Sales Invoice' },
-  { path: 'invoice/view/:id', element: <InvoiceView />, module: 'Sales Invoice' },
-  { path: 'invoice/edit/:id', element: <InvoiceEdit />, module: 'Sales Invoice' },
-  { path: 'invoice/add', element: <InvoiceEdit />, module: 'Sales Invoice' },
-  { path: 'reports', element: <Reports />, module: 'Reports' },
-  { path: 'report/preview', element: <PrintPreview />, module: 'Reports' },
-  { path: 'purchaseOrderForm', element: <PurchaseOrderForm />, module: 'Purchase Order Management' },
-  { path: 'purchaseOrderManagement', element: <PurchaseOrderList />, module: 'Purchase Order Management' },
-  { path: 'purchaseOrderView/:id', element: <PurchaseOrderView />, module: 'Purchase Order Management' },
-  { path: 'workflow-config', element: <WorkflowConfiguration />, module: 'Workflow Configuration' },
-  { path: 'inventoryManagement', element: <InventoryManagement />, module: 'Inventory Management' },
-  { path: 'inventory/add', element: <InventoryItemForm />, module: 'Inventory Management' },
-  { path: 'inventory/edit/:id', element: <InventoryItemForm />, module: 'Inventory Management' },
-  { path: 'purchase-order-approvals', element: <Approvals />, module: 'Purchase Order Approvals' },
-  { path: 'purchase-order-approvals-view/:id', element: <ApprovalsView />, module: 'Purchase Order Approvals' },
+  { path: 'customer-management', element: <CustomerManagement />, module: 'Customer Master' },
+  { path: 'customer-management/add', element: <CustomerForm />, module: 'Customer Master' },
+  { path: 'customer-management/edit/:id', element: <CustomerForm />, module: 'Customer Master' },
+  { path: 'customer-management/view/:id', element: <CustomerView />, module: 'Customer Master' },
+  { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
+  { path: 'purchaser/packing-lists', element: <PackingListsPage />, module: 'Packing Lists' },
+  { path: 'purchaser/packing-lists/view/:id', element: <PackingListView />, module: 'Packing Lists' },
+  { path: 'purchaser/expenses', element: <DailyExpensesPage />, module: 'Daily Expenses' },
+  { path: 'purchaser/opening-balance', element: <OpeningBalancePage />, module: 'Opening Balance' },
+  { path: 'purchase-entries', element: <PurchaseEntries />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/add', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/edit/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
+  { path: 'purchase-entries/view/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
   { path: 'administration', element: <CompanyAdministration />, module: 'Administration' },
   { path: 'administration/currency', element: <CurrencyRatesPage />, module: 'Administration' },
   { path: 'category-master', element: <CategoryManagement />, module: 'Category Master' },
   { path: 'category-master/add', element: <CategoryForm />, module: 'Category Master' },
   { path: 'category-master/edit/:id', element: <CategoryForm />, module: 'Category Master' },
   { path: 'audit-trial', element: <AuditTrial />, module: 'Audit Trail' },
-  { path: 'customer-management', element: <CustomerManagement />, module: 'Customer Master' },
-  { path: 'customer-management/add', element: <CustomerForm />, module: 'Customer Master' },
-  { path: 'customer-management/edit/:id', element: <CustomerForm />, module: 'Customer Master' },
-  { path: 'customer-management/view/:id', element: <CustomerView />, module: 'Customer Master' },
-  { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
-  { path: 'purchaser/packing-lists',element: <PackingListsPage /> ,module: 'Packing Lists'},
-  { path: 'purchaser/packing-lists/view/:id',element: <PackingListView /> ,module: 'Packing Lists'},
-  { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'},
-  { path: 'purchaser/opening-balance',element: <OpeningBalancePage /> ,module: 'Opening Balance'},
-  { path: 'purchase-entries', element: <PurchaseEntries />, module: 'Purchase Entries' },
-  { path: 'purchase-entries/add', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
-  { path: 'purchase-entries/edit/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
-  { path: 'purchase-entries/view/:id', element: <PurchaseEntryForm />, module: 'Purchase Entries' },
-   { path: 'administration/product-transmission', element: <ProductTransmissionPage /> }
+  { path: 'administration/product-transmission', element: <ProductTransmissionPage />, module: 'Product Transmission' }
 ];
 
 const unprotectedRoutes = [
   { path: 'notifications', element: <Notifications /> },
   { path: 'notifications/create', element: <NotificationForm /> },
   { path: 'userProfile', element: <UserProfile /> },
-  { path: 'auth-redirect', element: <AuthRedirectPage /> },
+  { path: 'auth-redirect', element: <AuthRedirectPage /> }
 ];
 
 export const router = createBrowserRouter([
@@ -141,5 +113,3 @@ export const router = createBrowserRouter([
   },
   { path: '*', element: <NotFoundPage /> },
 ]);
-
-

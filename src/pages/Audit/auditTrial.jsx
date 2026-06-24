@@ -34,219 +34,79 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Static data instead of API calls
-const staticAuditData = [
-  {
-    id: "1",
-    transactionDate: new Date("2023-05-15T10:30:00"),
-    scope: "User Management",
-    module: "User Creation",
-    key: "USER001",
-    log: "Created new user account for John Doe",
-    actionBy: "Admin User"
-  },
-  {
-    id: "2",
-    transactionDate: new Date("2023-05-15T11:45:00"),
-    scope: "Inventory",
-    module: "Item Update",
-    key: "ITEM002",
-    log: "Updated stock quantity for Widget B from 50 to 75",
-    actionBy: "Inventory Manager"
-  },
-  {
-    id: "3",
-    transactionDate: new Date("2023-05-15T14:20:00"),
-    scope: "Purchase Order",
-    module: "PO Creation",
-    key: "PO20230515001",
-    log: "Created new purchase order for 100 units of Gadget X",
-    actionBy: "Procurement Officer"
-  },
-  {
-    id: "4",
-    transactionDate: new Date("2023-05-16T09:15:00"),
-    scope: "Sales",
-    module: "Invoice Generation",
-    key: "INV20230516001",
-    log: "Generated invoice for customer ABC Corp",
-    actionBy: "Sales Executive"
-  },
-  {
-    id: "5",
-    transactionDate: new Date("2023-05-16T13:30:00"),
-    scope: "System",
-    module: "Backup",
-    key: "BACKUP001",
-    log: "Daily backup completed successfully",
-    actionBy: "System"
-  },
-  {
-    id: "6",
-    transactionDate: new Date("2023-05-16T16:45:00"),
-    scope: "User Management",
-    module: "Permission Change",
-    key: "USER003",
-    log: "Granted admin privileges to Jane Smith",
-    actionBy: "Super Admin"
-  },
-  {
-    id: "7",
-    transactionDate: new Date("2023-05-17T10:00:00"),
-    scope: "Inventory",
-    module: "Stock Adjustment",
-    key: "ITEM005",
-    log: "Adjusted stock level for Tool Z due to physical count discrepancy",
-    actionBy: "Warehouse Manager"
-  },
-  {
-    id: "8",
-    transactionDate: new Date("2023-05-17T14:15:00"),
-    scope: "Purchase Order",
-    module: "PO Approval",
-    key: "PO20230515001",
-    log: "Approved purchase order for Gadget X",
-    actionBy: "Department Head"
-  }
-];
+import { auditService } from "@/services/auditService";
 
 const AuditTrail = () => {
-  // Set initial state to today's date for filters
-  const today = new Date().toISOString().split("T")[0];
-  const [dateFromFilter, setDateFromFilter] = useState(today);
-  const [dateToFilter, setDateToFilter] = useState(today);
-
-  const [records, setRecords] = useState(staticAuditData);
-  const [loading, setLoading] = useState(false);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
-    total: staticAuditData.length,
+    total: 0,
     itemsPerPage: 10,
   });
 
-  // Sort state
+  // Sort state: default to transactionDate descending
   const [sortConfig, setSortConfig] = useState({
-    field: null,
-    direction: null,
+    field: "transactionDate",
+    direction: "desc",
   });
-  const [userCompanyId, setUserCompanyId] = useState("company123");
 
-  // Simulate fetching user company ID
-  useEffect(() => {
-    // In a real app, this would fetch from auth
-    setUserCompanyId("company123");
-  }, []);
-
-  // Filter and sort records based on current filters
-  useEffect(() => {
-    // In a real app, this would fetch from the database
-    // For now, we'll just filter the static data
-    let filtered = [...staticAuditData];
-    
-    // Apply date filters
-    if (dateFromFilter) {
-      const fromDate = new Date(dateFromFilter);
-      filtered = filtered.filter(record => record.transactionDate >= fromDate);
-    }
-    
-    if (dateToFilter) {
-      const toDate = new Date(dateToFilter);
-      toDate.setHours(23, 59, 59, 999); // End of day
-      filtered = filtered.filter(record => record.transactionDate <= toDate);
-    }
-    
-    // Apply search filter
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (r) =>
-          r.module.toLowerCase().includes(term) ||
-          r.key.toLowerCase().includes(term) ||
-          r.actionBy.toLowerCase().includes(term) ||
-          r.scope.toLowerCase().includes(term) ||
-          r.log.toLowerCase().includes(term)
-      );
-    }
-    
-    // Apply sorting
-    if (sortConfig.field && sortConfig.direction) {
-      filtered.sort((a, b) => {
-        let aValue, bValue;
-        
-        switch (sortConfig.field) {
-          case "transactionDate":
-            aValue = a.transactionDate;
-            bValue = b.transactionDate;
-            break;
-          case "scope":
-            aValue = a.scope;
-            bValue = b.scope;
-            break;
-          case "module":
-            aValue = a.module;
-            bValue = b.module;
-            break;
-          case "key":
-            aValue = a.key;
-            bValue = b.key;
-            break;
-          case "log":
-            aValue = a.log;
-            bValue = b.log;
-            break;
-          case "actionBy":
-            aValue = a.actionBy;
-            bValue = b.actionBy;
-            break;
-          default:
-            return 0;
-        }
-        
-        if (aValue < bValue) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
+  // Fetch logs from the API
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const response = await auditService.list({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchTerm.trim() || undefined,
+        scope: scopeFilter !== "all" ? scopeFilter : undefined,
+        dateFrom: dateFromFilter || undefined,
+        dateTo: dateToFilter || undefined,
+        sortBy: sortConfig.field || undefined,
+        sortOrder: sortConfig.direction || undefined,
       });
-    } else {
-      // Default sort by transaction_date descending
-      filtered.sort((a, b) => b.transactionDate - a.transactionDate);
+
+      if (response && response.data) {
+        setRecords(response.data);
+        setPagination({
+          currentPage: response.meta.page,
+          totalPages: response.meta.totalPages,
+          total: response.meta.total,
+          itemsPerPage: response.meta.limit,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch audit logs:", error);
+    } finally {
+      setLoading(false);
     }
-    
-    // Apply pagination
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / itemsPerPage);
-    const fromRow = (currentPage - 1) * itemsPerPage;
-    const toRow = fromRow + itemsPerPage;
-    const paginated = filtered.slice(fromRow, toRow);
-    
-    setRecords(paginated);
-    setPagination({
-      currentPage,
-      totalPages,
-      total,
-      itemsPerPage,
-    });
-    
-    setLoading(false);
-  }, [currentPage, itemsPerPage, dateFromFilter, dateToFilter, sortConfig, searchTerm]);
+  };
+
+  // Debounced/Triggered fetching logic
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchLogs();
+    }, 250);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [currentPage, itemsPerPage, scopeFilter, dateFromFilter, dateToFilter, sortConfig, searchTerm]);
 
   // Sort icon helper
   const getSortIcon = (field) => {
     if (sortConfig.field !== field)
-      return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+      return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
     if (sortConfig.direction === "asc")
       return <ArrowUp className="h-4 w-4 text-blue-600" />;
     if (sortConfig.direction === "desc")
       return <ArrowDown className="h-4 w-4 text-blue-600" />;
-    return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
   };
 
   // Handle sorting
@@ -254,43 +114,113 @@ const AuditTrail = () => {
     let dir = "asc";
     if (sortConfig.field === field) {
       if (sortConfig.direction === "asc") dir = "desc";
-      else if (sortConfig.direction === "desc") dir = null;
+      else if (sortConfig.direction === "desc") dir = "asc";
     }
-    setSortConfig({ field: dir ? field : null, direction: dir });
+    setSortConfig({ field, direction: dir });
+    setCurrentPage(1);
+  };
+
+  // Handle state updates that reset pagination page to 1
+  const handleSearchChange = (val) => {
+    setSearchTerm(val);
+    setCurrentPage(1);
+  };
+
+  const handleScopeChange = (val) => {
+    setScopeFilter(val);
+    setCurrentPage(1);
+  };
+
+  const handleDateFromChange = (val) => {
+    setDateFromFilter(val);
+    setCurrentPage(1);
+  };
+
+  const handleDateToChange = (val) => {
+    setDateToFilter(val);
     setCurrentPage(1);
   };
 
   // Clear filters
   const clearFilters = () => {
-    setSortConfig({ field: null, direction: null });
+    setSortConfig({ field: "transactionDate", direction: "desc" });
     setSearchTerm("");
+    setScopeFilter("all");
+    setDateFromFilter("");
+    setDateToFilter("");
     setCurrentPage(1);
-    setDateFromFilter(today);
-    setDateToFilter(today);
   };
 
-  // CSV export simulation
-  const exportToCSV = () => {
-    // In a real app, this would export the data
-    alert("CSV export would download here with static data");
+  // CSV export
+  const exportToCSV = async () => {
+    try {
+      const response = await auditService.list({
+        page: 1,
+        limit: 1000,
+        search: searchTerm.trim() || undefined,
+        scope: scopeFilter !== "all" ? scopeFilter : undefined,
+        dateFrom: dateFromFilter || undefined,
+        dateTo: dateToFilter || undefined,
+        sortBy: sortConfig.field || undefined,
+        sortOrder: sortConfig.direction || undefined,
+      });
+
+      if (!response || !response.data || response.data.length === 0) {
+        alert("No records to export");
+        return;
+      }
+
+      const headers = ["Date", "Scope", "Module", "Key", "Log", "IP Address", "Device", "Location", "Action By", "Role"];
+      const rows = response.data.map((r) => {
+        const formattedDate = r.transactionDate ? format(new Date(r.transactionDate), "yyyy-MM-dd HH:mm") : "";
+        const cleanLog = (r.log || "").replace(/"/g, '""');
+        return [
+          formattedDate,
+          r.scope || "",
+          r.module || "",
+          r.key || "",
+          `"${cleanLog}"`,
+          r.ipAddress || "",
+          r.device || "",
+          r.location || "",
+          r.actionBy || "",
+          r.role || "",
+        ];
+      });
+
+      // Excel support: add UTF-8 BOM
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+        + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `audit_logs_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+      alert("Failed to export CSV");
+    }
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-slate-50/50 min-h-screen">
       <div className="mx-auto max-w-7xl space-y-6">
-        <Card className="min-h-[85vh] shadow-sm">
-          <CardHeader className="rounded-t-lg border-b pb-6">
+        <Card className="min-h-[85vh] shadow-sm border-slate-200/80">
+          <CardHeader className="rounded-t-lg border-b border-slate-100 pb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 rounded-lg bg-blue-100 shadow-sm">
-                  <Clock className="h-6 w-6 text-blue-600" />
+                <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-100 shadow-sm">
+                  <Clock className="h-6 w-6 text-blue-600 animate-pulse" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl font-bold">
+                  <CardTitle className="text-2xl font-bold text-slate-800">
                     Audit Trail
                   </CardTitle>
-                  <CardDescription className="mt-1">
-                    Track all system changes and activities
+                  <CardDescription className="mt-1 text-slate-500">
+                    Track all system changes, user updates, and activities
                   </CardDescription>
                 </div>
               </div>
@@ -299,6 +229,7 @@ const AuditTrail = () => {
                   variant="outline"
                   onClick={exportToCSV}
                   disabled={records.length === 0}
+                  className="hover:bg-slate-50 border-slate-200"
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Export CSV
@@ -309,97 +240,134 @@ const AuditTrail = () => {
 
           <CardContent className="pt-6">
             {/* Filters */}
-            <div className="mb-6 flex flex-col lg:flex-row items-center gap-4">
-              <div className="relative flex-1 w-full lg:w-1/3">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <div className="mb-6 flex flex-col xl:flex-row items-center gap-4">
+              <div className="relative flex-1 w-full xl:w-1/3">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Search by Module, Key, Scope, or Log..."
+                  placeholder="Search by Log, User, Module, or Key..."
                   value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-10"
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-10 border-slate-200 focus-visible:ring-blue-500"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={dateFromFilter}
-                  onChange={(e) => setDateFromFilter(e.target.value)}
-                  className="w-[150px]"
-                />
-                <span className="text-gray-500">to</span>
-                <Input
-                  type="date"
-                  value={dateToFilter}
-                  onChange={(e) => setDateToFilter(e.target.value)}
-                  className="w-[150px]"
-                />
-                <Button variant="outline" onClick={clearFilters}>
+              <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                <Select
+                  value={scopeFilter}
+                  onValueChange={(v) => handleScopeChange(v)}
+                >
+                  <SelectTrigger className="w-[180px] border-slate-200">
+                    <SelectValue placeholder="All Scopes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Scopes</SelectItem>
+                    <SelectItem value="Inventory">Inventory</SelectItem>
+                    <SelectItem value="Quality Control">Quality Control</SelectItem>
+                    <SelectItem value="Packing List">Packing List</SelectItem>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="User Management">User Management</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateFromFilter}
+                    onChange={(e) => handleDateFromChange(e.target.value)}
+                    className="w-[150px] border-slate-200"
+                  />
+                  <span className="text-slate-400">to</span>
+                  <Input
+                    type="date"
+                    value={dateToFilter}
+                    onChange={(e) => handleDateToChange(e.target.value)}
+                    className="w-[150px] border-slate-200"
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={clearFilters}
+                  className="border-slate-200 hover:bg-slate-50 text-slate-600 ml-auto xl:ml-0"
+                >
                   Clear Filters
                 </Button>
               </div>
             </div>
 
             {/* Table */}
-            <div className="rounded-lg overflow-hidden border shadow-sm">
+            <div className="rounded-lg overflow-hidden border border-slate-100 shadow-sm bg-white">
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-gray-50">
+                <TableHeader className="bg-slate-50/75">
+                  <TableRow>
                     {[
                       ["transactionDate", "Transaction Date"],
                       ["scope", "Scope"],
                       ["module", "Module"],
                       ["key", "Key"],
-                      ["log", "Log"],
+                      ["log", "Log Description"],
+                      ["ipAddress", "IP Address"],
+                      ["device", "Device"],
+                      ["location", "Location"],
+                      ["actionBy", "Action By"],
                     ].map(([field, label]) => (
                       <TableHead
                         key={field}
-                        className="font-semibold cursor-pointer hover:text-blue-600"
+                        className="font-semibold text-slate-600 cursor-pointer hover:text-blue-600 select-none py-3"
                         onClick={() => handleSort(field)}
                       >
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           {label} {getSortIcon(field)}
                         </div>
                       </TableHead>
                     ))}
-                    <TableHead className="font-semibold">
-                      Action By
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    // Skeleton loader for 5 rows
                     Array.from({ length: itemsPerPage }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 6 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
+                        {Array.from({ length: 9 }).map((_, j) => (
+                          <TableCell key={j} className="py-4">
+                            <div className="h-4 bg-slate-100 rounded animate-pulse w-full"></div>
                           </TableCell>
                         ))}
                       </TableRow>
                     ))
                   ) : records.length > 0 ? (
                     records.map((r) => (
-                      <TableRow key={r.id} className="hover:bg-gray-50">
-                        <TableCell>
-                          {format(r.transactionDate, "yyyy-MM-dd HH:mm")}
+                      <TableRow key={r._id || r.id} className="hover:bg-slate-50/50 border-b border-slate-100">
+                        <TableCell className="font-mono text-xs text-slate-500 whitespace-nowrap">
+                          {r.transactionDate ? format(new Date(r.transactionDate), "yyyy-MM-dd HH:mm") : "-"}
                         </TableCell>
-                        <TableCell>{r.scope}</TableCell>
-                        <TableCell>{r.module}</TableCell>
-                        <TableCell>{r.key}</TableCell>
-                        <TableCell className="break-words whitespace-pre-wrap">
+                        <TableCell>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            {r.scope}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-700">{r.module}</TableCell>
+                        <TableCell className="font-mono text-xs text-slate-500">{r.key || "-"}</TableCell>
+                        <TableCell className="break-words whitespace-pre-wrap max-w-sm text-slate-600 text-sm">
                           {r.log}
                         </TableCell>
-                        <TableCell>{r.actionBy}</TableCell>
+                        <TableCell className="font-mono text-xs text-slate-500">{r.ipAddress || "-"}</TableCell>
+                        <TableCell className="text-slate-600 text-sm">{r.device || "-"}</TableCell>
+                        <TableCell className="text-slate-600 text-sm">
+                          {r.location || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-800 text-sm">{r.actionBy}</span>
+                            {r.role && (
+                              <span className="text-[10px] text-slate-400 font-medium tracking-wider uppercase mt-0.5">
+                                {r.role}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-6">
-                        No records found
+                      <TableCell colSpan={9} className="text-center py-10 text-slate-400">
+                        No audit records found matching the filters
                       </TableCell>
                     </TableRow>
                   )}
@@ -408,9 +376,9 @@ const AuditTrail = () => {
             </div>
 
             {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-6 gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-6 gap-4 border-t border-slate-100 mt-2">
               <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">Show</p>
+                <p className="text-sm text-slate-500">Show</p>
                 <Select
                   value={itemsPerPage.toString()}
                   onValueChange={(v) => {
@@ -418,7 +386,7 @@ const AuditTrail = () => {
                     setCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger className="w-[70px]">
+                  <SelectTrigger className="w-[70px] border-slate-200">
                     <SelectValue placeholder={itemsPerPage.toString()} />
                   </SelectTrigger>
                   <SelectContent>
@@ -428,11 +396,11 @@ const AuditTrail = () => {
                     <SelectItem value="50">50</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-sm text-muted-foreground">entries</p>
+                <p className="text-sm text-slate-500">entries</p>
               </div>
               
               <div className="flex items-center space-x-2">
-                <p className="hidden sm:block text-sm text-muted-foreground">
+                <p className="hidden md:block text-sm text-slate-500">
                   Showing{" "}
                   {records.length > 0 
                     ? (currentPage - 1) * itemsPerPage + 1 
@@ -446,24 +414,26 @@ const AuditTrail = () => {
                   size="sm"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="border-slate-200 text-slate-600 hover:bg-slate-50"
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
                 </Button>
                 
-                <div className="flex items-center justify-center text-sm font-medium bg-gray-100 px-3 py-1 rounded">
+                <div className="flex items-center justify-center text-sm font-semibold bg-slate-100 text-slate-700 px-3 py-1 rounded select-none">
                   Page {pagination.currentPage} of {pagination.totalPages}
                 </div>
                 
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={currentPage === pagination.totalPages}
+                  disabled={currentPage === pagination.totalPages || pagination.totalPages === 0}
                   onClick={() =>
                     setCurrentPage((p) =>
                       Math.min(p + 1, pagination.totalPages)
                     )
                   }
+                  className="border-slate-200 text-slate-600 hover:bg-slate-50"
                 >
                   Next
                   <ChevronRight className="h-4 w-4 ml-1" />

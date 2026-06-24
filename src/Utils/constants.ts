@@ -1,27 +1,25 @@
-import { Database } from "./types/database.types";
-
-type IRole = Database["public"]["Tables"]["role_master"]["Row"];
-type IUser = Database["public"]["Tables"]["user_mgmt"]["Row"];
-type IStore = Database["public"]["Tables"]["store_mgmt"]["Row"];
-type ITemsConfig = Database["public"]["Tables"]["item_configurator"]["Row"];
-type ICollection = Database["public"]["Tables"]["collection_master"]["Row"];
-type ICompany = Database["public"]["Tables"]["company_master"]["Row"];
-type IUnit = Database["public"]["Tables"]["units_master"]["Row"];
-type ItemManagement = Database["public"]["Tables"]["item_mgmt"]["Row"];
-type ISupplierManagement = Database["public"]["Tables"]["supplier_mgmt"]["Row"];
-type ISupplierItems = Database["public"]["Tables"]["supplier_items"]["Row"];
-type ICategoryMaster = Database["public"]["Tables"]["category_master"]["Row"];
-type IPurchaseOrder = Database["public"]["Tables"]["purchase_order"]["Row"];
-type IInventory = Database["public"]["Tables"]["inventory_mgmt"]["Row"];
-type IPurchaseOrderItems = Database["public"]["Tables"]["purchase_order_items"]["Row"];
-type IWorkflowConfig = Database["public"]["Tables"]["workflow_config"]["Row"];
-type ISystemMessageConfig = Database["public"]["Tables"]["system_message_config"]["Row"];
-type IStoreStockLevels = Database["public"]["Tables"]["store_stock_levels"]["Row"];
-type IInventoryTransfer = Database["public"]["Tables"]["inventory_transfer"]["Row"];
-type ISalesInvoice = Database["public"]["Tables"]["sales_invoice"]["Row"];
-type ISalesInvoiceItems = Database["public"]["Tables"]["sales_invoice_items"]["Row"];
-type IPurchaseReturn = Database["public"]["Tables"]["purchase_return"]["Row"];
-type IPurchaseReturnItems = Database["public"]["Tables"]["purchase_return_items"]["Row"];
+type IRole = any;
+type IUser = any;
+type IStore = any;
+type ITemsConfig = any;
+type ICollection = any;
+type ICompany = any;
+type IUnit = any;
+type ItemManagement = any;
+type ISupplierManagement = any;
+type ISupplierItems = any;
+type ICategoryMaster = any;
+type IPurchaseOrder = any;
+type IInventory = any;
+type IPurchaseOrderItems = any;
+type IWorkflowConfig = any;
+type ISystemMessageConfig = any;
+type IStoreStockLevels = any;
+type IInventoryTransfer = any;
+type ISalesInvoice = any;
+type ISalesInvoiceItems = any;
+type IPurchaseReturn = any;
+type IPurchaseReturnItems = any;
 
 interface INotificationMessage {
   id: string;
@@ -63,4 +61,30 @@ interface IReportConfig {
   modified_at?: string;
 }
 
-export type { IRole, IUser, IStore, ITemsConfig, ICollection, ICompany, IUnit, ItemManagement, ISupplierManagement, ISupplierItems, ICategoryMaster, IPurchaseOrder, IInventory, IPurchaseOrderItems, IWorkflowConfig, ISystemMessageConfig, IStoreStockLevels, IInventoryTransfer, ISalesInvoice, ISalesInvoiceItems, IPurchaseReturn, IPurchaseReturnItems, ISystemSettings, IReportConfig, INotificationMessage };
+export type { 
+  IRole, 
+  IUser, 
+  IStore, 
+  ITemsConfig, 
+  ICollection, 
+  ICompany, 
+  IUnit, 
+  ItemManagement, 
+  ISupplierManagement, 
+  ISupplierItems, 
+  ICategoryMaster, 
+  IPurchaseOrder, 
+  IInventory, 
+  IPurchaseOrderItems, 
+  IWorkflowConfig, 
+  ISystemMessageConfig, 
+  IStoreStockLevels, 
+  IInventoryTransfer, 
+  ISalesInvoice, 
+  ISalesInvoiceItems, 
+  IPurchaseReturn, 
+  IPurchaseReturnItems, 
+  ISystemSettings, 
+  IReportConfig, 
+  INotificationMessage 
+};
