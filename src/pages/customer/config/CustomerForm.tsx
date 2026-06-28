@@ -73,9 +73,8 @@ const formFieldsConfig: FormFieldConfig[] = [
     label: 'Phone Number',
     type: 'tel',
     placeholder: '10 digits',
-    required: true,
     icon: Phone,
-    validation: z.string().regex(/^[0-9]{10}$/, 'Phone number must be 10 digits'),
+    validation: z.string().regex(/^[0-9]{10}$/, 'Phone number must be 10 digits').optional().or(z.literal('')),
     gridCols: 2,
   },
   {
@@ -93,7 +92,6 @@ const formFieldsConfig: FormFieldConfig[] = [
     name: 'status',
     label: 'Status',
     type: 'select',
-    required: true,
     icon: CheckCircle,
     options: [
       { value: 'Active', label: 'Active' },
