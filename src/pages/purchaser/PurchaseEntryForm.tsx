@@ -23,6 +23,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import {
@@ -51,6 +53,11 @@ const purchaseEntryItemSchema = z.object({
   description: z.string().optional(),
 });
 
+const paymentSchema = z.object({
+  date: z.string().min(1, 'Payment date is required'),
+  amount: z.number().min(0.01, 'Payment amount must be greater than 0'),
+});
+
 const purchaseEntrySchema = z.object({
   billNumber: z.string().min(1, 'Bill number is required'),
   date: z.string().min(1, 'Date is required'),
@@ -58,7 +65,8 @@ const purchaseEntrySchema = z.object({
   items: z.array(purchaseEntryItemSchema).min(1, 'At least one item is required'),
   totalAmount: z.number().min(0.01, 'Total amount must be greater than 0'),
   discount: z.number().min(0, 'Discount cannot be negative'),
-  paidAmount: z.number().min(0, 'Paid amount cannot be negative'),
+  paidAmount: z.number().optional(),
+  payments: z.array(paymentSchema),
   notes: z.string().optional(),
 });
 
@@ -116,6 +124,7 @@ const PurchaseEntryForm = () => {
       date: new Date().toISOString().split('T')[0],
       supplier: '',
       items: [{ item: '', description: '' }],
+      payments: [],
       totalAmount: 0,
       discount: 0,
       paidAmount: 0,
@@ -128,10 +137,21 @@ const PurchaseEntryForm = () => {
     name: 'items',
   });
 
+  const { fields: paymentFields, append: appendPayment, remove: removePayment } = useFieldArray({
+    control,
+    name: 'payments',
+  });
+
   const watchedTotalAmount = watch('totalAmount');
   const watchedDiscount = watch('discount');
-  const paidAmount = watch('paidAmount');
+  const watchedPayments = watch('payments') || [];
   const watchedBillNumber = watch('billNumber');
+
+  // Calculate dynamic paid amount sum from installments
+  const totalPaid = watchedPayments.reduce((sum, p) => {
+    const val = parseFloat(p.amount as any);
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
 
   // Manual refresh function for bill items
   const handleRefreshBillItems = () => {
@@ -170,7 +190,7 @@ const PurchaseEntryForm = () => {
 
   // Calculate final amount and balance
   const finalAmount = watchedTotalAmount - watchedDiscount;
-  const balanceAmount = finalAmount - paidAmount;
+  const balanceAmount = finalAmount - totalPaid;
 
   // Function to calculate total amount from items
   const calculateTotalAmountFromItems = (itemsData: any[]) => {
@@ -400,6 +420,10 @@ const PurchaseEntryForm = () => {
             item: (item.item as any)?._id || (item.item as any)?.id || item.item,
             description: item.description || '',
           })),
+          payments: (entryData.payments || []).map((p: any) => ({
+            date: p.date ? new Date(p.date).toISOString().split('T')[0] : '',
+            amount: p.amount || 0
+          })),
           totalAmount: entryData.totalAmount,
           discount: entryData.discount,
           paidAmount: entryData.paidAmount,
@@ -429,7 +453,12 @@ const PurchaseEntryForm = () => {
         items: data.items.map(item => ({
           item: item.item,
           description: item.description
-        }))
+        })),
+        payments: data.payments.map(p => ({
+          date: p.date,
+          amount: Number(p.amount)
+        })),
+        paidAmount: totalPaid
       };
 
       if (isEditing && id) {
@@ -799,25 +828,89 @@ const PurchaseEntryForm = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="paidAmount" className="flex items-center gap-1 font-medium">
-                      <DollarSign className="h-4 w-4" /> Paid Amount
-                    </Label>
-                    <Input
-                      id="paidAmount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      {...register('paidAmount', { valueAsNumber: true })}
-                      disabled={isViewing}
-                    />
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold text-gray-700">Payment Installments</Label>
+                    {!isViewing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => appendPayment({ date: new Date().toISOString().split('T')[0], amount: 0 })}
+                        className="text-blue-600 hover:text-blue-700 border-blue-200 hover:bg-blue-50 flex items-center gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Payment
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="flex justify-between text-lg">
-                    <span>Balance Amount:</span>
-                    <span className={`font-semibold ${balanceAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      ₹{balanceAmount.toFixed(2)}
-                    </span>
+                  {paymentFields.length === 0 ? (
+                    <div className="text-center py-4 bg-gray-50 border border-dashed rounded-lg text-gray-500 text-sm">
+                      No payments recorded yet. Click 'Add Payment' to add an installment.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                      {paymentFields.map((field, index) => (
+                        <div key={field.id} className="flex gap-3 items-end bg-white p-3 border rounded-lg shadow-sm relative group">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-gray-500">Payment Date</Label>
+                            <Input
+                              type="date"
+                              {...register(`payments.${index}.date` as const)}
+                              disabled={isViewing}
+                              className="h-9 border-gray-200"
+                            />
+                            {errors.payments?.[index]?.date && (
+                              <p className="text-xs text-red-500">{errors.payments[index]?.date?.message}</p>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-gray-500">Amount</Label>
+                            <div className="relative">
+                              <DollarSign className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                {...register(`payments.${index}.amount` as const, { valueAsNumber: true })}
+                                disabled={isViewing}
+                                className="h-9 pl-8 border-gray-200"
+                              />
+                            </div>
+                            {errors.payments?.[index]?.amount && (
+                              <p className="text-xs text-red-500">{errors.payments[index]?.amount?.message}</p>
+                            )}
+                          </div>
+
+                          {!isViewing && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removePayment(index)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 h-9 w-9 rounded-md border border-gray-100"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t pt-3 space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Total Paid:</span>
+                      <span className="font-semibold text-gray-900">₹{totalPaid.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Balance Amount:</span>
+                      <span className={`${balanceAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        ₹{balanceAmount.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -107,8 +107,17 @@ const numberToWords = (num: number, currency: string = 'AED'): string => {
   return result + ' Only';
 };
 
-const generateInvoicePDF = (data: InvoiceData) => {
+const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'print') => {
   const formattedDate = format(new Date(data.date), 'd-MMM-yy');
+
+  // Dynamic layout variables to fit single page precisely when items are <= 8
+  const isSinglePage = data.items.length <= 8;
+  const containerHeight = isSinglePage ? '295mm' : 'auto';
+  const footerPosition = isSinglePage ? 'absolute' : 'relative';
+  const footerBottom = isSinglePage ? '15mm' : 'auto';
+  const footerLeftRight = isSinglePage ? '15mm' : '0';
+  const footerMarginTop = isSinglePage ? '0' : '40px';
+  const containerOverflow = isSinglePage ? 'overflow: hidden !important;' : '';
 
   // Calculate Totals
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -206,6 +215,64 @@ const generateInvoicePDF = (data: InvoiceData) => {
     <html>
       <head>
         <title>Invoice #${data.invoiceNumber}</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              if ("${action}" === "download") {
+                // Add stylesheet for PDF download mode to enforce exact layout dimensions
+                const style = document.createElement('style');
+                style.innerHTML = \`
+                  body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background-color: #fff !important;
+                  }
+                  .invoice-container {
+                    width: 210mm !important;
+                    height: ${containerHeight} !important;
+                    padding: 15mm 15mm 20mm 15mm !important;
+                    position: relative !important;
+                    box-sizing: border-box !important;
+                    box-shadow: none !important;
+                    ${containerOverflow}
+                  }
+                  .footer-section {
+                    position: ${footerPosition} !important;
+                    bottom: ${footerBottom} !important;
+                    left: ${footerLeftRight} !important;
+                    right: ${footerLeftRight} !important;
+                    margin-top: ${footerMarginTop} !important;
+                  }
+                \`;
+                document.head.appendChild(style);
+
+                const element = document.querySelector('.invoice-container');
+                const opt = {
+                  margin: 0,
+                  filename: 'Invoice_${data.invoiceNumber}.pdf',
+                  image: { type: 'jpeg', quality: 0.98 },
+                  html2canvas: { scale: 2, useCORS: true },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                if (window.html2pdf) {
+                  window.html2pdf().set(opt).from(element).save().then(function() {
+                    setTimeout(function() { window.close(); }, 1000);
+                  }).catch(function(err) {
+                    console.error(err);
+                    window.close();
+                  });
+                } else {
+                  window.print();
+                  window.close();
+                }
+              } else {
+                window.print();
+                window.close();
+              }
+            }, 300);
+          };
+        </script>
         <style>
           @page {
             size: A4;
@@ -791,12 +858,6 @@ const generateInvoicePDF = (data: InvoiceData) => {
 
   printWindow.document.close();
   printWindow.focus();
-
-  // Wait for content to load before printing
-  setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 250);
 };
 
 export default generateInvoicePDF;

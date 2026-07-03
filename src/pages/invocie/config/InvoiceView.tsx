@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { salesInvoiceService, type SalesInvoice } from '@/services/salesInvoiceService';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, Download } from "lucide-react";
 import generateInvoicePDF from './InvoicePrintTemplate';
 import { toast } from 'react-hot-toast';
 
@@ -65,8 +65,8 @@ export default function InvoiceView() {
   //   }
   // };
 
-  const handlePrint = () => {
-    if (!invoice) return;
+  const getInvoiceData = () => {
+    if (!invoice) return null;
 
     const customerName = typeof invoice.customer === 'object' && invoice.customer !== null
       ? invoice.customer.name
@@ -99,7 +99,7 @@ export default function InvoiceView() {
     const storeIbanCode = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.ibanCode : undefined;
     const storeTaxCode = typeof invoice.store === 'object' && invoice.store !== null ? invoice.store.taxCode : undefined;
 
-    const invoiceData = {
+    return {
       id: invoice._id || invoice.id || '',
       invoiceNumber: invoice.invoiceNumber,
       customer: {
@@ -151,8 +151,20 @@ export default function InvoiceView() {
       status: 'pending' as const,
       currency: 'AED',
     };
+  };
 
-    generateInvoicePDF(invoiceData);
+  const handlePrint = () => {
+    const data = getInvoiceData();
+    if (data) {
+      generateInvoicePDF(data, 'print');
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    const data = getInvoiceData();
+    if (data) {
+      generateInvoicePDF(data, 'download');
+    }
   };
 
   const calculateGrossTotal = () => {
@@ -357,13 +369,22 @@ export default function InvoiceView() {
           >
             <ArrowLeft className="h-5 w-5 text-gray-700" />
           </Button>
-          <Button
-            onClick={handlePrint}
-            className="bg-[#c22026] hover:bg-[#a81b20] text-white shadow-md transition-all duration-200 flex items-center gap-2 px-5 py-2 rounded-lg"
-          >
-            <Printer className="h-4.5 w-4.5" />
-            Print Invoice
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleDownloadPDF}
+              className="bg-[#1e3a8a] hover:bg-[#172e6b] text-white shadow-md transition-all duration-200 flex items-center gap-2 px-5 py-2 rounded-lg"
+            >
+              <Download className="h-4.5 w-4.5" />
+              Download PDF
+            </Button>
+            <Button
+              onClick={handlePrint}
+              className="bg-[#c22026] hover:bg-[#a81b20] text-white shadow-md transition-all duration-200 flex items-center gap-2 px-5 py-2 rounded-lg"
+            >
+              <Printer className="h-4.5 w-4.5" />
+              Print Invoice
+            </Button>
+          </div>
         </div>
 
         {/* Invoice Page Visual Container */}

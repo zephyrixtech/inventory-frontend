@@ -5,6 +5,11 @@ export interface PurchaseEntryItem {
   description?: string;
 }
 
+export interface PurchaseEntryPayment {
+  date: string;
+  amount: number;
+}
+
 export interface PurchaseEntry {
   _id?: string;
   purchaseCode?: string;
@@ -12,6 +17,7 @@ export interface PurchaseEntry {
   date: string;
   supplier: string;
   items: PurchaseEntryItem[];
+  payments?: PurchaseEntryPayment[];
   totalAmount: number;
   discount: number;
   finalAmount?: number;
