@@ -158,19 +158,7 @@ const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'p
     return parts.slice(1).join(' ') || '';
   };
 
-  const getArabicMainText = (name: string) => {
-    const upper = name.toUpperCase();
-    if (upper.includes('LIBAS')) return 'ال لباس';
-    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'كـاسـكـيـد';
-    return '';
-  };
 
-  const getArabicSubText = (name: string) => {
-    const upper = name.toUpperCase();
-    if (upper.includes('LIBAS')) return 'للتجارة العامة ش.ذ.م.م';
-    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'لتجارة الكمبيوتر';
-    return '';
-  };
 
   const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
 
@@ -330,31 +318,9 @@ const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'p
             margin-top: 3px;
           }
           
-          .header-center {
-            flex: 0 0 80px;
-            display: flex;
-            justify-content: center;
-          }
-          
           .header-right {
             flex: 1;
             text-align: right;
-          }
-          
-          .header-right .brand-name-ar {
-            font-size: 30px;
-            font-weight: bold;
-            color: #c22026;
-            direction: rtl;
-            line-height: 0.95;
-          }
-          
-          .header-right .brand-sub-ar {
-            font-size: 13px;
-            font-weight: bold;
-            color: #444;
-            direction: rtl;
-            margin-top: 3px;
           }
           
           /* Invoice metadata bar */
@@ -654,15 +620,11 @@ const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'p
               <div class="brand-name">${getLogoMainText(storeName)}</div>
               <div class="brand-sub">${getLogoSubText(storeName)}</div>
             </div>
-            <div class="header-center">
-              <svg width="48" height="48" viewBox="0 0 100 100">
+            <div class="header-right">
+              <svg width="48" height="48" viewBox="0 0 100 100" style="display: inline-block; vertical-align: middle;">
                 <circle cx="50" cy="50" r="40" stroke="#c22026" stroke-width="8.5" fill="none" stroke-dasharray="210 50" transform="rotate(-40 50 50)" />
                 <circle cx="50" cy="50" r="26" stroke="#c22026" stroke-width="4" fill="none" stroke-opacity="0.35" />
               </svg>
-            </div>
-            <div class="header-right">
-              <div class="brand-name-ar">${getArabicMainText(storeName)}</div>
-              <div class="brand-sub-ar">${getArabicSubText(storeName)}</div>
             </div>
           </div>
           

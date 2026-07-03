@@ -340,19 +340,7 @@ export default function InvoiceView() {
     return parts.slice(1).join(' ') || '';
   };
 
-  const getArabicMainText = (name: string) => {
-    const upper = name.toUpperCase();
-    if (upper.includes('LIBAS')) return 'ال لباس';
-    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'كـاسـكـيـد';
-    return '';
-  };
 
-  const getArabicSubText = (name: string) => {
-    const upper = name.toUpperCase();
-    if (upper.includes('LIBAS')) return 'للتجارة العامة ش.ذ.م.م';
-    if (upper.includes('CASECADE') || upper.includes('CASCADE')) return 'لتجارة الكمبيوتر';
-    return '';
-  };
 
   const showComputerBrands = storeName.toUpperCase().includes('COMPUTER') || storeName.toUpperCase().includes('CASECADE');
 
@@ -400,19 +388,11 @@ export default function InvoiceView() {
                   {getLogoSubText(storeName)}
                 </div>
               </div>
-              <div className="flex-initial px-4">
-                <svg width="48" height="48" viewBox="0 0 100 100" className="mx-auto">
+              <div className="flex-1 flex justify-end">
+                <svg width="48" height="48" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" stroke="#c22026" strokeWidth="8.5" fill="none" strokeDasharray="210 50" transform="rotate(-40 50 50)" />
-                  <circle cx="50" cy="50" r="26" stroke="#c22026" strokeWidth="4" fill="none" strokeOpacity="0.35" />
+                  <circle cx="50" cy="50" r="26" stroke="#c22026" strokeWidth="4" fill="none" stroke-opacity="0.35" />
                 </svg>
-              </div>
-              <div className="flex-1 text-right">
-                <div className="text-3xl font-bold text-[#c22026] leading-none">
-                  {getArabicMainText(storeName)}
-                </div>
-                <div className="text-xs font-bold text-gray-600 mt-1">
-                  {getArabicSubText(storeName)}
-                </div>
               </div>
             </div>
 
