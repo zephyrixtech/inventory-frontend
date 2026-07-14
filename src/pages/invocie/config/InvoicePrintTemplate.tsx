@@ -378,6 +378,9 @@ const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'p
             padding: 8px 6px;
             margin-bottom: 12px;
             line-height: 1.45;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
           }
           
           .party-row {
@@ -661,24 +664,24 @@ const generateInvoicePDF = (data: InvoiceData, action: 'print' | 'download' = 'p
           
           <!-- Party Details -->
           <div class="party-details">
-            <div class="party-row">
-              <div class="party-label">Party :</div>
-              <div class="party-val bold">${data.customer.name.toUpperCase()}</div>
+            <div>
+              <div class="party-row">
+                <div class="party-label">Customer :</div>
+                <div class="party-val bold">${data.customer.name.toUpperCase()}</div>
+              </div>
+              <div class="party-row">
+                <div class="party-label">Contact :</div>
+                <div class="party-val">${data.customer.contact || "-"}</div>
+              </div>
+              <div class="party-row">
+                <div class="party-label">Address :</div>
+                <div class="party-val">${data.customer.address || "-"}</div>
+              </div>
             </div>
-            <div class="party-row">
-              <div class="party-label">Contact :</div>
-              <div class="party-val">${data.customer.contact || "-"}</div>
+            <div class="party-row" style="margin-right: 80px;">
+              <div class="party-label" style="width: auto; margin-right: 8px;">TRN :</div>
+              <div class="party-val bold">${data.customer.trn || "-"}</div>
             </div>
-            <div class="party-row">
-              <div class="party-label">Address :</div>
-              <div class="party-val">${data.customer.address || "-"}</div>
-            </div>
-            ${data.customer.trn ? `
-            <div class="party-row">
-              <div class="party-label">TRN :</div>
-              <div class="party-val bold">${data.customer.trn}</div>
-            </div>
-            ` : ''}
           </div>
           
           <!-- Items Table -->
