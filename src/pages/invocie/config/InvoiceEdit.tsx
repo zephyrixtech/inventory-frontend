@@ -32,7 +32,7 @@ import {
   Store,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { storeService } from '@/services/storeService';
+import { storeService, ListStoresParams } from '@/services/storeService';
 import { getItems } from '@/services/itemService';
 import { salesInvoiceService } from '@/services/salesInvoiceService';
 import { customerService } from '@/services/customerService';
@@ -199,7 +199,7 @@ export default function InvoiceEdit() {
   });
 
   const watchedFields = watch();
-  const initialValuesRef = useRef<any>(null);
+  const initialValuesRef = useRef<InvoiceFormValues | null>(null);
 
   // Capture initial values
   useEffect(() => {
@@ -221,8 +221,8 @@ export default function InvoiceEdit() {
         const userId = user?.id;
         const userRole = user?.role || user?.role_name; // Handle both possible field names
 
-        const params: any = {};
-        
+        const params: ListStoresParams = {};
+
         // If user has a specific role, pass it to filter stores
         if (userId && userRole) {
           params.userId = userId;
@@ -232,10 +232,10 @@ export default function InvoiceEdit() {
         const response = await storeService.listStores(params);
         if (response.data) {
           // Filter stores to only include those with biller role set to "ROLE_BILLER"
-          const filteredStores = response.data.filter(store => 
+          const filteredStores = response.data.filter(store =>
             store.biller === "ROLE_BILLER" && store.isActive
           );
-          
+
           const storeList = filteredStores.map(store => ({
             _id: store._id,
             id: store.id || store._id,
@@ -310,9 +310,9 @@ export default function InvoiceEdit() {
             : String(invoice.store);
 
           try {
-            const stockResponse = await storeStockService.list({ 
+            const stockResponse = await storeStockService.list({
               storeId: storeId,
-              limit: 1000 
+              limit: 1000
             });
             if (stockResponse.data) {
               stockResponse.data.forEach((stock) => {
@@ -456,7 +456,7 @@ export default function InvoiceEdit() {
       return;
     }
 
-    if (!customerSearchTerm.trim() || customerSearchTerm.trim().length < 3) {
+    if (!customerSearchTerm.trim()) {
       setFilteredCustomers([]);
       setShowCustomerDropdown(false);
       return;
@@ -548,7 +548,7 @@ export default function InvoiceEdit() {
   // Item search - now queries the selected store stock directly
   useEffect(() => {
     const fetchSupplies = async () => {
-      if (!itemSearchTerm.trim() || itemSearchTerm.trim().length < 3 || !selectedStore) {
+      if (!itemSearchTerm.trim() || !selectedStore) {
         setFilteredSupplies([]);
         setShowSuppliesDropdown(false);
         return;
@@ -556,11 +556,11 @@ export default function InvoiceEdit() {
 
       try {
         // Fetch store stock for the selected store matching search term directly
-        const stockResponse = await storeStockService.list({ 
+        const stockResponse = await storeStockService.list({
           storeId: selectedStore,
           search: itemSearchTerm.trim(),
           styleOnly: true,
-          limit: 100 
+          limit: 100
         });
 
         if (!stockResponse.data || stockResponse.data.length === 0) {
@@ -733,19 +733,19 @@ export default function InvoiceEdit() {
     const price = typeof (item as any).unitPrice === 'number' && !isNaN((item as any).unitPrice) ? (item as any).unitPrice : 0;
     const discount = typeof item.discount === 'number' && !isNaN(item.discount) ? item.discount : 0;
     const vat = typeof item.vat === 'number' && !isNaN(item.vat) ? item.vat : 0;
-    
+
     // Calculate subtotal after discount
     let subtotal = qty * price;
     if (discount) {
       subtotal *= 1 - discount / 100;
     }
-    
+
     // Add VAT to subtotal
     let total = subtotal;
     if (vat) {
       total += subtotal * (vat / 100);
     }
-    
+
     return Math.max(total, 0);
   };
 
@@ -755,13 +755,13 @@ export default function InvoiceEdit() {
     const price = typeof (item as any).unitPrice === 'number' && !isNaN((item as any).unitPrice) ? (item as any).unitPrice : 0;
     const discount = typeof item.discount === 'number' && !isNaN(item.discount) ? item.discount : 0;
     const vat = typeof item.vat === 'number' && !isNaN(item.vat) ? item.vat : 0;
-    
+
     // Calculate subtotal after discount
     let subtotal = qty * price;
     if (discount) {
       subtotal *= 1 - discount / 100;
     }
-    
+
     // Calculate VAT amount
     return subtotal * (vat / 100);
   };
@@ -843,9 +843,9 @@ export default function InvoiceEdit() {
     try {
       // Fetch store stock for all items from the selected store only
       const itemIds = items.map(item => item.id);
-      const stockResponse = await storeStockService.list({ 
+      const stockResponse = await storeStockService.list({
         storeId: selectedStore,
-        limit: 1000 
+        limit: 1000
       });
 
       const stockMap: Record<string, number> = {};
@@ -1177,8 +1177,8 @@ export default function InvoiceEdit() {
                         }
                       }}
                       className={`pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${errors.customerName
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                        : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
                         } transition-all duration-200`}
                     />
                     {/* <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" /> */}
@@ -1370,8 +1370,8 @@ export default function InvoiceEdit() {
                       onFocus={() => selectedStore && setShowSuppliesDropdown(true)}
                       disabled={!selectedStore}
                       className={`pl-10 pr-4 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${selectedStore
-                          ? 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                          : 'border-gray-200 bg-gray-100 cursor-not-allowed'
+                        ? 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                        : 'border-gray-200 bg-gray-100 cursor-not-allowed'
                         }`}
                     />
                     <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${selectedStore ? 'text-gray-400' : 'text-gray-300'
