@@ -84,6 +84,8 @@ interface Item {
   description: string;
   unitPrice?: number;
   quantity?: number;
+  damagedQuantity?: number;
+  availableQuantity?: number;
   totalPrice?: number;
   vendor?: {
     _id?: string;
@@ -199,7 +201,9 @@ const PurchaseEntryForm = () => {
     itemsData.forEach((item: any) => {
       const unitPrice = item.unitPrice || 0;
       const quantity = item.quantity || 0;
-      const itemTotal = unitPrice * quantity;
+      const damagedQuantity = item.damagedQuantity || 0;
+      const actualQuantity = Math.max(0, quantity - damagedQuantity);
+      const itemTotal = unitPrice * actualQuantity;
       totalAmount += itemTotal;
     });
     
@@ -241,7 +245,9 @@ const PurchaseEntryForm = () => {
         billNumber: item.billNumber,
         unitPrice: item.unitPrice || 0,
         quantity: item.quantity || 0,
-        totalPrice: (item.unitPrice || 0) * (item.quantity || 0),
+        damagedQuantity: item.damagedQuantity || 0,
+        availableQuantity: item.availableQuantity !== undefined ? item.availableQuantity : (item.quantity || 0),
+        totalPrice: (item.unitPrice || 0) * Math.max(0, (item.quantity || 0) - (item.damagedQuantity || 0)),
         vendor: item.vendor ? {
           _id: item.vendor._id || item.vendor.id,
           id: item.vendor._id || item.vendor.id,
@@ -744,7 +750,11 @@ const PurchaseEntryForm = () => {
                           {(item.quantity ?? 0) > 0 && (item.unitPrice ?? 0) > 0 ? (
                             <>
                               <p className="text-sm text-gray-600">
-                                Qty: {item.quantity} × ₹{(item.unitPrice ?? 0).toFixed(2)}
+                                Qty: {item.quantity} {(item.damagedQuantity || 0) > 0 && (
+                                  <span className="text-red-500 font-semibold ml-1">
+                                    (Damaged: {item.damagedQuantity})
+                                  </span>
+                                )} × ₹{(item.unitPrice ?? 0).toFixed(2)}
                               </p>
                               <p className="font-semibold text-green-700">
                                 ₹{(item.totalPrice ?? 0).toFixed(2)}
