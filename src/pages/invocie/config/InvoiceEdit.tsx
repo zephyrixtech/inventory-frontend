@@ -85,7 +85,7 @@ const invoiceFormSchema = z.object({
   invoiceNumber: z.string().min(1, 'Invoice number is required'),
   date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, 'Invalid date format'),
   customerName: z.string().min(1, 'Customer name is required'),
-  contactNumber: z.string().regex(/^[0-9]{10}$/, 'Contact number must be 10 digits'),
+  contactNumber: z.string().optional().or(z.literal('')),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   billingAddress: z.string().min(0, 'Billing address is required').optional(),
   items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
@@ -346,7 +346,7 @@ export default function InvoiceEdit() {
             customerName: customer?.name || '',
             contactNumber: customer?.phone || '',
             email: customer?.email || '',
-            billingAddress: '',
+            billingAddress: customer?.billingAddress || '',
             items: invoiceItems.map((item) => {
               const key = `${item.id}_${item.styleNumbers?.[0] || ''}`;
               return {
@@ -363,7 +363,7 @@ export default function InvoiceEdit() {
             setSelectedCustomer({
               id: customer._id || '',
               fullname: customer.name,
-              address: '',
+              address: customer.billingAddress || '',
               company_id: companyId,
               created_at: '',
               created_by: null,
@@ -503,6 +503,10 @@ export default function InvoiceEdit() {
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setCustomerSearchTerm(customer.fullname);
+    setValue('customerName', customer.fullname);
+    setValue('email', customer.email ?? '');
+    setValue('contactNumber', customer.phone ?? '');
+    setValue('billingAddress', customer.address ?? '');
     setShowCustomerDropdown(false);
   };
 
@@ -1011,6 +1015,20 @@ export default function InvoiceEdit() {
         await salesInvoiceService.createInvoice(invoicePayload);
       }
 
+      // Update customer details in database (phone, email, address, name)
+      if (selectedCustomer?.id) {
+        try {
+          await customerService.updateCustomer(selectedCustomer.id, {
+            name: data.customerName || selectedCustomer.fullname,
+            phone: data.contactNumber ?? '',
+            email: data.email ?? '',
+            billingAddress: data.billingAddress ?? '',
+          });
+        } catch (custErr) {
+          console.error('Failed to update customer details:', custErr);
+        }
+      }
+
       toast.success(`${isEditing ? 'Invoice updated successfully!' : 'Invoice created successfully!'}`);
       setFormStatus('success');
       setTimeout(() => navigate('/dashboard/invoice'), 1000);
@@ -1258,20 +1276,21 @@ export default function InvoiceEdit() {
                     htmlFor="contactNumber"
                     className={`${errors.contactNumber ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                   >
-                    <Phone className="h-4 w-4" /> Contact Number
+                    <Phone className="h-4 w-4" /> Contact Number (Optional)
                   </Label>
                   <Input
                     id="contactNumber"
-                    value={selectedCustomer?.phone ?? ''}
-                    placeholder="10 digits"
+                    value={watchedFields.contactNumber ?? ''}
+                    placeholder="Contact number (optional)"
                     onChange={(e) => {
+                      const val = e.target.value;
                       if (selectedCustomer) {
                         setSelectedCustomer({
                           ...selectedCustomer,
-                          phone: e.target.value
+                          phone: val
                         });
-                        setValue('contactNumber', e.target.value);
                       }
+                      setValue('contactNumber', val);
 
                       // Clear validation errors when user starts typing
                       if (errors.contactNumber) {
@@ -1297,16 +1316,18 @@ export default function InvoiceEdit() {
                   </Label>
                   <Input
                     id="email"
-                    value={selectedCustomer?.email ?? ''}
+                    value={watchedFields.email ?? ''}
                     placeholder="example@example.com"
                     onChange={(e) => {
+                      const val = e.target.value;
                       if (selectedCustomer) {
                         setSelectedCustomer({
                           ...selectedCustomer,
-                          email: e.target.value
+                          email: val
                         });
-                        setValue('email', e.target.value);
                       }
+                      setValue('email', val);
+
                       // Clear validation errors when user starts typing
                       if (errors.email) {
                         clearValidationErrors();
@@ -1331,16 +1352,18 @@ export default function InvoiceEdit() {
                   </Label>
                   <Textarea
                     id="billingAddress"
-                    value={selectedCustomer?.address ?? ''}
+                    value={watchedFields.billingAddress ?? ''}
                     placeholder="Billing address"
                     onChange={(e) => {
+                      const val = e.target.value;
                       if (selectedCustomer) {
                         setSelectedCustomer({
                           ...selectedCustomer,
-                          address: e.target.value
+                          address: val
                         });
-                        setValue('billingAddress', e.target.value);
                       }
+                      setValue('billingAddress', val);
+
                       // Clear validation errors when user starts typing
                       if (errors.billingAddress) {
                         clearValidationErrors();
