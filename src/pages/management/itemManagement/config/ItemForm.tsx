@@ -78,6 +78,16 @@ const ItemForm: React.FC<ItemFormProps> = ({ initialData, onSubmit }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
+          <label className="block text-sm font-medium mb-1">Item ID / Code</label>
+          <Input
+            required
+            value={formData.code ?? ''}
+            onChange={(e) => handleChange('code', e.target.value)}
+            placeholder="Enter Item ID"
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-medium mb-1">Name</label>
           <Input
             required

@@ -58,10 +58,8 @@ import { supplierService } from '@/services/supplierService';
 const baseInventoryFormSchema = z.object({
   item_id: z
     .string()
-    .max(50, 'Item ID must be less than 50 characters')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Item ID must be alphanumeric with underscores or hyphens')
-    .optional()
-    .or(z.literal('')), // Allow empty string as well
+    .min(1, 'Item ID is required')
+    .max(100, 'Item ID must be less than 100 characters'),
   item_name: z
     .string()
     .min(1, 'Item Name is required')
@@ -127,21 +125,21 @@ const baseInventoryFormSchema = z.object({
 // Form values type
 type InventoryFormValues = z.infer<typeof baseInventoryFormSchema>;
 
-let sequenceCounter = 1;
+// let sequenceCounter = 1;
 
 // Helper function to generate item ID based on current date with sequential numbering
-const generateItemID = () => {
-  const now = new Date();
-  const year = now.getFullYear().toString();
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  const day = now.getDate().toString().padStart(2, '0');
-  const sequence = sequenceCounter.toString().padStart(2, '0');
+// const generateItemID = () => {
+//   const now = new Date();
+//   const year = now.getFullYear().toString();
+//   const month = (now.getMonth() + 1).toString().padStart(2, '0');
+//   const day = now.getDate().toString().padStart(2, '0');
+//   const sequence = sequenceCounter.toString().padStart(2, '0');
 
-  // Format: ITMYYYYMMDD___NN (e.g., ITM20251207___01)
-  // Note: The actual sequence number will be determined by the backend
-  // This is just a placeholder format for display purposes with local increment
-  return `ITM${year}${month}${day}___${sequence}`;
-};
+//   // Format: ITMYYYYMMDD___NN (e.g., ITM20251207___01)
+//   // Note: The actual sequence number will be determined by the backend
+//   // This is just a placeholder format for display purposes with local increment
+//   return `ITM${year}${month}${day}___${sequence}`;
+// };
 
 const InventoryForm = () => {
   // NOTE: This form has been refactored to use the backend API instead of Supabase.
@@ -242,7 +240,7 @@ const InventoryForm = () => {
     if (initialFormValues && suppliers.length > 0 && initialFormValues.vendorId && !vendorIdValue) {
       console.log('🔄 Setting vendorId from initial form values:', initialFormValues.vendorId);
       console.log('📋 Available supplier IDs:', suppliers.map(s => s.id));
-      
+
       // Check if the vendor ID exists in the suppliers list
       const matchingSupplier = suppliers.find(s => s.id === initialFormValues.vendorId);
       if (matchingSupplier) {
@@ -302,13 +300,9 @@ const InventoryForm = () => {
     // Do not reset defaults while editing or viewing an existing item
     if (isEditing || isViewing) return;
 
-    // Generate and set the item ID for new items
-    const newItemId = generateItemID();
-    setValue('item_id', newItemId, { shouldValidate: false });
-
-    // Set other default values
+    // Set default values
     const defaultValues: InventoryFormValues = {
-      item_id: newItemId,
+      item_id: '',
       item_name: '',
       bill_number: '',
       description: '',
@@ -316,14 +310,11 @@ const InventoryForm = () => {
       damagedQuantity: 0,
       availableQuantity: 0,
       selling_price: null,
-      // image_1: null,
-      // image_2: null,
-      // video: null,
       youtube_link: null,
     };
 
     reset(defaultValues);
-  }, [isEditing, isViewing, reset, setValue]);
+  }, [isEditing, isViewing, reset]);
 
   // Handle media change (images and video)
   // const handleMediaChange = (
@@ -373,17 +364,17 @@ const InventoryForm = () => {
           vendorId: (() => {
             // Enhanced vendor ID extraction with debugging
             console.log('🔍 Raw itemData.vendor:', itemData.vendor);
-            
+
             if (!itemData.vendor) {
               console.log('⚠️ No vendor found in itemData');
               return '';
             }
-            
+
             // Try different possible vendor ID fields
             const vendorId = itemData.vendor._id || itemData.vendor.id || itemData.vendor;
             console.log('🎯 Extracted vendorId:', vendorId);
             console.log('🎯 VendorId type:', typeof vendorId);
-            
+
             // Ensure we return a string
             return typeof vendorId === 'string' ? vendorId : String(vendorId || '');
           })(),
@@ -413,7 +404,7 @@ const InventoryForm = () => {
 
         setInitialFormValues(formValues);
         reset(formValues);
-        
+
         // Force set the vendorId after a short delay to ensure suppliers are loaded
         setTimeout(() => {
           if (formValues.vendorId) {
@@ -421,7 +412,7 @@ const InventoryForm = () => {
             setValue('vendorId', formValues.vendorId, { shouldValidate: true });
           }
         }, 100);
-        
+
         setIsLoading(false);
       } catch (err: any) {
         console.error('Error fetching item:', err);
@@ -574,9 +565,9 @@ const InventoryForm = () => {
       }
 
       setFormStatus('success');
-      if (!isEditing) {
-        sequenceCounter++;
-      }
+      // if (!isEditing) {
+      //   sequenceCounter++;
+      // }
       toast.success(isEditing ? 'Item updated successfully!' : 'Item created successfully!');
       setTimeout(() => navigate('/dashboard/item-master'), 1000);
     } catch (err: any) {
@@ -621,9 +612,8 @@ const InventoryForm = () => {
 
   // Clear form and navigate
   const clearFormAndNavigate = () => {
-    const newItemId = generateItemID(); // Generate new item ID when clearing form
     reset({
-      item_id: newItemId,
+      item_id: '',
       item_name: '',
       bill_number: '',
       description: '',
@@ -636,7 +626,6 @@ const InventoryForm = () => {
       video: null,
       youtube_link: null,
     });
-    setValue('item_id', newItemId, { shouldValidate: false });
     setInitialFormValues(null);
     setImage1Preview(null);
     setImage2Preview(null);
@@ -660,16 +649,11 @@ const InventoryForm = () => {
   // Stay on form
   const stayOnForm = () => {
     setShowCancelDialog(false);
-    // Regenerate item ID when staying on the form
-    if (!isEditing && !isViewing) {
-      const newItemId = generateItemID();
-      setValue('item_id', newItemId, { shouldValidate: false });
-    }
   };
 
 
 
- 
+
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -719,14 +703,13 @@ const InventoryForm = () => {
                     htmlFor="item_id"
                     className={`${errors.item_id ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                   >
-                    <Package className="h-4 w-4" /> Item ID {isEditing || isViewing ? '' : '(Auto-generated)'}
+                    <Package className="h-4 w-4" /> Item ID
                   </Label>
                   <Input
                     id="item_id"
-                    placeholder={isEditing || isViewing ? "Item ID" : "Auto-generated by system"}
+                    placeholder="Enter Item ID"
                     {...register('item_id')}
-                    value={itemIdValue || ''}
-                    disabled={true} 
+                    disabled={isEditing || isViewing}
                     className={`${errors.item_id
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                       : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'

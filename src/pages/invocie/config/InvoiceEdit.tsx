@@ -123,14 +123,14 @@ type Customer = {
 // type StockRow = { item_id: string; total_qty: number };
 
 // Generate invoice number
-function generateInvoiceNumber(lastNumber = 1): string {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const yy = String(now.getFullYear()).slice(-2);
-  const serial = String(lastNumber).padStart(4, '0');
-  return `INV-${dd}${mm}${yy}-${serial}`;
-}
+// function generateInvoiceNumber(lastNumber = 1): string {
+//   const now = new Date();
+//   const dd = String(now.getDate()).padStart(2, '0');
+//   const mm = String(now.getMonth() + 1).padStart(2, '0');
+//   const yy = String(now.getFullYear()).slice(-2);
+//   const serial = String(lastNumber).padStart(4, '0');
+//   return `INV-${dd}${mm}${yy}-${serial}`;
+// }
 
 export default function InvoiceEdit() {
   const userData = localStorage.getItem('userData');
@@ -180,7 +180,7 @@ export default function InvoiceEdit() {
     resolver: zodResolver(invoiceFormSchema),
     defaultValues: {
       storeId: '',
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: '',
       date: new Date().toISOString().split('T')[0],
       customerName: '',
       contactNumber: '',
@@ -402,43 +402,7 @@ export default function InvoiceEdit() {
   }, [id, isEditing, reset, user?.id]);
 
   // Generate invoice number
-  useEffect(() => {
-    const fetchAndSetNextInvoiceNumber = async () => {
-      if (isEditing) return;
-      // if (!companyId) return;
-      const now = new Date();
-      const dd = String(now.getDate()).padStart(2, '0');
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const yy = String(now.getFullYear()).slice(-2);
-      const todayPrefix = `INV-${dd}${mm}${yy}-`;
 
-      try {
-        // Fetch invoices to get the last invoice number
-        const response = await salesInvoiceService.listInvoices({
-          page: 1,
-          limit: 1,
-          sortBy: 'invoiceNumber',
-          sortOrder: 'desc',
-        });
-
-        let nextSerial = 1;
-        if (response.data && response.data.length > 0) {
-          const lastInvoice = response.data[0];
-          if (lastInvoice.invoiceNumber.startsWith(todayPrefix)) {
-            const match = lastInvoice.invoiceNumber.match(/-(\d{4})$/);
-            if (match) {
-              nextSerial = parseInt(match[1], 10) + 1;
-            }
-          }
-        }
-        setValue('invoiceNumber', generateInvoiceNumber(nextSerial));
-      } catch (error) {
-        // If fetch fails, just use serial 1
-        setValue('invoiceNumber', generateInvoiceNumber(1));
-      }
-    };
-    fetchAndSetNextInvoiceNumber();
-  }, [isEditing, user?.id, setValue]);
 
   // Fetch customers based on search term
   useEffect(() => {
@@ -1106,10 +1070,10 @@ export default function InvoiceEdit() {
                   </Label>
                   <Input
                     id="invoiceNumber"
-                    placeholder="INV-YYYY-XXX"
+                    placeholder="Enter invoice number"
                     {...register('invoiceNumber')}
-                    className={`${errors.invoiceNumber ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'} pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 bg-gray-50 ${watchedFields.invoiceNumber ? 'border-blue-300' : ''}`}
-                    readOnly
+                    disabled={isEditing}
+                    className={`${errors.invoiceNumber ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'} pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${watchedFields.invoiceNumber ? 'border-blue-300' : ''}`}
                   />
                   {errors.invoiceNumber && (
                     <p className="text-sm text-red-500 flex items-center gap-1 mt-1">

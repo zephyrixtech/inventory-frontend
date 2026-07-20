@@ -100,7 +100,7 @@ const ItemManagement = () => {
     const handleAddItem = (newItem: ItemFormData) => {
         // Convert ItemFormData to Item for internal use
         const item: Item = {
-            id: newItem.id || `ITEM${Math.floor(Math.random() * 10000)}`,
+            id: newItem.code || newItem.id || '',
             name: newItem.name,
             description: newItem.description,
             category: newItem.categoryId, // Map categoryId to category
