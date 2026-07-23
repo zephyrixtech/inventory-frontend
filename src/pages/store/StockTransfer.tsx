@@ -199,7 +199,9 @@ export const StockTransferPage = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium mb-2">From Store (India only)</p>
+              <p className="text-sm font-medium mb-2">
+                From Store (India only) <span className="text-destructive">*</span>
+              </p>
               <Select value={fromStoreId} onValueChange={setFromStoreId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select Indian source store" />
@@ -214,7 +216,9 @@ export const StockTransferPage = () => {
               </Select>
             </div>
             <div>
-              <p className="text-sm font-medium mb-2">To Store</p>
+              <p className="text-sm font-medium mb-2">
+                To Store <span className="text-destructive">*</span>
+              </p>
               <Select value={toStoreId} onValueChange={setToStoreId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select destination store" />

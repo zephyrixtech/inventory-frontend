@@ -284,8 +284,18 @@ const ProductTransmissionPage = () => {
 
   // Execute transmission
   const handleExecuteTransmission = async () => {
+    if (!transmissionForm.fromStoreId) {
+      toast.error('Source store (From Store) is missing');
+      return;
+    }
+
     if (!transmissionForm.toStoreId) {
-      toast.error('Please select a destination store');
+      toast.error('Please select a destination store (To Store)');
+      return;
+    }
+
+    if (transmissionForm.fromStoreId === transmissionForm.toStoreId) {
+      toast.error('Source and destination stores cannot be the same');
       return;
     }
 
@@ -589,7 +599,9 @@ const ProductTransmissionPage = () => {
             {/* Store Selection and Exchange Rate */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label>From Store (Purchaser)</Label>
+                <Label>
+                  From Store (Purchaser) <span className="text-destructive">*</span>
+                </Label>
                 <Select value={transmissionForm.fromStoreId} disabled>
                   <SelectTrigger>
                     <SelectValue placeholder="From store" />
@@ -605,7 +617,9 @@ const ProductTransmissionPage = () => {
               </div>
 
               <div>
-                <Label>To Store (Biller) *</Label>
+                <Label>
+                  To Store (Biller) <span className="text-destructive">*</span>
+                </Label>
                 <Select
                   value={transmissionForm.toStoreId}
                   onValueChange={(value) => setTransmissionForm(prev => ({ ...prev, toStoreId: value }))}

@@ -398,8 +398,18 @@ export const PackingListsPage = () => {
   };
 
   const handleSavePackingList = async () => {
-    if (!editingId && !formState.storeId) {
-      toast.error('Please select a store');
+    if (!formState.storeId) {
+      toast.error('Please select a source store (From Store)');
+      return;
+    }
+
+    if (!formState.toStoreId) {
+      toast.error('Please select a destination store (To Store)');
+      return;
+    }
+
+    if (formState.storeId === formState.toStoreId) {
+      toast.error('Source and destination stores cannot be the same');
       return;
     }
 
@@ -717,7 +727,7 @@ export const PackingListsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="storeId" className="text-sm font-medium">
-                    {!editingId ? 'From Store *' : 'From Store'}
+                    From Store <span className="text-destructive">*</span>
                   </Label>
                   <select
                     id="storeId"
@@ -735,7 +745,9 @@ export const PackingListsPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="toStoreId" className="text-sm font-medium">To Store</Label>
+                  <Label htmlFor="toStoreId" className="text-sm font-medium">
+                    To Store <span className="text-destructive">*</span>
+                  </Label>
                   <select
                     id="toStoreId"
                     className="border rounded-md px-3 py-2 text-sm bg-background h-10 w-full focus:ring-2 focus:ring-primary/20"

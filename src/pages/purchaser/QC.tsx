@@ -326,7 +326,9 @@ const QualityControlPage = () => {
             </div>
             {dialogStatus === 'approved' && (
               <div className="space-y-2">
-                <Label htmlFor="qc-store">Purchaser Store</Label>
+                <Label htmlFor="qc-store">
+                  Purchaser Store <span className="text-destructive">*</span>
+                </Label>
                 <Select value={dialogStoreId} onValueChange={setDialogStoreId}>
                   <SelectTrigger id="qc-store">
                     <SelectValue placeholder="Select purchaser store" />
