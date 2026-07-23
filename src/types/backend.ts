@@ -86,6 +86,8 @@ export interface Store {
   name: string;
   code: string;
   type: 'Central Store' | 'Branch Store';
+  biller?: string;
+  purchaser?: string;
   parent?: {
     _id: string;
     name: string;
@@ -108,6 +110,7 @@ export interface Store {
 
 export interface StoreStock {
   id: string;
+  _id?: string;
   product: Item;
   store?: Store;
   createdAt?: string;
@@ -119,6 +122,14 @@ export interface StoreStock {
   shipmentDate?: string;
   cargoNumber?: string;
   styleNumber?: string;
+  dpPrice?: number;
+  exchangeRate?: number;
+  finalPrice?: number;
+  lastUpdatedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
   packingListDetails?: {
     _id?: string;
     shipmentDate?: string;

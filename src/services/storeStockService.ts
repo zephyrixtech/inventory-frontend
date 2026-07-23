@@ -16,13 +16,14 @@ const getUserRole = (): string | null => {
 };
 
 export const storeStockService = {
-  async list(params: { page?: number; limit?: number; search?: string; storeId?: string; styleOnly?: boolean } = {}) {
+  async list(params: { page?: number; limit?: number; search?: string; storeId?: string; styleOnly?: boolean; storeType?: 'biller' | 'other' } = {}) {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.search) query.append('search', params.search);
     if (params.storeId) query.append('storeId', params.storeId);
     if (params.styleOnly) query.append('styleOnly', 'true');
+    if (params.storeType) query.append('storeType', params.storeType);
 
     // Add user role to the request (this will be handled by the auth middleware on backend)
     const userRole = getUserRole();
@@ -80,6 +81,14 @@ export const storeStockService = {
     };
   }) {
     return apiClient.put<ApiResponse<StoreStock>>(`/store-stock/${id}`, payload);
+  },
+
+  async delete(id: string) {
+    return apiClient.delete<ApiResponse<{ success: boolean }>>(`/store-stock/${id}`);
+  },
+
+  async get(id: string) {
+    return apiClient.get<ApiResponse<StoreStock>>(`/store-stock/${id}`);
   }
 };
 
