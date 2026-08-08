@@ -80,7 +80,6 @@ const ItemForm: React.FC<ItemFormProps> = ({ initialData, onSubmit }) => {
         <div>
           <label className="block text-sm font-medium mb-1">Item ID / Code</label>
           <Input
-            required
             value={formData.code ?? ''}
             onChange={(e) => handleChange('code', e.target.value)}
             placeholder="Enter Item ID"

@@ -58,8 +58,8 @@ import { supplierService } from '@/services/supplierService';
 const baseInventoryFormSchema = z.object({
   item_id: z
     .string()
-    .min(1, 'Item ID is required')
-    .max(100, 'Item ID must be less than 100 characters'),
+    .max(100, 'Item ID must be less than 100 characters')
+    .optional(),
   item_name: z
     .string()
     .min(1, 'Item Name is required')
