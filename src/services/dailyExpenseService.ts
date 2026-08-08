@@ -70,10 +70,12 @@ export const dailyExpenseService = {
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
   },
 
-  async listOpeningBalances(params: { page?: number; limit?: number } = {}) {
+  async listOpeningBalances(params: { page?: number; limit?: number; month?: number; year?: number } = {}) {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
+    if (params.month !== undefined) query.append('month', String(params.month));
+    if (params.year !== undefined) query.append('year', String(params.year));
 
     const path = `/expenses/opening-balance/list${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<OpeningBalanceListResponse>(path);

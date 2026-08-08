@@ -12,6 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { dailyExpenseService, type OpeningBalance, type OpeningBalanceSummary } from '@/services/dailyExpenseService';
 import toast from 'react-hot-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const OpeningBalancePage = () => {
   const [balances, setBalances] = useState<OpeningBalance[]>([]);
@@ -29,10 +30,17 @@ export const OpeningBalancePage = () => {
     date: new Date()
   });
 
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
   const fetchBalances = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await dailyExpenseService.listOpeningBalances({ limit: 100 });
+      const response = await dailyExpenseService.listOpeningBalances({
+        limit: 1000,
+        month: selectedMonth,
+        year: selectedYear
+      });
       setBalances(response.data);
       // Extract summary from meta if available
       if (response.meta.summary) {
@@ -45,7 +53,7 @@ export const OpeningBalancePage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchBalances();
@@ -133,9 +141,45 @@ export const OpeningBalancePage = () => {
             </CardTitle>
             <CardDescription>Manage opening balances for daily expense tracking.</CardDescription>
           </div>
-          <Button onClick={() => setShowDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add Credit Balance
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="flex items-center gap-2">
+              <Select value={String(selectedMonth)} onValueChange={(val) => setSelectedMonth(Number(val))}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(Number(val))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 7 }, (_, i) => 2024 + i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={() => setShowDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Add Credit Balance
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Summary Cards */}
