@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ShieldAlert, Loader2, Edit, Eye } from 'lucide-react';
+import { ShieldAlert, Loader2, Edit, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +14,18 @@ import { inventoryService } from '@/services/inventoryService';
 import { qualityCheckService } from '@/services/qualityCheckService';
 import { supplierService } from '@/services/supplierService';
 import { storeService, type Store } from '@/services/storeService';
-import type { Item } from '@/types/backend';
+import type { Item, PaginationMeta } from '@/types/backend';
+
+interface PaginationState extends PaginationMeta {}
+
+const DEFAULT_PAGINATION: PaginationState = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 0,
+  hasNextPage: false,
+  hasPrevPage: false,
+};
 
 // Extended Supplier interface to include selectedSupplies
 interface Supplier {
@@ -38,6 +49,8 @@ const QualityControlPage = () => {
   const [supplierMap, setSupplierMap] = useState<Record<string, { name: string; contactPerson?: string }>>({});
   const [totalPendingCount, setTotalPendingCount] = useState(0);
   const [purchaserStores, setPurchaserStores] = useState<Store[]>([]);
+  const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
+  const [qcStatusFilter, setQcStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
 
   const getItemId = (item: Item) => item.id ?? (item as { _id?: string })._id ?? '';
 
@@ -69,14 +82,44 @@ const QualityControlPage = () => {
     }
   };
 
-  const fetchItems = async () => {
+  const fetchItems = async (page?: number) => {
     setLoading(true);
     try {
-      const response = await inventoryService.getItems({ qcStatus: 'pending', isActive: true, limit: 50 });
+      const currentPage = page ?? pagination.page;
+      const response = await inventoryService.getItems({
+        qcStatus: qcStatusFilter,
+        isActive: true,
+        page: currentPage,
+        limit: pagination.limit
+      });
       setItems(response.data);
-      const pendingItems = response.data.filter(item => item.qcStatus === 'pending');
-      setTotalPendingCount(pendingItems.length);
+      if (response.meta) {
+        setPagination({
+          page: response.meta.page,
+          limit: response.meta.limit,
+          total: response.meta.total,
+          totalPages: response.meta.totalPages,
+          hasNextPage: response.meta.hasNextPage,
+          hasPrevPage: response.meta.hasPrevPage,
+        });
+      }
       await hydrateSupplierNames(response.data);
+
+      if (qcStatusFilter === 'pending') {
+        if (response.meta) {
+          setTotalPendingCount(response.meta.total);
+        } else {
+          const pendingItems = response.data.filter(item => item.qcStatus === 'pending');
+          setTotalPendingCount(pendingItems.length);
+        }
+      } else {
+        const pendingResponse = await inventoryService.getItems({
+          qcStatus: 'pending',
+          isActive: true,
+          limit: 1
+        });
+        setTotalPendingCount(pendingResponse.meta?.total ?? 0);
+      }
     } catch (error) {
       console.error('Failed to load QC items', error);
       toast.error('Unable to load quality check queue');
@@ -88,8 +131,14 @@ const QualityControlPage = () => {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    fetchItems(1);
+  }, [qcStatusFilter]);
+
+  const handlePageChange = (direction: 'next' | 'prev') => {
+    const targetPage = direction === 'next' ? pagination.page + 1 : pagination.page - 1;
+    if (targetPage < 1 || targetPage > pagination.totalPages) return;
+    fetchItems(targetPage);
+  };
 
   useEffect(() => {
     const fetchPurchaserStores = async () => {
@@ -160,7 +209,7 @@ const QualityControlPage = () => {
       });
       toast.success('Quality check updated successfully');
       closeDialog();
-      fetchItems();
+      fetchItems(pagination.page);
     } catch (error) {
       console.error('Failed to submit QC result', error);
       toast.error('Unable to submit quality check');
@@ -199,6 +248,24 @@ const QualityControlPage = () => {
                 {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : criticalItems}
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">QC Status Filter</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <Select value={qcStatusFilter} onValueChange={(value) => setQcStatusFilter(value as any)}>
+                  <SelectTrigger id="qc-status-filter" className="w-full">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending QC</SelectItem>
+                    <SelectItem value="approved">Approved QC</SelectItem>
+                    <SelectItem value="rejected">Rejected QC</SelectItem>
+                    <SelectItem value="all">All QC Statuses</SelectItem>
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="border rounded-lg">
@@ -216,13 +283,13 @@ const QualityControlPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Loading pending items...
                     </TableCell>
                   </TableRow>
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       All caught up! No items awaiting quality check.
                     </TableCell>
                   </TableRow>
@@ -274,6 +341,30 @@ const QualityControlPage = () => {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-muted-foreground pt-4">
+            <div>
+              Showing page {pagination.page} of {pagination.totalPages} · Total {pagination.total} items
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handlePageChange('prev')} 
+                disabled={!pagination.hasPrevPage || loading}
+              >
+                <ChevronLeft className="h-4 w-4" /> Prev
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handlePageChange('next')} 
+                disabled={!pagination.hasNextPage || loading}
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card >
