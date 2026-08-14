@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Receipt, Trash2, Plus, Pencil } from 'lucide-react';
+import { Receipt, Trash2, Plus, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dailyExpenseService } from '@/services/dailyExpenseService';
 import { inventoryService } from '@/services/inventoryService';
 import { supplierService } from '@/services/supplierService';
 import toast from 'react-hot-toast';
-import type { Item, Supplier } from '@/types/backend';
+import type { Item, Supplier, PaginationMeta } from '@/types/backend';
 
 export const DailyExpensesPage = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -21,10 +22,22 @@ export const DailyExpensesPage = () => {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [transactionId, setTransactionId] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [carriedForward, setCarriedForward] = useState(0);
+  const [currentMonthCredit, setCurrentMonthCredit] = useState(0);
   const [balanceDescription, setBalanceDescription] = useState('');
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [remainingBalance, setRemainingBalance] = useState(0);
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
 
   const [formState, setFormState] = useState({
     supplierId: '',
@@ -35,11 +48,28 @@ export const DailyExpensesPage = () => {
     paymentType: 'cash' as 'cash' | 'card' | 'upi'
   });
 
-  const fetchExpenses = useCallback(async () => {
+  const fetchExpenses = useCallback(async (pageArg?: number, limitArg?: number) => {
     setLoading(true);
+    const targetPage = pageArg ?? pagination.page;
+    const targetLimit = limitArg ?? pagination.limit;
     try {
-      const response = await dailyExpenseService.list({ limit: 100 });
+      const response = await dailyExpenseService.list({ 
+        page: targetPage,
+        limit: targetLimit,
+        month: selectedMonth,
+        year: selectedYear
+      });
       setExpenses(response.data);
+      if (response.meta) {
+        setPagination({
+          page: response.meta.page ?? targetPage,
+          limit: response.meta.limit ?? targetLimit,
+          total: response.meta.total ?? response.data.length,
+          totalPages: response.meta.totalPages ?? 1,
+          hasNextPage: response.meta.hasNextPage ?? false,
+          hasPrevPage: response.meta.hasPrevPage ?? false
+        });
+      }
     } catch (error) {
       console.error('Failed to load expenses', error);
       toast.error('Unable to load expenses');
@@ -47,7 +77,7 @@ export const DailyExpensesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -69,26 +99,32 @@ export const DailyExpensesPage = () => {
 
   const loadOpeningBalance = useCallback(async () => {
     try {
-      const response = await dailyExpenseService.getCurrentOpeningBalance();
-      setOpeningBalance(response.data.amount);
-      setBalanceDescription(response.data.description);
-      setTotalExpenses(response.data.totalExpenses ?? 0);
-      setRemainingBalance(response.data.remainingBalance ?? 0);
+      const response = await dailyExpenseService.getCurrentOpeningBalance({
+        month: selectedMonth,
+        year: selectedYear
+      });
+      const data = response.data;
+      setCarriedForward(data.carriedForward ?? 0);
+      setCurrentMonthCredit(data.currentMonthCredit ?? data.amount);
+      setBalanceDescription(data.description);
+      setTotalExpenses(data.totalExpenses ?? 0);
+      setRemainingBalance(data.remainingBalance ?? 0);
     } catch (error) {
       console.error('Failed to load opening balance', error);
-      setOpeningBalance(0);
+      setCarriedForward(0);
+      setCurrentMonthCredit(0);
       setBalanceDescription('');
       setTotalExpenses(0);
       setRemainingBalance(0);
     }
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
-    fetchExpenses();
+    fetchExpenses(1, pagination.limit);
     fetchItems();
     fetchSuppliers();
     loadOpeningBalance();
-  }, [fetchExpenses, fetchItems, fetchSuppliers, loadOpeningBalance]);
+  }, [selectedMonth, selectedYear]);
 
   const handleSupplierChange = (supplierId: string) => {
     const supplier = suppliers.find(s => s._id === supplierId) || null;
@@ -163,9 +199,6 @@ export const DailyExpensesPage = () => {
     });
     setTransactionId(expense.transactionId || '');
     if (expense.supplier) {
-      // If the supplier object is populated, we might need to find it in our list
-      // or at least set the ID. If backend returns populated object, we just take ID.
-      // We also try to set selectedSupplier for display if found in our list
       const sId = expense.supplier.id ?? expense.supplier._id;
       const supplier = suppliers.find(s => s._id === sId) || null;
       setSelectedSupplier(supplier);
@@ -200,9 +233,45 @@ export const DailyExpensesPage = () => {
             </CardTitle>
             <CardDescription>Track loading, logistics, and ancillary costs against purchases.</CardDescription>
           </div>
-          <Button onClick={() => setShowDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Log Expense
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="flex items-center gap-2">
+              <Select value={String(selectedMonth)} onValueChange={(val) => setSelectedMonth(Number(val))}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">January</SelectItem>
+                  <SelectItem value="2">February</SelectItem>
+                  <SelectItem value="3">March</SelectItem>
+                  <SelectItem value="4">April</SelectItem>
+                  <SelectItem value="5">May</SelectItem>
+                  <SelectItem value="6">June</SelectItem>
+                  <SelectItem value="7">July</SelectItem>
+                  <SelectItem value="8">August</SelectItem>
+                  <SelectItem value="9">September</SelectItem>
+                  <SelectItem value="10">October</SelectItem>
+                  <SelectItem value="11">November</SelectItem>
+                  <SelectItem value="12">December</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(Number(val))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 7 }, (_, i) => 2024 + i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={() => setShowDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Log Expense
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Opening Balance Section - Read Only */}
@@ -214,10 +283,14 @@ export const DailyExpensesPage = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <div>
-                  <div className="text-sm text-muted-foreground mb-1">Opening Balance</div>
-                  <div className="text-2xl font-bold text-blue-600">₹{openingBalance.toFixed(2)}</div>
+                  <div className="text-sm text-muted-foreground mb-1">Carried Forward</div>
+                  <div className="text-2xl font-bold text-purple-600">₹{carriedForward.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Monthly Credit Added</div>
+                  <div className="text-2xl font-bold text-blue-600">₹{currentMonthCredit.toFixed(2)}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Total Expenses</div>
@@ -239,7 +312,7 @@ export const DailyExpensesPage = () => {
                 <CardTitle className="text-sm text-muted-foreground">Entries</CardTitle>
               </CardHeader>
               <CardContent className="text-3xl font-semibold">
-                {loading ? '...' : expenses.length}
+                {loading ? '...' : pagination.total || expenses.length}
               </CardContent>
             </Card>
             <Card>
@@ -311,6 +384,54 @@ export const DailyExpensesPage = () => {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(pagination.limit)}
+                onValueChange={(val) => {
+                  const newLimit = Number(val);
+                  fetchExpenses(1, newLimit);
+                }}
+              >
+                <SelectTrigger className="w-[70px] h-8 text-xs">
+                  <SelectValue placeholder={String(pagination.limit)} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="ml-2">
+                Showing {pagination.total > 0 ? ((pagination.page - 1) * pagination.limit) + 1 : 0} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchExpenses(pagination.page - 1, pagination.limit)}
+                disabled={!pagination.hasPrevPage || pagination.page <= 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+              </Button>
+              <span className="text-xs">
+                Page {pagination.page} of {pagination.totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchExpenses(pagination.page + 1, pagination.limit)}
+                disabled={!pagination.hasNextPage || pagination.page >= pagination.totalPages}
+              >
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -23,6 +23,9 @@ export interface DailyExpense {
 export interface OpeningBalance {
   _id?: string;
   amount: number;
+  carriedForward?: number;
+  currentMonthCredit?: number;
+  totalAvailable?: number;
   description: string;
   date: string;
   totalExpenses?: number;
@@ -43,6 +46,9 @@ export interface OpeningBalance {
 
 export interface OpeningBalanceSummary {
   [key: string]: unknown;
+  carriedForward?: number;
+  currentMonthCredit?: number;
+  totalAvailable?: number;
   totalOpeningBalance: number;
   totalExpenses: number;
   remainingBalance: number;
@@ -58,13 +64,15 @@ export interface OpeningBalanceListResponse {
 }
 
 export const dailyExpenseService = {
-  async list(params: { page?: number; limit?: number; from?: string; to?: string; supplierId?: string } = {}) {
+  async list(params: { page?: number; limit?: number; from?: string; to?: string; supplierId?: string; month?: number; year?: number } = {}) {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.from) query.append('from', params.from);
     if (params.to) query.append('to', params.to);
     if (params.supplierId) query.append('supplierId', params.supplierId);
+    if (params.month !== undefined) query.append('month', String(params.month));
+    if (params.year !== undefined) query.append('year', String(params.year));
 
     const path = `/expenses${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<ApiListResponse<DailyExpense>>(path);
@@ -81,8 +89,13 @@ export const dailyExpenseService = {
     return apiClient.get<OpeningBalanceListResponse>(path);
   },
 
-  async getCurrentOpeningBalance() {
-    return apiClient.get<ApiResponse<OpeningBalance>>('/expenses/opening-balance/current');
+  async getCurrentOpeningBalance(params: { month?: number; year?: number } = {}) {
+    const query = new URLSearchParams();
+    if (params.month !== undefined) query.append('month', String(params.month));
+    if (params.year !== undefined) query.append('year', String(params.year));
+
+    const path = `/expenses/opening-balance/current${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient.get<ApiResponse<OpeningBalance>>(path);
   },
 
   async createOpeningBalance(payload: { amount: number; description: string; date?: string }) {

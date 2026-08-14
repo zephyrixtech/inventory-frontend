@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Wallet, Trash2, Plus, Pencil, CalendarIcon } from 'lucide-react';
+import { Wallet, Trash2, Plus, Pencil, CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { dailyExpenseService, type OpeningBalance, type OpeningBalanceSummary } from '@/services/dailyExpenseService';
 import toast from 'react-hot-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { PaginationMeta } from '@/types/backend';
 
 export const OpeningBalancePage = () => {
   const [balances, setBalances] = useState<OpeningBalance[]>([]);
@@ -32,19 +33,39 @@ export const OpeningBalancePage = () => {
 
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
 
-  const fetchBalances = useCallback(async () => {
+  const fetchBalances = useCallback(async (pageArg?: number, limitArg?: number) => {
     setLoading(true);
+    const targetPage = pageArg ?? pagination.page;
+    const targetLimit = limitArg ?? pagination.limit;
     try {
       const response = await dailyExpenseService.listOpeningBalances({
-        limit: 1000,
+        page: targetPage,
+        limit: targetLimit,
         month: selectedMonth,
         year: selectedYear
       });
       setBalances(response.data);
-      // Extract summary from meta if available
-      if (response.meta.summary) {
-        setSummary(response.meta.summary);
+      if (response.meta) {
+        setPagination({
+          page: response.meta.page ?? targetPage,
+          limit: response.meta.limit ?? targetLimit,
+          total: response.meta.total ?? response.data.length,
+          totalPages: response.meta.totalPages ?? 1,
+          hasNextPage: response.meta.hasNextPage ?? false,
+          hasPrevPage: response.meta.hasPrevPage ?? false
+        });
+        if (response.meta.summary) {
+          setSummary(response.meta.summary as OpeningBalanceSummary);
+        }
       }
     } catch (error) {
       console.error('Failed to load opening balances', error);
@@ -56,8 +77,8 @@ export const OpeningBalancePage = () => {
   }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
-    fetchBalances();
-  }, [fetchBalances]);
+    fetchBalances(1, pagination.limit);
+  }, [selectedMonth, selectedYear]);
 
   const handleCreateOrUpdate = async () => {
     const amount = parseFloat(formState.amount);
@@ -183,20 +204,28 @@ export const OpeningBalancePage = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Summary Cards */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-4 gap-4">
+            <Card className="bg-purple-50 border-purple-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Carried Forward</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold text-purple-600">
+                ₹{(summary.carriedForward ?? 0).toFixed(2)}
+              </CardContent>
+            </Card>
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Total Opening Balance</CardTitle>
+                <CardTitle className="text-sm text-muted-foreground">Current Month Credit</CardTitle>
               </CardHeader>
-              <CardContent className="text-3xl font-semibold text-blue-600">
-                ₹{totalOpeningBalance.toFixed(2)}
+              <CardContent className="text-2xl font-semibold text-blue-600">
+                ₹{(summary.currentMonthCredit ?? totalOpeningBalance).toFixed(2)}
               </CardContent>
             </Card>
             <Card className="bg-red-50 border-red-200">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-muted-foreground">Total Expenses</CardTitle>
               </CardHeader>
-              <CardContent className="text-3xl font-semibold text-red-600">
+              <CardContent className="text-2xl font-semibold text-red-600">
                 ₹{totalExpenses.toFixed(2)}
               </CardContent>
             </Card>
@@ -204,7 +233,7 @@ export const OpeningBalancePage = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-muted-foreground">Remaining Balance</CardTitle>
               </CardHeader>
-              <CardContent className={`text-3xl font-semibold ${remainingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <CardContent className={`text-2xl font-semibold ${remainingBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 ₹{remainingBalance.toFixed(2)}
               </CardContent>
             </Card>
@@ -266,6 +295,54 @@ export const OpeningBalancePage = () => {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(pagination.limit)}
+                onValueChange={(val) => {
+                  const newLimit = Number(val);
+                  fetchBalances(1, newLimit);
+                }}
+              >
+                <SelectTrigger className="w-[70px] h-8 text-xs">
+                  <SelectValue placeholder={String(pagination.limit)} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="ml-2">
+                Showing {pagination.total > 0 ? ((pagination.page - 1) * pagination.limit) + 1 : 0} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchBalances(pagination.page - 1, pagination.limit)}
+                disabled={!pagination.hasPrevPage || pagination.page <= 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+              </Button>
+              <span className="text-xs">
+                Page {pagination.page} of {pagination.totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchBalances(pagination.page + 1, pagination.limit)}
+                disabled={!pagination.hasNextPage || pagination.page >= pagination.totalPages}
+              >
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
