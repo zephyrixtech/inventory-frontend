@@ -16,7 +16,7 @@ import { supplierService } from '@/services/supplierService';
 import { storeService, type Store } from '@/services/storeService';
 import type { Item, PaginationMeta } from '@/types/backend';
 
-interface PaginationState extends PaginationMeta {}
+type PaginationState = PaginationMeta;
 
 const DEFAULT_PAGINATION: PaginationState = {
   page: 1,

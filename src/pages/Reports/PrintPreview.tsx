@@ -1050,13 +1050,13 @@ const PrintPreview: React.FC = () => {
       const rows = itemRows
         .map((row: any) => `
           <tr>
-            <td>${escapeHtml(row.itemCode || '-')}</td>
-            <td>${escapeHtml(row.itemName || '-')}</td>
             <td>${escapeHtml(row.billNumber || '-')}</td>
+            <td>${escapeHtml(row.itemName || '-')}</td>
             <td>${escapeHtml(row.itemDate ? formatDate(row.itemDate) : '-')}</td>
             <td>${escapeHtml(row.supplierName || '-')}</td>
             <td>${row.quantity ?? 0}</td>
             <td>${row.damagedQuantity ?? 0}</td>
+            <td>${row.availableQuantity ?? Math.max(0, (row.quantity ?? 0) - (row.damagedQuantity ?? 0))}</td>
             <td>₹${(row.unitPrice ?? 0).toFixed(2)}</td>
             <td>₹${(row.totalAmount ?? 0).toFixed(2)}</td>
             <td>₹${(row.paidAmount ?? 0).toFixed(2)}</td>
@@ -1114,13 +1114,13 @@ const PrintPreview: React.FC = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Item ID</th>
-                  <th>Item Name</th>
                   <th>Bill Number</th>
+                  <th>Item Name</th>
                   <th>Item Date</th>
                   <th>Supplier</th>
                   <th>Quantity</th>
                   <th>Damaged Qty</th>
+                  <th>Available Qty</th>
                   <th>Unit Price</th>
                   <th>Total Amount</th>
                   <th>Paid Amount</th>
@@ -1909,13 +1909,13 @@ const PrintPreview: React.FC = () => {
                           )}
                            {selectedReportType === 'item' && (
                              <>
-                               <td className="py-3 px-4 text-gray-800 text-sm">{item.itemCode || '-'}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm font-medium">{item.billNumber || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.itemName || '-'}</td>
-                               <td className="py-3 px-4 text-gray-800 text-sm">{item.billNumber || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.itemDate ? formatDate(item.itemDate) : '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.supplierName || '-'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.quantity ?? 0}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">{item.damagedQuantity ?? 0}</td>
+                               <td className="py-3 px-4 text-gray-800 text-sm">{item.availableQuantity ?? Math.max(0, (item.quantity ?? 0) - (item.damagedQuantity ?? 0))}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">₹{item.unitPrice?.toFixed(2) || '0.00'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
                                <td className="py-3 px-4 text-gray-800 text-sm">₹{item.paidAmount?.toFixed(2) || '0.00'}</td>

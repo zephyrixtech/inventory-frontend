@@ -61,6 +61,7 @@ type Supply = {
   price: number;
   availableStock?: number;
   styleNumbers?: string[];
+  image?: string;
 };
 
 // Schema for invoice items
@@ -74,6 +75,7 @@ const invoiceItemSchema = z.object({
   total: z.number().min(0, 'Total cannot be negative'),
   availableStock: z.number().min(0).optional(),
   styleNumbers: z.array(z.string()).optional(),
+  image: z.string().optional(),
 }).refine(
   (data) => data.quantity <= (data.availableStock ?? Infinity),
   { message: 'Quantity exceeds available stock', path: ['quantity'] }
@@ -104,6 +106,7 @@ interface InvoiceItem {
   vat?: number;
   availableStock?: number;
   styleNumbers?: string[];
+  image?: string;
 }
 
 type Customer = {
@@ -157,6 +160,7 @@ export default function InvoiceEdit() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer>();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
   // const [errors, setErrors] = useState({ customerName: null });
   const containerRef = useRef(null);
 
@@ -304,6 +308,7 @@ export default function InvoiceEdit() {
           const itemIds = invoiceItems.map(item => item.id);
           let stockMap: Record<string, number> = {};
           let priceMap: Record<string, number> = {}; // Store converted prices
+          let imageMap: Record<string, string> = {};
 
           const storeId = typeof invoice.store === 'object' && invoice.store !== null
             ? invoice.store._id
@@ -324,6 +329,11 @@ export default function InvoiceEdit() {
                   const key = `${productId}_${styleNum}`;
                   stockMap[key] = stock.quantity || 0;
                   priceMap[key] = stock.unitPrice || 0; // Store converted unit price
+                  const img = stock.image1 || stock.image2 || stock.packingListDetails?.image1 || stock.packingListDetails?.image2 || (stock.product as any)?.image1 || '';
+                  if (img) {
+                    imageMap[key] = img;
+                    imageMap[productId] = img;
+                  }
                 }
               });
             }
@@ -351,6 +361,7 @@ export default function InvoiceEdit() {
               const key = `${item.id}_${item.styleNumbers?.[0] || ''}`;
               return {
                 ...item,
+                image: imageMap[key] || imageMap[item.id] || '',
                 availableStock: (stockMap[key] ?? 0) + (previousQuantitiesMap[key] || 0),
               };
             }),
@@ -386,6 +397,7 @@ export default function InvoiceEdit() {
                 description: '',
                 price: priceMap[key] || item.unitPrice, // Use converted price if available
                 availableStock: (stockMap[key] ?? 0) + (previousQuantitiesMap[key] || 0),
+                image: imageMap[key] || imageMap[item.id] || '',
               };
             })
           );
@@ -541,6 +553,7 @@ export default function InvoiceEdit() {
         const mappedSupplies: Supply[] = stockResponse.data.map((stock) => {
           const item = stock.product;
           const itemId = item._id || item.id;
+          const img = stock.image1 || stock.image2 || stock.packingListDetails?.image1 || stock.packingListDetails?.image2 || (item as any).image1 || (item as any).images?.[0] || '';
           return {
             id: stock.id || (stock as any)._id,
             productId: itemId,
@@ -549,6 +562,7 @@ export default function InvoiceEdit() {
             price: stock.unitPrice || item.unitPrice || 0, // Use unitPrice from store stock
             availableStock: stock.quantity || 0,
             styleNumbers: stock.styleNumber ? [stock.styleNumber] : [],
+            image: img,
           };
         });
 
@@ -671,6 +685,7 @@ export default function InvoiceEdit() {
       const filteredSupply = filteredSupplies.find(item => item.id === supply.id);
       const availableStock = filteredSupply?.availableStock ?? supply.availableStock ?? 0;
       const convertedPrice = filteredSupply?.price ?? supply.price ?? 0;
+      const image = filteredSupply?.image ?? supply.image ?? '';
 
       return {
         id: supply.productId,
@@ -682,6 +697,7 @@ export default function InvoiceEdit() {
         total: convertedPrice,
         availableStock,
         styleNumbers: supply.styleNumbers || [],
+        image,
       };
     });
 
@@ -1395,21 +1411,43 @@ export default function InvoiceEdit() {
                                   onClick={(e) => e.stopPropagation()}
                                   className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                                 />
-                                <div className="flex-1">
+                                {supply.image ? (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPreviewImage({ url: supply.image!, title: supply.name });
+                                    }}
+                                    className="cursor-pointer hover:ring-2 hover:ring-blue-500 rounded transition-all shrink-0"
+                                    title="Click to view image"
+                                  >
+                                    <img
+                                      src={supply.image}
+                                      alt={supply.name}
+                                      className="w-10 h-10 object-cover rounded border border-gray-200"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-10 h-10 rounded bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+                                    <Package className="h-5 w-5" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <Package className="h-3 w-3 text-gray-400" />
-                                    <p className="font-medium text-gray-900 text-sm">
+                                    <p className="font-medium text-gray-900 text-sm truncate">
                                       {supply.name} {supply.styleNumbers && supply.styleNumbers.length > 0 && `(${supply.styleNumbers.join(', ')})`}
                                     </p>
                                   </div>
-                                  <p className="text-xs text-gray-500 ml-5">{supply.description}</p>
-                                  <p className="text-xs text-gray-500 ml-5">Stock: {supply.availableStock ?? 0}</p>
+                                  <p className="text-xs text-gray-500 truncate">{supply.description}</p>
+                                  <p className="text-xs text-gray-500">Stock: {supply.availableStock ?? 0}</p>
                                   {supply.styleNumbers && supply.styleNumbers.length > 0 && (
-                                    <p className="text-xs text-blue-600 font-semibold ml-5">Style Number: {supply.styleNumbers.join(', ')}</p>
+                                    <p className="text-xs text-blue-600 font-semibold">Style Number: {supply.styleNumbers.join(', ')}</p>
                                   )}
                                 </div>
                               </div>
-                              <div className="text-right ml-4">
+                              <div className="text-right ml-4 shrink-0">
                                 <p className="font-semibold text-blue-600 text-sm">{supply.price.toFixed(2)}</p>
                                 <p className="text-xs text-gray-400">per unit</p>
                               </div>
@@ -1481,6 +1519,9 @@ export default function InvoiceEdit() {
                       <table className="w-full">
                         <thead className="bg-blue-50">
                           <tr>
+                            <th className="px-3 py-2 text-center text-sm font-medium text-blue-800 w-[60px]">
+                              Image
+                            </th>
                             <th className="px-4 py-2 text-left text-sm font-medium text-blue-800 w-[20%]">
                               Item Name
                             </th>
@@ -1512,6 +1553,31 @@ export default function InvoiceEdit() {
                             const field = watchedFields.items[index];
                             return (
                               <tr key={item.id} className="border-t hover:bg-gray-50">
+                                {/* Image */}
+                                <td className="px-3 py-3 align-top text-center">
+                                  {field?.image ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewImage({ url: field.image!, title: field.name })}
+                                      className="inline-block relative group/img rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all focus:outline-none"
+                                      title="Click to view full image"
+                                    >
+                                      <img
+                                        src={field.image}
+                                        alt={field.name}
+                                        className="w-12 h-12 object-cover"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                        }}
+                                      />
+                                    </button>
+                                  ) : (
+                                    <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto text-gray-400">
+                                      <Package className="h-5 w-5" />
+                                    </div>
+                                  )}
+                                </td>
+
                                 {/* Item Name */}
                                 <td className="px-4 py-3 align-top">
                                   <div>
@@ -1762,6 +1828,31 @@ export default function InvoiceEdit() {
                 Yes, Discard
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Product Image Preview Modal */}
+        <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-lg p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-gray-900">
+                {previewImage?.title || 'Product Image'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg border border-gray-100 mt-2">
+              {previewImage?.url ? (
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.title}
+                  className="max-h-[60vh] w-auto max-w-full object-contain rounded-md shadow-sm"
+                />
+              ) : (
+                <div className="py-12 text-gray-400 flex flex-col items-center">
+                  <Package className="h-16 w-16 mb-2" />
+                  <p>No image preview available</p>
+                </div>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

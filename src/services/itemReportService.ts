@@ -9,6 +9,7 @@ export type ItemReportRow = {
   supplierName: string | null;
   quantity: number;
   damagedQuantity: number;
+  availableQuantity: number;
   unitPrice: number;
   totalAmount: number;
   paidAmount: number;

@@ -130,11 +130,15 @@ export interface StoreStock {
     firstName: string;
     lastName: string;
   } | null;
+  image1?: string;
+  image2?: string;
   packingListDetails?: {
     _id?: string;
     shipmentDate?: string;
     cargoNumber?: string;
     styleNumber?: string;
+    image1?: string;
+    image2?: string;
   };
   transmissionData?: {
     originalPriceINR?: number;

@@ -44,7 +44,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { inventoryService } from '@/services/inventoryService';
 import type { Item, PaginationMeta } from '@/types/backend';
 
-interface PaginationState extends PaginationMeta {}
+type PaginationState = PaginationMeta;
 
 type SortOrder = 'asc' | 'desc' | null;
 interface SortConfig {
@@ -177,11 +177,10 @@ export const Inventory = () => {
         return;
       }
 
-      const headers = ['Item Code', 'Item Name', 'Bill Number', 'Vendor', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
+      const headers = ['Bill Number', 'Item Name', 'Vendor', 'Unit Price', 'Quantity', 'Damaged Qty', 'Available Qty', 'Currency', 'Status'];
       const rows = allItems.map((item) => [
-        item.code || '',
-        item.name || '',
         item.billNumber || '',
+        item.name || '',
         item.vendor?.name ?? 'No Vendor',
         item.unitPrice ?? 0,
         item.quantity ?? 0,
@@ -293,13 +292,12 @@ export const Inventory = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead onClick={() => handleSort('code')} className="cursor-pointer">
-                    <div className="flex items-center gap-1">Item Code {sortConfig.field === 'code' ? (sortConfig.order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />}</div>
+                  <TableHead onClick={() => handleSort('billNumber')} className="cursor-pointer">
+                    <div className="flex items-center gap-1">Bill Number {sortConfig.field === 'billNumber' ? (sortConfig.order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />}</div>
                   </TableHead>
                   <TableHead onClick={() => handleSort('name')} className="cursor-pointer">
                     <div className="flex items-center gap-1">Item Name {sortConfig.field === 'name' ? (sortConfig.order === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />}</div>
                   </TableHead>
-                  <TableHead>Bill Number</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Quantity</TableHead>
@@ -312,13 +310,13 @@ export const Inventory = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Loading inventory...
                     </TableCell>
                   </TableRow>
                 ) : sortedInventory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No items found.
                     </TableCell>
                   </TableRow>
@@ -327,9 +325,8 @@ export const Inventory = () => {
                     const itemId = item.id || item._id;
                     return (
                     <TableRow key={itemId}>
-                      <TableCell>{item.code}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.billNumber || '-'}</TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.vendor?.name ?? 'No Vendor'}</TableCell>
                       <TableCell>{item.unitPrice ?? '-'}</TableCell>
                       <TableCell>{item.quantity ?? 0}</TableCell>

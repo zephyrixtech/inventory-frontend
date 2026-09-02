@@ -199,13 +199,13 @@ interface DailyExpenseReport {
 interface ItemReport {
   title: string;
   headers: readonly [
-    'Item ID',
-    'Item Name',
     'Bill Number',
+    'Item Name',
     'Item Date',
     'Supplier',
     'Quantity',
     'Damaged Qty',
+    'Available Qty',
     'Unit Price',
     'Total Amount',
     'Paid Amount',
@@ -554,13 +554,13 @@ const Reports: React.FC = () => {
     'item': {
       title: 'Item Report',
       headers: [
-        'Item ID',
-        'Item Name',
         'Bill Number',
+        'Item Name',
         'Item Date',
         'Supplier',
         'Quantity',
         'Damaged Qty',
+        'Available Qty',
         'Unit Price',
         'Total Amount',
         'Paid Amount',
@@ -2461,13 +2461,13 @@ const Reports: React.FC = () => {
         } else if (selectedReportType === 'item') {
           const itemRow = item as unknown as ItemReportRow;
           return [
-            `"${String(itemRow.itemCode || '').replace(/\"/g, '""')}"`,
-            `"${String(itemRow.itemName || '').replace(/\"/g, '""')}"`,
             `"${String(itemRow.billNumber || '').replace(/\"/g, '""')}"`,
+            `"${String(itemRow.itemName || '').replace(/\"/g, '""')}"`,
             `"${itemRow.itemDate ? format(new Date(itemRow.itemDate), 'dd MMM yyyy') : '-'}"`,
             `"${String(itemRow.supplierName || '').replace(/\"/g, '""')}"`,
             `"${itemRow.quantity ?? 0}"`,
             `"${itemRow.damagedQuantity ?? 0}"`,
+            `"${itemRow.availableQuantity ?? Math.max(0, (itemRow.quantity ?? 0) - (itemRow.damagedQuantity ?? 0))}"`,
             `"${(itemRow.unitPrice ?? 0).toFixed(2)}"`,
             `"${(itemRow.totalAmount ?? 0).toFixed(2)}"`,
             `"${(itemRow.paidAmount ?? 0).toFixed(2)}"`,
@@ -3955,8 +3955,8 @@ const Reports: React.FC = () => {
                                 <TableCell className="py-3"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
-                                <TableCell><div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div></TableCell>
+                                <TableCell><div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div></TableCell>
                                 <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
@@ -3976,13 +3976,13 @@ const Reports: React.FC = () => {
                                 key={row.itemId || index}
                                 className={`hover:bg-blue-50 transition-colors duration-150 border-b border-gray-100 ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
                               >
-                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{row.itemCode || '-'}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3 font-medium">{row.billNumber || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.itemName || '-'}</TableCell>
-                                <TableCell className="text-gray-700 px-4 py-3">{row.billNumber || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.itemDate ? format(new Date(row.itemDate), 'dd MMM yyyy') : '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.supplierName || '-'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.quantity ?? 0}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">{row.damagedQuantity ?? 0}</TableCell>
+                                <TableCell className="text-gray-700 px-4 py-3">{row.availableQuantity ?? Math.max(0, (row.quantity ?? 0) - (row.damagedQuantity ?? 0))}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">₹{row.unitPrice?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">₹{row.totalAmount?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell className="text-gray-700 px-4 py-3">₹{row.paidAmount?.toFixed(2) || '0.00'}</TableCell>
